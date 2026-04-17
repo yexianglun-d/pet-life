@@ -1,15 +1,16 @@
 package com.petlife.server.modules.auth.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.petlife.server.bootstrap.devsupport.BootstrapMemoryStore;
 import com.petlife.server.common.response.ApiResponse;
 import com.petlife.server.common.response.ResponseCode;
+import com.petlife.server.modules.auth.token.AccessTokenRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -28,14 +29,14 @@ public class DevelopmentTokenAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
-    private final BootstrapMemoryStore bootstrapMemoryStore;
+    private final AccessTokenRepository accessTokenRepository;
     private final ObjectMapper objectMapper;
 
     public DevelopmentTokenAuthenticationFilter(
-        BootstrapMemoryStore bootstrapMemoryStore,
+        AccessTokenRepository accessTokenRepository,
         ObjectMapper objectMapper
     ) {
-        this.bootstrapMemoryStore = bootstrapMemoryStore;
+        this.accessTokenRepository = accessTokenRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -54,12 +55,18 @@ public class DevelopmentTokenAuthenticationFilter extends OncePerRequestFilter {
         FilterChain filterChain
     ) throws ServletException, IOException {
         String accessToken = resolveAccessToken(request);
-        if (bootstrapMemoryStore.findUserIdByAccessToken(accessToken).isEmpty()) {
+        Optional<Long> userId = accessTokenRepository.findUserIdByAccessToken(accessToken);
+        if (userId.isEmpty()) {
             writeUnauthorizedResponse(response);
             return;
         }
 
-        filterChain.doFilter(request, response);
+        try {
+            CurrentUserContext.setUserId(userId.get());
+            filterChain.doFilter(request, response);
+        } finally {
+            CurrentUserContext.clear();
+        }
     }
 
     private String resolveAccessToken(HttpServletRequest request) {

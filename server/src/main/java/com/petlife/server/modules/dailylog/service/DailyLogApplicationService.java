@@ -1,11 +1,21 @@
 package com.petlife.server.modules.dailylog.service;
 
-import com.petlife.server.bootstrap.devsupport.BootstrapMemoryStore;
-import com.petlife.server.bootstrap.devsupport.model.DevDailyLog;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.petlife.server.common.exception.BusinessException;
+import com.petlife.server.common.response.ResponseCode;
+import com.petlife.server.common.time.DateTimeConverters;
+import com.petlife.server.modules.auth.security.CurrentUserContext;
+import com.petlife.server.modules.dailylog.persistence.DailyLogPersistenceMapper;
+import com.petlife.server.modules.dailylog.persistence.record.DailyLogPersistenceRecord;
 import com.petlife.server.modules.dailylog.dto.request.CreateDailyLogRequest;
 import com.petlife.server.modules.dailylog.dto.response.DailyLogResponse;
+import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 萌宠日常应用服务。
@@ -16,38 +26,83 @@ import org.springframework.stereotype.Service;
 @Service
 public class DailyLogApplicationService {
 
-    private final BootstrapMemoryStore bootstrapMemoryStore;
+    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
+    };
 
-    public DailyLogApplicationService(BootstrapMemoryStore bootstrapMemoryStore) {
-        this.bootstrapMemoryStore = bootstrapMemoryStore;
+    private final DailyLogPersistenceMapper dailyLogPersistenceMapper;
+    private final PetPersistenceMapper petPersistenceMapper;
+    private final ObjectMapper objectMapper;
+
+    public DailyLogApplicationService(
+        DailyLogPersistenceMapper dailyLogPersistenceMapper,
+        PetPersistenceMapper petPersistenceMapper,
+        ObjectMapper objectMapper
+    ) {
+        this.dailyLogPersistenceMapper = dailyLogPersistenceMapper;
+        this.petPersistenceMapper = petPersistenceMapper;
+        this.objectMapper = objectMapper;
     }
 
     public List<DailyLogResponse> listDailyLogs(Long petId) {
-        return bootstrapMemoryStore.listDailyLogs(petId).stream()
+        requireAccessiblePet(petId);
+        return dailyLogPersistenceMapper.listDailyLogsByPetId(petId).stream()
             .map(this::toDailyLogResponse)
             .toList();
     }
 
+    @Transactional
     public DailyLogResponse createDailyLog(Long petId, CreateDailyLogRequest request) {
-        DevDailyLog dailyLog = bootstrapMemoryStore.createDailyLog(
+        Long currentUserId = CurrentUserContext.requireUserId();
+        requireAccessiblePet(petId);
+        dailyLogPersistenceMapper.insertDailyLog(
             petId,
+            currentUserId,
             request.content(),
-            request.tags() == null ? List.of() : request.tags(),
+            toJson(request.tags() == null ? List.of() : request.tags()),
             request.visibility(),
-            request.happenedAt()
+            DateTimeConverters.toLocalDateTime(request.happenedAt(), LocalDateTime.now())
         );
+        DailyLogPersistenceRecord dailyLog =
+            dailyLogPersistenceMapper.findDailyLogById(dailyLogPersistenceMapper.selectLastInsertId());
         return toDailyLogResponse(dailyLog);
     }
 
-    private DailyLogResponse toDailyLogResponse(DevDailyLog dailyLog) {
+    private void requireAccessiblePet(Long petId) {
+        Long currentUserId = CurrentUserContext.requireUserId();
+        if (petPersistenceMapper.findAccessiblePetById(currentUserId, petId) == null) {
+            throw new BusinessException(ResponseCode.PET_NOT_FOUND);
+        }
+    }
+
+    private DailyLogResponse toDailyLogResponse(DailyLogPersistenceRecord dailyLog) {
         return new DailyLogResponse(
             String.valueOf(dailyLog.dailyLogId()),
             String.valueOf(dailyLog.petId()),
             dailyLog.content(),
-            dailyLog.tags(),
+            fromJson(dailyLog.tagsJson()),
             dailyLog.visibility(),
-            dailyLog.happenedAt(),
-            dailyLog.createdAt()
+            DateTimeConverters.toOffsetDateTime(dailyLog.happenedAt()),
+            DateTimeConverters.toOffsetDateTime(dailyLog.createdAt())
         );
+    }
+
+    private String toJson(List<String> tags) {
+        try {
+            return objectMapper.writeValueAsString(tags);
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "萌宠日常标签格式不合法");
+        }
+    }
+
+    private List<String> fromJson(String tagsJson) {
+        if (tagsJson == null || tagsJson.isBlank()) {
+            return List.of();
+        }
+
+        try {
+            return objectMapper.readValue(tagsJson, STRING_LIST_TYPE);
+        } catch (JsonProcessingException ex) {
+            return List.of();
+        }
     }
 }

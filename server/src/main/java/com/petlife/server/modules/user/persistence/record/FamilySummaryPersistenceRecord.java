@@ -1,14 +1,14 @@
-package com.petlife.server.bootstrap.devsupport.model;
+package com.petlife.server.modules.user.persistence.record;
 
 /**
- * 开发期家庭摘要模型。
+ * 用户家庭摘要持久化记录。
  *
  * @param familyId 家庭 ID
  * @param familyName 家庭名称
- * @param memberCount 家庭成员数
+ * @param memberCount 成员数量
  * @param role 当前用户在家庭中的角色
  */
-public record DevFamilySummary(
+public record FamilySummaryPersistenceRecord(
     Long familyId,
     String familyName,
     Integer memberCount,

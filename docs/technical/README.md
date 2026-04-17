@@ -13,7 +13,9 @@
 3. [03-ddl-draft.sql](./03-ddl-draft.sql)
    MySQL 8 DDL 草案，覆盖核心业务表、技术支撑表、索引、唯一约束和关键外键关系。
 4. [04-execution-plan.md](./04-execution-plan.md)
-   技术实施计划，包含建设主线、阶段拆分、任务清单、验收标准、测试计划、交付检查点和 DDL 迁移批次建议。
+   技术实施计划，包含建设主线、阶段拆分、任务清单、验收标准、测试计划、交付检查点和数据库接入建议。
+5. [05-persistence-integration.md](./05-persistence-integration.md)
+   数据库唯一数据源说明、MyBatis 持久化边界、运行配置与当前验证结果。
 
 ## 与产品文档的关系
 

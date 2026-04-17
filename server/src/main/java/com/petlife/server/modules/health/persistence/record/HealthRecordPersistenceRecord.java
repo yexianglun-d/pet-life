@@ -1,29 +1,27 @@
-package com.petlife.server.bootstrap.devsupport.model;
+package com.petlife.server.modules.health.persistence.record;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
 /**
- * 开发期健康记录模型。
+ * 健康记录持久化记录。
  *
  * @param healthRecordId 健康记录 ID
  * @param petId 宠物 ID
+ * @param operatorUserId 操作人用户 ID
  * @param recordType 记录类型
  * @param title 记录标题
- * @param value 数值
- * @param unit 单位
  * @param occurredAt 发生时间
  * @param notes 备注
  * @param createdAt 创建时间
  */
-public record DevHealthRecord(
+public record HealthRecordPersistenceRecord(
     Long healthRecordId,
     Long petId,
+    Long operatorUserId,
     String recordType,
     String title,
-    String value,
-    String unit,
-    OffsetDateTime occurredAt,
+    LocalDateTime occurredAt,
     String notes,
-    OffsetDateTime createdAt
+    LocalDateTime createdAt
 ) {
 }

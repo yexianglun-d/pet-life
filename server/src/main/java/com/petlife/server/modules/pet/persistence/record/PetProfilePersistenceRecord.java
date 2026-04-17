@@ -1,34 +1,38 @@
-package com.petlife.server.bootstrap.devsupport.model;
+package com.petlife.server.modules.pet.persistence.record;
 
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
 /**
- * 开发期宠物模型。
+ * 宠物主档持久化记录。
  *
  * @param petId 宠物 ID
+ * @param familyId 家庭 ID
+ * @param ownerUserId 主要拥有者用户 ID
  * @param petName 宠物名称
  * @param petType 宠物类型
  * @param breed 品种
  * @param gender 性别
- * @param birthday 生日
+ * @param birthday 出生日期
  * @param adoptDate 到家日期
- * @param neuterStatus 绝育状态
+ * @param neuterStatus 绝育状态：0-否 1-是
  * @param avatarUrl 头像地址
  * @param createdAt 创建时间
  * @param updatedAt 更新时间
  */
-public record DevPetProfile(
+public record PetProfilePersistenceRecord(
     Long petId,
+    Long familyId,
+    Long ownerUserId,
     String petName,
     String petType,
     String breed,
     String gender,
     LocalDate birthday,
     LocalDate adoptDate,
-    String neuterStatus,
+    Integer neuterStatus,
     String avatarUrl,
-    OffsetDateTime createdAt,
-    OffsetDateTime updatedAt
+    LocalDateTime createdAt,
+    LocalDateTime updatedAt
 ) {
 }
