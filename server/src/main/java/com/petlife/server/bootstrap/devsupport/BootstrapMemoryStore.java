@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -45,6 +46,7 @@ public class BootstrapMemoryStore {
     private final ConcurrentMap<Long, DevHealthRecord> healthRecordStore;
     private final ConcurrentMap<Long, DevReminder> reminderStore;
     private final ConcurrentMap<Long, DevDailyLog> dailyLogStore;
+    private final ConcurrentMap<String, Long> accessTokenStore;
 
     public BootstrapMemoryStore() {
         this.petIdSequence = new AtomicLong(DEFAULT_LAST_PET_ID);
@@ -55,6 +57,7 @@ public class BootstrapMemoryStore {
         this.healthRecordStore = new ConcurrentHashMap<>();
         this.reminderStore = new ConcurrentHashMap<>();
         this.dailyLogStore = new ConcurrentHashMap<>();
+        this.accessTokenStore = new ConcurrentHashMap<>();
         this.userReference = new AtomicReference<>();
         this.familyReference = new AtomicReference<>();
         reset();
@@ -68,8 +71,22 @@ public class BootstrapMemoryStore {
         return familyReference.get();
     }
 
-    public String generateToken() {
+    public String issueAccessToken(Long userId) {
+        String accessToken = UUID.randomUUID().toString().replace("-", "");
+        accessTokenStore.put(accessToken, userId);
+        return accessToken;
+    }
+
+    public String generateRefreshToken() {
         return UUID.randomUUID().toString().replace("-", "");
+    }
+
+    public Optional<Long> findUserIdByAccessToken(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            return Optional.empty();
+        }
+
+        return Optional.ofNullable(accessTokenStore.get(accessToken));
     }
 
     public List<DevPetProfile> listPets() {
@@ -295,6 +312,7 @@ public class BootstrapMemoryStore {
         healthRecordStore.clear();
         reminderStore.clear();
         dailyLogStore.clear();
+        accessTokenStore.clear();
         petIdSequence.set(DEFAULT_LAST_PET_ID);
         healthRecordIdSequence.set(DEFAULT_LAST_HEALTH_RECORD_ID);
         reminderIdSequence.set(DEFAULT_LAST_REMINDER_ID);

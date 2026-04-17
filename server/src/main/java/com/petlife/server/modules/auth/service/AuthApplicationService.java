@@ -55,8 +55,8 @@ public class AuthApplicationService {
             .toList();
 
         return new AuthLoginSmsResponse(
-            bootstrapMemoryStore.generateToken(),
-            bootstrapMemoryStore.generateToken(),
+            bootstrapMemoryStore.issueAccessToken(userProfile.userId()),
+            bootstrapMemoryStore.generateRefreshToken(),
             toUserResponse(userProfile),
             toFamilySummaryResponse(familySummary),
             pets,

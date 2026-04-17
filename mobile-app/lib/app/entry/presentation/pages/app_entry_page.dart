@@ -45,7 +45,7 @@ class _AppEntryPageState extends State<AppEntryPage> {
         }
 
         if (snapshot.data ?? false) {
-          return const AppShellPage();
+          return AppShellPage(onLogoutCompleted: _refreshSession);
         }
 
         return LoginPage(onLoginSuccess: _refreshSession);

@@ -1,11 +1,13 @@
 package com.petlife.server.config;
 
+import com.petlife.server.modules.auth.security.DevelopmentTokenAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * 当前阶段安全配置。
@@ -18,13 +20,17 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+        HttpSecurity httpSecurity,
+        DevelopmentTokenAuthenticationFilter developmentTokenAuthenticationFilter
+    ) throws Exception {
         httpSecurity
             .csrf(csrf -> csrf.disable())
             .cors(Customizer.withDefaults())
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .addFilterBefore(developmentTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
 
         return httpSecurity.build();

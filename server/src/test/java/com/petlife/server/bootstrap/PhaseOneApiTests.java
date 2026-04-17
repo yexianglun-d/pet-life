@@ -7,14 +7,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.jayway.jsonpath.JsonPath;
 import com.petlife.server.bootstrap.devsupport.BootstrapMemoryStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -49,7 +52,8 @@ class PhaseOneApiTests {
 
     @Test
     void shouldReturnCurrentUser() throws Exception {
-        mockMvc.perform(get("/api/v1/me"))
+        mockMvc.perform(get("/api/v1/me")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.current_pet_id", is("10001")))
             .andExpect(jsonPath("$.data.family_summary.family_name", is("Momo Family")));
@@ -58,6 +62,7 @@ class PhaseOneApiTests {
     @Test
     void shouldCreatePet() throws Exception {
         mockMvc.perform(post("/api/v1/pets")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -79,6 +84,7 @@ class PhaseOneApiTests {
     @Test
     void shouldUpdateCurrentPet() throws Exception {
         mockMvc.perform(patch("/api/v1/me/settings/current-pet")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -92,6 +98,7 @@ class PhaseOneApiTests {
     @Test
     void shouldCreateHealthRecord() throws Exception {
         mockMvc.perform(post("/api/v1/pets/10001/health-records")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -110,7 +117,8 @@ class PhaseOneApiTests {
 
     @Test
     void shouldCompleteReminder() throws Exception {
-        mockMvc.perform(patch("/api/v1/pets/10001/reminders/40001/complete"))
+        mockMvc.perform(patch("/api/v1/pets/10001/reminders/40001/complete")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status", is("completed")))
             .andExpect(jsonPath("$.data.completed_at").exists());
@@ -119,6 +127,7 @@ class PhaseOneApiTests {
     @Test
     void shouldCreateDailyLog() throws Exception {
         mockMvc.perform(post("/api/v1/pets/10001/daily-logs")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -135,10 +144,35 @@ class PhaseOneApiTests {
 
     @Test
     void shouldReturnAggregatedPetSummary() throws Exception {
-        mockMvc.perform(get("/api/v1/pets/10001/summary"))
+        mockMvc.perform(get("/api/v1/pets/10001/summary")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.today_todo_count", is(2)))
             .andExpect(jsonPath("$.data.recent_health_records[0]", is("体重复查")))
             .andExpect(jsonPath("$.data.recent_daily_logs[0]").exists());
+    }
+
+    @Test
+    void shouldRejectProtectedApiWithoutAccessToken() throws Exception {
+        mockMvc.perform(get("/api/v1/me"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+    }
+
+    private String authorizationHeader() throws Exception {
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login/sms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "13800000000",
+                      "code": "123456"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        String responseBody = loginResult.getResponse().getContentAsString();
+        String accessToken = JsonPath.read(responseBody, "$.data.access_token");
+        return "Bearer " + accessToken;
     }
 }

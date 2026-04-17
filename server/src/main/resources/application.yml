@@ -4,9 +4,9 @@ spring:
   jackson:
     property-naming-strategy: SNAKE_CASE
   datasource:
-    url: ${PETLIFE_DATASOURCE_URL:jdbc:mysql://124.70.176.192:3306/pet_life?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
-    username: ${PETLIFE_DATASOURCE_USERNAME:root}
-    password: ${PETLIFE_DATASOURCE_PASSWORD:Abc123!@#}
+    url: ${PETLIFE_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/pet_life?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai}
+    username: ${PETLIFE_DATASOURCE_USERNAME:petlife}
+    password: ${PETLIFE_DATASOURCE_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 # 暂不配置redis
 #  data:
