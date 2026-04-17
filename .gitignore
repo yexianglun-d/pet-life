@@ -1,0 +1,29 @@
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Java
+target/
+.mvn/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Environment
+.env
+.env.*

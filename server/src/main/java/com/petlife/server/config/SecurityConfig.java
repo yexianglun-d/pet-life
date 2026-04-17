@@ -1,0 +1,32 @@
+package com.petlife.server.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+
+/**
+ * 当前阶段安全配置。
+ *
+ * <p>Phase 1 先聚焦接口契约和主链路开发，认证能力通过业务接口自行演进，
+ * 因此这里先关闭默认表单登录和 Basic Auth，避免 Spring Security 的默认行为阻塞联调。
+ * 后续接入 JWT 时，在该配置上继续收紧即可。</p>
+ */
+@Configuration
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+        httpSecurity
+            .csrf(csrf -> csrf.disable())
+            .cors(Customizer.withDefaults())
+            .formLogin(form -> form.disable())
+            .httpBasic(basic -> basic.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
+
+        return httpSecurity.build();
+    }
+}
