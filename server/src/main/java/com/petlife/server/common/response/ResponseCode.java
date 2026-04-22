@@ -15,8 +15,14 @@ public enum ResponseCode {
     RESOURCE_NOT_FOUND("RESOURCE_NOT_FOUND", "resource not found"),
     AUTH_SMS_CODE_INVALID("AUTH_SMS_CODE_INVALID", "sms verification code is invalid"),
     USER_CURRENT_PET_NOT_FOUND("USER_CURRENT_PET_NOT_FOUND", "current pet does not exist"),
+    FAMILY_NOT_FOUND("FAMILY_NOT_FOUND", "family does not exist"),
+    FAMILY_MEMBER_NOT_FOUND("FAMILY_MEMBER_NOT_FOUND", "family member does not exist"),
+    FAMILY_INVITATION_NOT_FOUND("FAMILY_INVITATION_NOT_FOUND", "family invitation does not exist"),
+    FAMILY_ROLE_FORBIDDEN("FAMILY_ROLE_FORBIDDEN", "family role is forbidden"),
     PET_NOT_FOUND("PET_NOT_FOUND", "pet does not exist"),
+    HEALTH_RECORD_NOT_FOUND("HEALTH_RECORD_NOT_FOUND", "health record does not exist"),
     REMINDER_NOT_FOUND("REMINDER_NOT_FOUND", "reminder does not exist"),
+    DAILY_LOG_NOT_FOUND("DAILY_LOG_NOT_FOUND", "daily log does not exist"),
     INTERNAL_SERVER_ERROR("INTERNAL_SERVER_ERROR", "internal server error");
 
     private final String code;

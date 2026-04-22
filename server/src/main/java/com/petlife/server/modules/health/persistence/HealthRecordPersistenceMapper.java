@@ -1,12 +1,17 @@
 package com.petlife.server.modules.health.persistence;
 
-import com.petlife.server.modules.health.persistence.record.HealthRecordPersistenceRecord;
+import com.petlife.server.modules.health.persistence.command.CreateHealthRecordCommand;
+import com.petlife.server.modules.health.persistence.command.DeleteHealthRecordCommand;
+import com.petlife.server.modules.health.persistence.command.UpdateHealthRecordCommand;
+import com.petlife.server.modules.health.persistence.dataobject.HealthRecordDataObject;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 /**
  * 宠物健康记录持久化 Mapper。
@@ -22,6 +27,7 @@ public interface HealthRecordPersistenceMapper {
           record_type AS recordType,
           title AS title,
           occurred_at AS occurredAt,
+          result_summary AS resultSummary,
           notes AS notes,
           created_at AS createdAt
         FROM pet_health_records
@@ -29,7 +35,7 @@ public interface HealthRecordPersistenceMapper {
           AND deleted_at IS NULL
         ORDER BY occurred_at DESC, id DESC
         """)
-    List<HealthRecordPersistenceRecord> listHealthRecordsByPetId(@Param("petId") Long petId);
+    List<HealthRecordDataObject> listHealthRecordsByPetId(@Param("petId") Long petId);
 
     @Select("""
         SELECT
@@ -39,6 +45,7 @@ public interface HealthRecordPersistenceMapper {
           record_type AS recordType,
           title AS title,
           occurred_at AS occurredAt,
+          result_summary AS resultSummary,
           notes AS notes,
           created_at AS createdAt
         FROM pet_health_records
@@ -46,7 +53,29 @@ public interface HealthRecordPersistenceMapper {
           AND deleted_at IS NULL
         LIMIT 1
         """)
-    HealthRecordPersistenceRecord findHealthRecordById(@Param("healthRecordId") Long healthRecordId);
+    HealthRecordDataObject findHealthRecordById(@Param("healthRecordId") Long healthRecordId);
+
+    @Select("""
+        SELECT
+          id AS healthRecordId,
+          pet_id AS petId,
+          operator_user_id AS operatorUserId,
+          record_type AS recordType,
+          title AS title,
+          occurred_at AS occurredAt,
+          result_summary AS resultSummary,
+          notes AS notes,
+          created_at AS createdAt
+        FROM pet_health_records
+        WHERE pet_id = #{petId}
+          AND id = #{healthRecordId}
+          AND deleted_at IS NULL
+        LIMIT 1
+        """)
+    HealthRecordDataObject findHealthRecordByPetIdAndId(
+        @Param("petId") Long petId,
+        @Param("healthRecordId") Long healthRecordId
+    );
 
     @Insert("""
         INSERT INTO pet_health_records (
@@ -57,16 +86,31 @@ public interface HealthRecordPersistenceMapper {
           #{notes}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
         """)
-    int insertHealthRecord(
-        @Param("petId") Long petId,
-        @Param("operatorUserId") Long operatorUserId,
-        @Param("recordType") String recordType,
-        @Param("title") String title,
-        @Param("occurredAt") LocalDateTime occurredAt,
-        @Param("resultSummary") String resultSummary,
-        @Param("notes") String notes
-    );
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    int insertHealthRecord(CreateHealthRecordCommand command);
 
-    @Select("SELECT LAST_INSERT_ID()")
-    Long selectLastInsertId();
+    @Update("""
+        UPDATE pet_health_records
+        SET operator_user_id = #{operatorUserId},
+            record_type = #{recordType},
+            title = #{title},
+            occurred_at = #{occurredAt},
+            result_summary = #{resultSummary},
+            notes = #{notes},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{healthRecordId}
+          AND pet_id = #{petId}
+          AND deleted_at IS NULL
+        """)
+    int updateHealthRecord(UpdateHealthRecordCommand command);
+
+    @Update("""
+        UPDATE pet_health_records
+        SET deleted_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{healthRecordId}
+          AND pet_id = #{petId}
+          AND deleted_at IS NULL
+        """)
+    int deleteHealthRecord(DeleteHealthRecordCommand command);
 }

@@ -16,6 +16,8 @@
    技术实施计划，包含建设主线、阶段拆分、任务清单、验收标准、测试计划、交付检查点和数据库接入建议。
 5. [05-persistence-integration.md](./05-persistence-integration.md)
    数据库唯一数据源说明、MyBatis 持久化边界、运行配置与当前验证结果。
+6. [06-server-code-structure.md](./06-server-code-structure.md)
+   服务端分层结构、命名约定、层间边界和注释规范。
 
 ## 与产品文档的关系
 

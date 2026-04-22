@@ -2,24 +2,23 @@ package com.petlife.server.modules.auth.service;
 
 import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
+import com.petlife.server.modules.auth.converter.AuthResponseConverter;
 import com.petlife.server.modules.auth.dto.request.AuthSmsLoginRequest;
 import com.petlife.server.modules.auth.dto.request.AuthSmsSendRequest;
-import com.petlife.server.modules.auth.dto.response.AuthFamilySummaryResponse;
 import com.petlife.server.modules.auth.dto.response.AuthLoginSmsResponse;
 import com.petlife.server.modules.auth.dto.response.AuthPetSummaryResponse;
 import com.petlife.server.modules.auth.dto.response.AuthSmsSendResponse;
-import com.petlife.server.modules.auth.dto.response.AuthUserResponse;
 import com.petlife.server.modules.auth.token.AccessTokenRepository;
 import com.petlife.server.modules.auth.token.IssuedLoginTokens;
+import com.petlife.server.modules.pet.converter.PetEntityConverter;
+import com.petlife.server.modules.pet.domain.entity.PetProfileEntity;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
-import com.petlife.server.modules.pet.persistence.command.CreatePetCommand;
-import com.petlife.server.modules.pet.persistence.record.PetProfilePersistenceRecord;
+import com.petlife.server.modules.user.converter.UserEntityConverter;
+import com.petlife.server.modules.user.domain.entity.FamilySummaryEntity;
+import com.petlife.server.modules.user.domain.entity.UserProfileEntity;
+import com.petlife.server.modules.user.service.UserBootstrapApplicationService;
 import com.petlife.server.modules.user.persistence.UserPersistenceMapper;
-import com.petlife.server.modules.user.persistence.command.CreateFamilyCommand;
 import com.petlife.server.modules.user.persistence.command.CreateUserCommand;
-import com.petlife.server.modules.user.persistence.record.FamilySummaryPersistenceRecord;
-import com.petlife.server.modules.user.persistence.record.UserProfilePersistenceRecord;
-import java.time.LocalDate;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,15 +39,27 @@ public class AuthApplicationService {
     private final AccessTokenRepository accessTokenRepository;
     private final UserPersistenceMapper userPersistenceMapper;
     private final PetPersistenceMapper petPersistenceMapper;
+    private final UserEntityConverter userEntityConverter;
+    private final PetEntityConverter petEntityConverter;
+    private final AuthResponseConverter authResponseConverter;
+    private final UserBootstrapApplicationService userBootstrapApplicationService;
 
     public AuthApplicationService(
         AccessTokenRepository accessTokenRepository,
         UserPersistenceMapper userPersistenceMapper,
-        PetPersistenceMapper petPersistenceMapper
+        PetPersistenceMapper petPersistenceMapper,
+        UserEntityConverter userEntityConverter,
+        PetEntityConverter petEntityConverter,
+        AuthResponseConverter authResponseConverter,
+        UserBootstrapApplicationService userBootstrapApplicationService
     ) {
         this.accessTokenRepository = accessTokenRepository;
         this.userPersistenceMapper = userPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
+        this.userEntityConverter = userEntityConverter;
+        this.petEntityConverter = petEntityConverter;
+        this.authResponseConverter = authResponseConverter;
+        this.userBootstrapApplicationService = userBootstrapApplicationService;
     }
 
     public AuthSmsSendResponse sendSmsCode(AuthSmsSendRequest request) {
@@ -66,59 +77,32 @@ public class AuthApplicationService {
             throw new BusinessException(ResponseCode.AUTH_SMS_CODE_INVALID);
         }
 
-        UserProfilePersistenceRecord userProfile = ensureUserProfile(request.mobile());
-        FamilySummaryPersistenceRecord familySummary = ensurePrimaryFamily(userProfile);
-        userPersistenceMapper.insertUserSettingsIfAbsent(userProfile.userId());
-        ensureDefaultPetIfNecessary(userProfile, familySummary);
-        userProfile = userPersistenceMapper.findUserProfileById(userProfile.userId());
+        UserProfileEntity userProfile = ensureUserProfile(request.mobile());
+        // 登录成功后必须保证用户已经拥有可访问家庭和可用当前宠物，避免后续 `/me` 读取出现脏引用。
+        FamilySummaryEntity familySummary =
+            userBootstrapApplicationService.ensurePrimaryFamilyAndCurrentPet(userProfile.getUserId());
+        userProfile = userEntityConverter.toEntity(userPersistenceMapper.findUserProfileById(userProfile.getUserId()));
 
-        List<AuthPetSummaryResponse> pets = petPersistenceMapper.listPetsByUserId(userProfile.userId()).stream()
-            .map(this::toPetSummary)
+        List<AuthPetSummaryResponse> pets = petPersistenceMapper.listPetsByUserId(userProfile.getUserId()).stream()
+            .map(petEntityConverter::toEntity)
+            .map(authResponseConverter::toPetSummary)
             .toList();
-        IssuedLoginTokens issuedLoginTokens = accessTokenRepository.issueLoginTokens(userProfile.userId());
+        IssuedLoginTokens issuedLoginTokens = accessTokenRepository.issueLoginTokens(userProfile.getUserId());
 
         return new AuthLoginSmsResponse(
             issuedLoginTokens.accessToken(),
             issuedLoginTokens.refreshToken(),
-            toUserResponse(userProfile),
-            toFamilySummaryResponse(familySummary),
+            authResponseConverter.toUserResponse(userProfile),
+            authResponseConverter.toFamilySummaryResponse(familySummary),
             pets,
-            userProfile.currentPetId() == null ? null : String.valueOf(userProfile.currentPetId())
+            userProfile.getCurrentPetId() == null ? null : String.valueOf(userProfile.getCurrentPetId())
         );
     }
 
-    public AuthUserResponse toUserResponse(UserProfilePersistenceRecord userProfile) {
-        return new AuthUserResponse(
-            String.valueOf(userProfile.userId()),
-            userProfile.mobile(),
-            userProfile.nickname(),
-            userProfile.cityCode(),
-            userProfile.cityName()
-        );
-    }
-
-    public AuthFamilySummaryResponse toFamilySummaryResponse(FamilySummaryPersistenceRecord familySummary) {
-        return new AuthFamilySummaryResponse(
-            String.valueOf(familySummary.familyId()),
-            familySummary.familyName(),
-            familySummary.memberCount(),
-            familySummary.role()
-        );
-    }
-
-    public AuthPetSummaryResponse toPetSummary(PetProfilePersistenceRecord petProfile) {
-        return new AuthPetSummaryResponse(
-            String.valueOf(petProfile.petId()),
-            petProfile.petName(),
-            petProfile.petType(),
-            petProfile.breed()
-        );
-    }
-
-    private UserProfilePersistenceRecord ensureUserProfile(String mobile) {
-        UserProfilePersistenceRecord existingUser = userPersistenceMapper.findUserProfileByMobile(mobile);
+    private UserProfileEntity ensureUserProfile(String mobile) {
+        UserProfileEntity existingUser = userEntityConverter.toEntity(userPersistenceMapper.findUserProfileByMobile(mobile));
         if (existingUser != null) {
-            userPersistenceMapper.updateLastLoginAt(existingUser.userId());
+            userPersistenceMapper.updateLastLoginAt(existingUser.getUserId());
             return existingUser;
         }
 
@@ -128,47 +112,6 @@ public class AuthApplicationService {
         command.setCityCode("310100");
         command.setCityName("上海");
         userPersistenceMapper.insertUser(command);
-        return userPersistenceMapper.findUserProfileById(command.getId());
-    }
-
-    private FamilySummaryPersistenceRecord ensurePrimaryFamily(UserProfilePersistenceRecord userProfile) {
-        FamilySummaryPersistenceRecord existingFamily =
-            userPersistenceMapper.findPrimaryFamilySummaryByUserId(userProfile.userId());
-        if (existingFamily != null) {
-            return existingFamily;
-        }
-
-        CreateFamilyCommand command = new CreateFamilyCommand();
-        command.setOwnerUserId(userProfile.userId());
-        command.setFamilyName(userProfile.nickname() + "的家庭");
-        userPersistenceMapper.insertFamily(command);
-        userPersistenceMapper.insertFamilyMember(command.getId(), userProfile.userId(), "owner");
-        return userPersistenceMapper.findPrimaryFamilySummaryByUserId(userProfile.userId());
-    }
-
-    private void ensureDefaultPetIfNecessary(
-        UserProfilePersistenceRecord userProfile,
-        FamilySummaryPersistenceRecord familySummary
-    ) {
-        List<PetProfilePersistenceRecord> pets = petPersistenceMapper.listPetsByUserId(userProfile.userId());
-        if (pets.isEmpty()) {
-            CreatePetCommand command = new CreatePetCommand();
-            command.setFamilyId(familySummary.familyId());
-            command.setOwnerUserId(userProfile.userId());
-            command.setPetName(DEVELOPMENT_MOBILE.equals(userProfile.mobile()) ? "Momo" : "宠物宝宝");
-            command.setPetType("cat");
-            command.setBreed("British Shorthair");
-            command.setGender("female");
-            command.setBirthday(LocalDate.of(2023, 5, 20));
-            command.setAdoptDate(LocalDate.of(2023, 8, 1));
-            command.setNeuterStatus(1);
-            petPersistenceMapper.insertPet(command);
-            userPersistenceMapper.updateCurrentPet(userProfile.userId(), command.getId());
-            return;
-        }
-
-        if (userProfile.currentPetId() == null) {
-            userPersistenceMapper.updateCurrentPet(userProfile.userId(), pets.get(0).petId());
-        }
+        return userEntityConverter.toEntity(userPersistenceMapper.findUserProfileById(command.getId()));
     }
 }

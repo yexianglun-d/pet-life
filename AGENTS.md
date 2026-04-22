@@ -28,6 +28,41 @@
 6. Keep deferred capabilities behind explicit placeholders or reserved interfaces. Do not expose half-finished backend chains.
 7. All UI implementation in `mobile-app` and `admin-web` must follow `DESIGN.md`.
 
+## Server Code Structure
+
+Implemented server modules must follow this package layout:
+
+- `controller`: interface layer, only receive request DTO and return response DTO.
+- `dto.request`: request models.
+- `dto.response`: response models.
+- `service`: application service orchestration layer.
+- `domain.entity`: stable business entity models.
+- `converter`: conversion between `DataObject`, `Entity` and response DTO.
+- `persistence`: MyBatis Mapper interfaces.
+- `persistence.dataobject`: persistence read models.
+- `persistence.command`: persistence write command models.
+
+## Java Type Naming Rules
+
+- Controller classes: `*Controller`
+- Application services: `*ApplicationService`
+- Domain entities: `*Entity`
+- Persistence read models: `*DataObject`
+- Persistence write commands: `*Command`
+- MyBatis mappers: `*PersistenceMapper`
+- Request DTO: `*Request`
+- Response DTO: `*Response`
+- Cross-module view converters: `*Converter`
+
+## Layer Boundary Rules
+
+1. `controller` must not directly depend on `persistence`.
+2. `service` must not expose `DataObject` to controllers or clients.
+3. `persistence` only returns `DataObject` or accepts `Command`; it must not return response DTO.
+4. `converter` is the only layer allowed to translate between `DataObject` and `Entity`, or `Entity` and response DTO.
+5. Cross-module response reuse must be handled by converters, not by one application service calling another service's private view assembly logic.
+6. Core business rules, default initialization, state normalization and non-obvious mapping logic must include concise Javadoc or block comments.
+
 ## Design Baseline
 
 - UI design guideline file: `DESIGN.md`

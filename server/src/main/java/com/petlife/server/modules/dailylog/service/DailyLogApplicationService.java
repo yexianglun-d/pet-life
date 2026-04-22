@@ -1,18 +1,23 @@
 package com.petlife.server.modules.dailylog.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
 import com.petlife.server.common.time.DateTimeConverters;
 import com.petlife.server.modules.auth.security.CurrentUserContext;
-import com.petlife.server.modules.dailylog.persistence.DailyLogPersistenceMapper;
-import com.petlife.server.modules.dailylog.persistence.record.DailyLogPersistenceRecord;
+import com.petlife.server.modules.dailylog.converter.DailyLogEntityConverter;
+import com.petlife.server.modules.dailylog.domain.entity.DailyLogEntity;
 import com.petlife.server.modules.dailylog.dto.request.CreateDailyLogRequest;
+import com.petlife.server.modules.dailylog.dto.request.UpdateDailyLogRequest;
 import com.petlife.server.modules.dailylog.dto.response.DailyLogResponse;
+import com.petlife.server.modules.dailylog.persistence.DailyLogPersistenceMapper;
+import com.petlife.server.modules.dailylog.persistence.command.CreateDailyLogCommand;
+import com.petlife.server.modules.dailylog.persistence.command.DeleteDailyLogCommand;
+import com.petlife.server.modules.dailylog.persistence.command.UpdateDailyLogCommand;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
+import com.petlife.server.modules.timeline.service.TimelineApplicationService;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,45 +31,73 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DailyLogApplicationService {
 
-    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
-    };
-
     private final DailyLogPersistenceMapper dailyLogPersistenceMapper;
     private final PetPersistenceMapper petPersistenceMapper;
-    private final ObjectMapper objectMapper;
+    private final DailyLogEntityConverter dailyLogEntityConverter;
+    private final TimelineApplicationService timelineApplicationService;
 
     public DailyLogApplicationService(
         DailyLogPersistenceMapper dailyLogPersistenceMapper,
         PetPersistenceMapper petPersistenceMapper,
-        ObjectMapper objectMapper
+        DailyLogEntityConverter dailyLogEntityConverter,
+        TimelineApplicationService timelineApplicationService
     ) {
         this.dailyLogPersistenceMapper = dailyLogPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
-        this.objectMapper = objectMapper;
+        this.dailyLogEntityConverter = dailyLogEntityConverter;
+        this.timelineApplicationService = timelineApplicationService;
     }
 
     public List<DailyLogResponse> listDailyLogs(Long petId) {
         requireAccessiblePet(petId);
         return dailyLogPersistenceMapper.listDailyLogsByPetId(petId).stream()
-            .map(this::toDailyLogResponse)
+            .map(dailyLogEntityConverter::toEntity)
+            .map(dailyLogEntityConverter::toResponse)
             .toList();
+    }
+
+    public DailyLogResponse getDailyLog(Long petId, Long dailyLogId) {
+        requireAccessiblePet(petId);
+        return dailyLogEntityConverter.toResponse(requireDailyLog(petId, dailyLogId));
     }
 
     @Transactional
     public DailyLogResponse createDailyLog(Long petId, CreateDailyLogRequest request) {
         Long currentUserId = CurrentUserContext.requireUserId();
         requireAccessiblePet(petId);
-        dailyLogPersistenceMapper.insertDailyLog(
-            petId,
-            currentUserId,
-            request.content(),
-            toJson(request.tags() == null ? List.of() : request.tags()),
-            request.visibility(),
-            DateTimeConverters.toLocalDateTime(request.happenedAt(), LocalDateTime.now())
-        );
-        DailyLogPersistenceRecord dailyLog =
-            dailyLogPersistenceMapper.findDailyLogById(dailyLogPersistenceMapper.selectLastInsertId());
-        return toDailyLogResponse(dailyLog);
+        CreateDailyLogCommand command = buildCreateDailyLogCommand(petId, currentUserId, request);
+        dailyLogPersistenceMapper.insertDailyLog(command);
+        DailyLogEntity dailyLog = dailyLogEntityConverter.toEntity(dailyLogPersistenceMapper.findDailyLogById(command.getId()));
+        timelineApplicationService.syncDailyLogEvent(dailyLog);
+        return dailyLogEntityConverter.toResponse(dailyLog);
+    }
+
+    @Transactional
+    public DailyLogResponse updateDailyLog(Long petId, Long dailyLogId, UpdateDailyLogRequest request) {
+        requireAccessiblePet(petId);
+        requireDailyLog(petId, dailyLogId);
+        UpdateDailyLogCommand command = buildUpdateDailyLogCommand(petId, dailyLogId, request);
+        int updatedRows = dailyLogPersistenceMapper.updateDailyLog(command);
+        if (updatedRows == 0) {
+            throw new BusinessException(ResponseCode.DAILY_LOG_NOT_FOUND);
+        }
+        DailyLogEntity dailyLog = requireDailyLog(petId, dailyLogId);
+        timelineApplicationService.syncDailyLogEvent(dailyLog);
+        return dailyLogEntityConverter.toResponse(dailyLog);
+    }
+
+    @Transactional
+    public void deleteDailyLog(Long petId, Long dailyLogId) {
+        requireAccessiblePet(petId);
+        requireDailyLog(petId, dailyLogId);
+        DeleteDailyLogCommand command = new DeleteDailyLogCommand();
+        command.setPetId(petId);
+        command.setDailyLogId(dailyLogId);
+        int updatedRows = dailyLogPersistenceMapper.deleteDailyLog(command);
+        if (updatedRows == 0) {
+            throw new BusinessException(ResponseCode.DAILY_LOG_NOT_FOUND);
+        }
+        timelineApplicationService.deleteDailyLogEvent(petId, dailyLogId);
     }
 
     private void requireAccessiblePet(Long petId) {
@@ -74,35 +107,83 @@ public class DailyLogApplicationService {
         }
     }
 
-    private DailyLogResponse toDailyLogResponse(DailyLogPersistenceRecord dailyLog) {
-        return new DailyLogResponse(
-            String.valueOf(dailyLog.dailyLogId()),
-            String.valueOf(dailyLog.petId()),
-            dailyLog.content(),
-            fromJson(dailyLog.tagsJson()),
-            dailyLog.visibility(),
-            DateTimeConverters.toOffsetDateTime(dailyLog.happenedAt()),
-            DateTimeConverters.toOffsetDateTime(dailyLog.createdAt())
+    private DailyLogEntity requireDailyLog(Long petId, Long dailyLogId) {
+        DailyLogEntity dailyLog = dailyLogEntityConverter.toEntity(
+            dailyLogPersistenceMapper.findDailyLogByPetIdAndId(petId, dailyLogId)
         );
-    }
-
-    private String toJson(List<String> tags) {
-        try {
-            return objectMapper.writeValueAsString(tags);
-        } catch (JsonProcessingException ex) {
-            throw new BusinessException(ResponseCode.BAD_REQUEST, "萌宠日常标签格式不合法");
+        if (dailyLog == null) {
+            throw new BusinessException(ResponseCode.DAILY_LOG_NOT_FOUND);
         }
+        return dailyLog;
     }
 
-    private List<String> fromJson(String tagsJson) {
-        if (tagsJson == null || tagsJson.isBlank()) {
+    private CreateDailyLogCommand buildCreateDailyLogCommand(
+        Long petId,
+        Long authorUserId,
+        CreateDailyLogRequest request
+    ) {
+        CreateDailyLogCommand command = new CreateDailyLogCommand();
+        command.setPetId(petId);
+        command.setAuthorUserId(authorUserId);
+        command.setContent(normalizeContent(request.content()));
+        command.setTagsJson(dailyLogEntityConverter.toTagsJson(normalizeTags(request.tags())));
+        command.setVisibility(normalizeVisibility(request.visibility()));
+        command.setHappenedAt(normalizeHappenedAt(request.happenedAt()));
+        return command;
+    }
+
+    private UpdateDailyLogCommand buildUpdateDailyLogCommand(
+        Long petId,
+        Long dailyLogId,
+        UpdateDailyLogRequest request
+    ) {
+        UpdateDailyLogCommand command = new UpdateDailyLogCommand();
+        command.setPetId(petId);
+        command.setDailyLogId(dailyLogId);
+        command.setContent(normalizeContent(request.content()));
+        command.setTagsJson(dailyLogEntityConverter.toTagsJson(normalizeTags(request.tags())));
+        command.setVisibility(normalizeVisibility(request.visibility()));
+        command.setHappenedAt(normalizeHappenedAt(request.happenedAt()));
+        return command;
+    }
+
+    private String normalizeContent(String content) {
+        String normalizedContent = content == null ? "" : content.trim();
+        if (normalizedContent.isEmpty()) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "日常内容不能为空");
+        }
+        return normalizedContent;
+    }
+
+    /**
+     * 标签会同时参与后续时间轴展示和社区内容组织，应用层先去空白并去重，
+     * 避免同一条日常因为输入噪声沉淀出无意义的重复标签。
+     */
+    private List<String> normalizeTags(List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
             return List.of();
         }
-
-        try {
-            return objectMapper.readValue(tagsJson, STRING_LIST_TYPE);
-        } catch (JsonProcessingException ex) {
-            return List.of();
-        }
+        return tags.stream()
+            .map(tag -> tag == null ? "" : tag.trim())
+            .filter(tag -> !tag.isEmpty())
+            .collect(java.util.stream.Collectors.collectingAndThen(
+                java.util.stream.Collectors.toCollection(LinkedHashSet::new),
+                List::copyOf
+            ));
     }
+
+    private String normalizeVisibility(String visibility) {
+        String normalizedVisibility = visibility == null ? "private" : visibility.trim();
+        if ("private".equals(normalizedVisibility)
+            || "family".equals(normalizedVisibility)
+            || "public".equals(normalizedVisibility)) {
+            return normalizedVisibility;
+        }
+        throw new BusinessException(ResponseCode.BAD_REQUEST, "可见范围仅支持 private、family 或 public");
+    }
+
+    private LocalDateTime normalizeHappenedAt(OffsetDateTime happenedAt) {
+        return DateTimeConverters.toLocalDateTime(happenedAt, LocalDateTime.now());
+    }
+
 }

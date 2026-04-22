@@ -52,6 +52,7 @@
 - 服务端已移除开发期内存适配器，当前以 MySQL 作为唯一数据源。
 - 已补齐 MyBatis 持久化 Mapper 与数据库应用服务实现，登录、当前用户、宠物、健康记录、提醒、萌宠日常都已切到数据库路径。
 - 已将登录态持久化落到 `user_sessions`，数据库只保存会话摘要，不保存客户端原始 token。
+- 已将服务端代码结构收敛为 `controller / dto / service / domain.entity / converter / persistence.dataobject / persistence.command`。
 
 ### 4. 移动端首批主链路已完成
 

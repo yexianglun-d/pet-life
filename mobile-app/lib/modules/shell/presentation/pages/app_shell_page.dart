@@ -113,6 +113,7 @@ class _AppShellPageState extends State<AppShellPage> {
           builder: (_ShellViewData data) => PetIndexPage(
             currentUser: data.currentUser,
             dashboard: data.dashboard,
+            onPetDataChanged: _reloadShellViewData,
           ),
         ),
         _ShellDestination(
@@ -130,6 +131,7 @@ class _AppShellPageState extends State<AppShellPage> {
           icon: Icons.person_outline,
           builder: (_ShellViewData data) => ProfilePage(
             currentUser: data.currentUser,
+            onCurrentUserChanged: _reloadShellViewData,
             onLogoutCompleted: widget.onLogoutCompleted,
           ),
         ),

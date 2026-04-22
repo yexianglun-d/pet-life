@@ -1,7 +1,7 @@
 package com.petlife.server.modules.pet.persistence;
 
 import com.petlife.server.modules.pet.persistence.command.CreatePetCommand;
-import com.petlife.server.modules.pet.persistence.record.PetProfilePersistenceRecord;
+import com.petlife.server.modules.pet.persistence.dataobject.PetProfileDataObject;
 import java.time.LocalDate;
 import java.util.List;
 import org.apache.ibatis.annotations.Insert;
@@ -40,14 +40,59 @@ public interface PetPersistenceMapper {
             OR EXISTS (
               SELECT 1
               FROM family_members fm
+              LEFT JOIN family_invitations latest_invitation
+                ON latest_invitation.id = (
+                  SELECT fi.id
+                  FROM family_invitations fi
+                  WHERE fi.family_id = fm.family_id
+                    AND fi.invitee_user_id = fm.user_id
+                    AND fi.status = 'accepted'
+                  ORDER BY fi.accepted_at DESC, fi.id DESC
+                  LIMIT 1
+                )
               WHERE fm.family_id = p.family_id
                 AND fm.user_id = #{userId}
                 AND fm.invite_status = 'joined'
+                AND (
+                  fm.role = 'owner'
+                  OR latest_invitation.id IS NULL
+                  OR EXISTS (
+                    SELECT 1
+                    FROM JSON_TABLE(
+                      COALESCE(latest_invitation.shared_pet_ids, JSON_ARRAY()),
+                      '$[*]' COLUMNS (shared_pet_id BIGINT PATH '$')
+                    ) shared_pet_scope
+                    WHERE shared_pet_scope.shared_pet_id = p.id
+                  )
+                )
             )
           )
         ORDER BY p.id ASC
         """)
-    List<PetProfilePersistenceRecord> listPetsByUserId(@Param("userId") Long userId);
+    List<PetProfileDataObject> listPetsByUserId(@Param("userId") Long userId);
+
+    @Select("""
+        SELECT
+          p.id AS petId,
+          p.family_id AS familyId,
+          p.owner_user_id AS ownerUserId,
+          p.pet_name AS petName,
+          p.pet_type AS petType,
+          p.breed AS breed,
+          p.gender AS gender,
+          p.birthday AS birthday,
+          p.adopt_date AS adoptDate,
+          p.neuter_status AS neuterStatus,
+          p.avatar_url AS avatarUrl,
+          p.created_at AS createdAt,
+          p.updated_at AS updatedAt
+        FROM pets p
+        WHERE p.family_id = #{familyId}
+          AND p.deleted_at IS NULL
+          AND p.status = 'active'
+        ORDER BY p.id ASC
+        """)
+    List<PetProfileDataObject> listPetsByFamilyId(@Param("familyId") Long familyId);
 
     @Select("""
         SELECT
@@ -70,7 +115,7 @@ public interface PetPersistenceMapper {
           AND p.status = 'active'
         LIMIT 1
         """)
-    PetProfilePersistenceRecord findPetById(@Param("petId") Long petId);
+    PetProfileDataObject findPetById(@Param("petId") Long petId);
 
     @Select("""
         SELECT
@@ -96,14 +141,36 @@ public interface PetPersistenceMapper {
             OR EXISTS (
               SELECT 1
               FROM family_members fm
+              LEFT JOIN family_invitations latest_invitation
+                ON latest_invitation.id = (
+                  SELECT fi.id
+                  FROM family_invitations fi
+                  WHERE fi.family_id = fm.family_id
+                    AND fi.invitee_user_id = fm.user_id
+                    AND fi.status = 'accepted'
+                  ORDER BY fi.accepted_at DESC, fi.id DESC
+                  LIMIT 1
+                )
               WHERE fm.family_id = p.family_id
                 AND fm.user_id = #{userId}
                 AND fm.invite_status = 'joined'
+                AND (
+                  fm.role = 'owner'
+                  OR latest_invitation.id IS NULL
+                  OR EXISTS (
+                    SELECT 1
+                    FROM JSON_TABLE(
+                      COALESCE(latest_invitation.shared_pet_ids, JSON_ARRAY()),
+                      '$[*]' COLUMNS (shared_pet_id BIGINT PATH '$')
+                    ) shared_pet_scope
+                    WHERE shared_pet_scope.shared_pet_id = p.id
+                  )
+                )
             )
           )
         LIMIT 1
         """)
-    PetProfilePersistenceRecord findAccessiblePetById(
+    PetProfileDataObject findAccessiblePetById(
         @Param("userId") Long userId,
         @Param("petId") Long petId
     );
@@ -139,9 +206,31 @@ public interface PetPersistenceMapper {
             OR EXISTS (
               SELECT 1
               FROM family_members fm
+              LEFT JOIN family_invitations latest_invitation
+                ON latest_invitation.id = (
+                  SELECT fi.id
+                  FROM family_invitations fi
+                  WHERE fi.family_id = fm.family_id
+                    AND fi.invitee_user_id = fm.user_id
+                    AND fi.status = 'accepted'
+                  ORDER BY fi.accepted_at DESC, fi.id DESC
+                  LIMIT 1
+                )
               WHERE fm.family_id = pets.family_id
                 AND fm.user_id = #{userId}
                 AND fm.invite_status = 'joined'
+                AND (
+                  fm.role = 'owner'
+                  OR latest_invitation.id IS NULL
+                  OR EXISTS (
+                    SELECT 1
+                    FROM JSON_TABLE(
+                      COALESCE(latest_invitation.shared_pet_ids, JSON_ARRAY()),
+                      '$[*]' COLUMNS (shared_pet_id BIGINT PATH '$')
+                    ) shared_pet_scope
+                    WHERE shared_pet_scope.shared_pet_id = pets.id
+                  )
+                )
             )
           )
         """)

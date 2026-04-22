@@ -2,8 +2,8 @@ package com.petlife.server.modules.user.persistence;
 
 import com.petlife.server.modules.user.persistence.command.CreateFamilyCommand;
 import com.petlife.server.modules.user.persistence.command.CreateUserCommand;
-import com.petlife.server.modules.user.persistence.record.FamilySummaryPersistenceRecord;
-import com.petlife.server.modules.user.persistence.record.UserProfilePersistenceRecord;
+import com.petlife.server.modules.user.persistence.dataobject.FamilySummaryDataObject;
+import com.petlife.server.modules.user.persistence.dataobject.UserProfileDataObject;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
@@ -79,7 +79,7 @@ public interface UserPersistenceMapper {
           AND u.status = 1
         LIMIT 1
         """)
-    UserProfilePersistenceRecord findUserProfileById(@Param("userId") Long userId);
+    UserProfileDataObject findUserProfileById(@Param("userId") Long userId);
 
     @Select("""
         SELECT
@@ -97,7 +97,7 @@ public interface UserPersistenceMapper {
           AND u.status = 1
         LIMIT 1
         """)
-    UserProfilePersistenceRecord findUserProfileByMobile(@Param("mobile") String mobile);
+    UserProfileDataObject findUserProfileByMobile(@Param("mobile") String mobile);
 
     @Select("""
         SELECT
@@ -107,6 +107,11 @@ public interface UserPersistenceMapper {
           current_member.role AS role
         FROM family_members current_member
         JOIN families f ON f.id = current_member.family_id
+        LEFT JOIN user_settings us ON us.user_id = current_member.user_id
+        LEFT JOIN pets current_pet
+          ON current_pet.id = us.current_pet_id
+         AND current_pet.deleted_at IS NULL
+         AND current_pet.status = 'active'
         LEFT JOIN family_members all_members
           ON all_members.family_id = f.id
          AND all_members.invite_status = 'joined'
@@ -114,15 +119,19 @@ public interface UserPersistenceMapper {
           AND current_member.invite_status = 'joined'
           AND f.deleted_at IS NULL
           AND f.status = 1
-        GROUP BY f.id, f.family_name, current_member.role
-        ORDER BY CASE current_member.role
+        GROUP BY f.id, f.family_name, current_member.role, current_member.joined_at
+        ORDER BY CASE
+          WHEN current_pet.family_id = f.id THEN 0
+          ELSE 1
+        END ASC,
+        CASE current_member.role
           WHEN 'owner' THEN 1
           WHEN 'admin' THEN 2
           ELSE 3
-        END ASC, f.id ASC
+        END ASC, current_member.joined_at DESC, f.id ASC
         LIMIT 1
         """)
-    FamilySummaryPersistenceRecord findPrimaryFamilySummaryByUserId(@Param("userId") Long userId);
+    FamilySummaryDataObject findPrimaryFamilySummaryByUserId(@Param("userId") Long userId);
 
     @Update("""
         UPDATE user_settings

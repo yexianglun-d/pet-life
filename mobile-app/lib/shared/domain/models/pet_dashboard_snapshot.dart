@@ -23,16 +23,22 @@ class ReminderSnapshot {
     required this.reminderId,
     required this.reminderType,
     required this.title,
+    required this.reminderMode,
     required this.dueAt,
     required this.status,
+    this.cycleValue,
+    this.cycleUnit,
     this.notes,
   });
 
   final String reminderId;
   final String reminderType;
   final String title;
+  final String reminderMode;
   final DateTime dueAt;
   final String status;
+  final int? cycleValue;
+  final String? cycleUnit;
   final String? notes;
 }
 
@@ -46,6 +52,7 @@ class HealthRecordSnapshot {
     this.value,
     this.unit,
     this.notes,
+    this.createdAt,
   });
 
   final String healthRecordId;
@@ -55,6 +62,7 @@ class HealthRecordSnapshot {
   final String? value;
   final String? unit;
   final String? notes;
+  final DateTime? createdAt;
 }
 
 /// 萌宠日常快照。
@@ -65,6 +73,7 @@ class DailyLogSnapshot {
     required this.tags,
     required this.visibility,
     required this.happenedAt,
+    this.createdAt,
   });
 
   final String dailyLogId;
@@ -72,4 +81,5 @@ class DailyLogSnapshot {
   final List<String> tags;
   final String visibility;
   final DateTime happenedAt;
+  final DateTime? createdAt;
 }

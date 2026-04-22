@@ -223,11 +223,23 @@
 }
 ```
 
-## 3.9 修改成员角色
+## 3.9 查看家庭邀请
+
+`GET /family/invitations/{invite_code}`
+
+## 3.10 接受家庭邀请
+
+`POST /family/invitations/{invite_code}/accept`
+
+## 3.11 拒绝家庭邀请
+
+`POST /family/invitations/{invite_code}/reject`
+
+## 3.12 修改成员角色
 
 `PATCH /family/members/{member_id}/role`
 
-## 3.10 移除家庭成员
+## 3.13 移除家庭成员
 
 `DELETE /family/members/{member_id}`
 
@@ -256,30 +268,59 @@
 }
 ```
 
-## 4.3 获取提醒列表
+## 4.3 获取健康记录详情
+
+`GET /pets/{pet_id}/health-records/{health_record_id}`
+
+## 4.4 编辑健康记录
+
+`PATCH /pets/{pet_id}/health-records/{health_record_id}`
+
+## 4.5 删除健康记录
+
+`DELETE /pets/{pet_id}/health-records/{health_record_id}`
+
+## 4.6 获取提醒列表
 
 `GET /pets/{pet_id}/reminders?status=pending`
 
-## 4.4 创建提醒
+## 4.7 创建提醒
 
 `POST /pets/{pet_id}/reminders`
 
-## 4.5 完成提醒
+请求关键字段：
 
-`PATCH /reminders/{reminder_id}/complete`
+- `reminder_type`
+- `title`
+- `reminder_mode`
+- `cycle_value`
+- `cycle_unit`
+- `due_at`
+- `notes`
 
-请求：
+说明：
 
-```json
-{
-  "handled_at": "2026-04-20T10:30:00Z",
-  "generate_next": true
-}
-```
+- `reminder_mode=single` 表示单次提醒，可不传 `cycle_value` 和 `cycle_unit`
+- `reminder_mode=cycle` 表示周期提醒，必须同时传 `cycle_value` 与 `cycle_unit`
+- `cycle_unit` 当前支持 `day`、`week`、`month`
 
-## 4.6 跳过提醒
+## 4.8 完成提醒
 
-`PATCH /reminders/{reminder_id}/skip`
+`PATCH /pets/{pet_id}/reminders/{reminder_id}/complete`
+
+说明：
+
+- 仅 `pending` 状态的提醒允许完成
+- 周期提醒完成后会自动生成下一条 `pending` 提醒，下一次时间基于原计划时间顺延推算
+
+## 4.9 跳过提醒
+
+`PATCH /pets/{pet_id}/reminders/{reminder_id}/skip`
+
+说明：
+
+- 仅 `pending` 状态的提醒允许跳过
+- 周期提醒跳过后同样会自动生成下一条 `pending` 提醒
 
 ## 5. 萌宠日常与时间轴接口
 
@@ -309,7 +350,7 @@
 
 ## 5.3 获取萌宠日常列表
 
-`GET /pets/{pet_id}/daily-logs?visibility=all&cursor=...`
+`GET /pets/{pet_id}/daily-logs`
 
 ## 5.4 创建萌宠日常
 
@@ -319,33 +360,39 @@
 
 ```json
 {
-  "asset_ids": ["90001", "90002"],
-  "title": "今天第一次散步",
-  "content": "出门有点紧张，但表现很好",
-  "scene_tags": ["walk"],
-  "mood_tags": ["excited"],
+  "content": "今天第一次散步，出门有点紧张，但表现很好",
+  "tags": ["散步", "成长"],
   "visibility": "family",
-  "sync_to_timeline": true,
-  "sync_to_community": false,
   "happened_at": "2026-04-20T09:00:00Z"
 }
 ```
 
-## 5.5 获取日常详情
+说明：
 
-`GET /daily-logs/{daily_log_id}`
+- 当前阶段先支持文字内容、标签、可见范围和记录时间
+- 媒体资源与同步社区链路仍处于预留态，不进入当前真实接口
 
-## 5.6 更新日常
+## 5.5 获取萌宠日常详情
 
-`PATCH /daily-logs/{daily_log_id}`
+`GET /pets/{pet_id}/daily-logs/{daily_log_id}`
 
-## 5.7 一键发布到社区
+## 5.6 更新萌宠日常
 
-`POST /daily-logs/{daily_log_id}/publish`
+`PATCH /pets/{pet_id}/daily-logs/{daily_log_id}`
+
+## 5.7 删除萌宠日常
+
+`DELETE /pets/{pet_id}/daily-logs/{daily_log_id}`
 
 ## 5.8 获取成长时间轴
 
-`GET /pets/{pet_id}/timeline?event_type=all&cursor=...`
+`GET /pets/{pet_id}/timeline?event_type=all`
+
+说明：
+
+- 当前阶段支持 `all`、`health`、`daily_log` 三种筛选值
+- 已接入健康记录与萌宠日常两类派生事件
+- 时间轴为只读聚合视图，详情编辑仍回到源记录页处理
 
 ## 6. 社区接口
 

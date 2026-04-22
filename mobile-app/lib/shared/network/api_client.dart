@@ -41,6 +41,26 @@ class ApiClient {
     return _extractData(response);
   }
 
+  Future<dynamic> patchData(String path,
+      {required Map<String, Object?> body}) async {
+    final http.Response response = await _httpClient.patch(
+      _baseUri.resolve(path),
+      headers: await _buildHeaders(),
+      body: jsonEncode(body),
+    );
+
+    return _extractData(response);
+  }
+
+  Future<dynamic> deleteData(String path) async {
+    final http.Response response = await _httpClient.delete(
+      _baseUri.resolve(path),
+      headers: await _buildHeaders(),
+    );
+
+    return _extractData(response);
+  }
+
   Future<Map<String, String>> _buildHeaders() async {
     final Map<String, String> headers = <String, String>{
       'Accept': 'application/json',

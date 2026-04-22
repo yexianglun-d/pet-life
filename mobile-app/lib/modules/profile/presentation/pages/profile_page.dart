@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
+import 'package:petlife_mobile_app/modules/family/presentation/pages/family_join_page.dart';
+import 'package:petlife_mobile_app/modules/family/presentation/pages/family_management_page.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.dart';
 
@@ -8,10 +10,12 @@ class ProfilePage extends StatefulWidget {
   const ProfilePage({
     super.key,
     required this.currentUser,
+    required this.onCurrentUserChanged,
     required this.onLogoutCompleted,
   });
 
   final CurrentUserSnapshot currentUser;
+  final VoidCallback onCurrentUserChanged;
   final VoidCallback onLogoutCompleted;
 
   @override
@@ -20,6 +24,25 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool _isLoggingOut = false;
+
+  Future<void> _openFamilyManagement() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => FamilyManagementPage(currentUser: widget.currentUser),
+      ),
+    );
+  }
+
+  Future<void> _openFamilyJoinPage() async {
+    final bool? joined = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => const FamilyJoinPage(),
+      ),
+    );
+    if (joined == true) {
+      widget.onCurrentUserChanged();
+    }
+  }
 
   Future<void> _logout() async {
     if (_isLoggingOut) {
@@ -56,7 +79,27 @@ class _ProfilePageState extends State<ProfilePage> {
         PageSection(
           title: '账号与家庭',
           description: '当前先展示登录用户、家庭和当前宠物摘要，后续继续接家庭共养管理。',
-          child: _AccountSummary(currentUser: widget.currentUser),
+          child: Column(
+            children: [
+              _AccountSummary(currentUser: widget.currentUser),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _openFamilyManagement,
+                  child: const Text('家庭共养管理'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _openFamilyJoinPage,
+                  child: const Text('通过邀请码加入家庭'),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
         PageSection(

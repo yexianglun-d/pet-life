@@ -42,15 +42,22 @@
 
 1. Java 根包固定为 `com.petlife.server`。
 2. 服务端采用 `modules` 业务分层，公共能力放在 `common` 与 `config`。
-3. 所有核心业务代码必须具备清晰注释和明确命名。
-4. 预留能力必须通过占位页或保留接口表达，不能提前暴露半成品链路。
-5. 所有 UI 实现默认遵循根目录 `DESIGN.md` 中的视觉和交互规范。
+3. 已实现服务端模块统一使用 `controller / dto / service / domain.entity / converter / persistence.dataobject / persistence.command` 结构。
+4. 所有核心业务代码必须具备清晰注释和明确命名。
+5. 预留能力必须通过占位页或保留接口表达，不能提前暴露半成品链路。
+6. 所有 UI 实现默认遵循根目录 `DESIGN.md` 中的视觉和交互规范。
+
+服务端详细代码结构规范见：
+
+- `AGENTS.md`
+- `docs/technical/06-server-code-structure.md`
 
 ## 设计基线
 
 - UI 设计规范：`DESIGN.md`
 - 产品与页面结构参考：`docs/product/04-low-fidelity-wireframes.md`
 - 当前阶段交付说明：`docs/project/01-current-delivery-status.md`
+- 功能完成清单：`docs/project/02-feature-completion-checklist.md`
 - 当前视觉方向：克制、清晰、可信、现代，不做炫技式装饰。
 
 ## 本地启动前提

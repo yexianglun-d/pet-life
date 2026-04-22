@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
+import 'package:petlife_mobile_app/modules/dailylog/presentation/pages/daily_log_list_page.dart';
+import 'package:petlife_mobile_app/modules/health/presentation/pages/health_record_list_page.dart';
+import 'package:petlife_mobile_app/modules/pet/presentation/pages/pet_management_page.dart';
+import 'package:petlife_mobile_app/modules/reminder/presentation/pages/reminder_list_page.dart';
+import 'package:petlife_mobile_app/modules/timeline/presentation/pages/timeline_page.dart';
 import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 
@@ -12,10 +17,91 @@ class PetIndexPage extends StatelessWidget {
     super.key,
     required this.currentUser,
     required this.dashboard,
+    required this.onPetDataChanged,
   });
 
   final CurrentUserSnapshot currentUser;
   final PetDashboardSnapshot dashboard;
+  final VoidCallback onPetDataChanged;
+
+  Future<void> _openPetManagement(BuildContext context) async {
+    final bool? changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => PetManagementPage(
+          initialCurrentPetId: currentUser.currentPetId,
+        ),
+      ),
+    );
+    if (!context.mounted || changed != true) {
+      return;
+    }
+
+    onPetDataChanged();
+  }
+
+  Future<void> _openHealthRecords(BuildContext context) async {
+    final bool? changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => HealthRecordListPage(
+          petId: dashboard.pet.petId,
+          petName: dashboard.pet.petName,
+        ),
+      ),
+    );
+    if (!context.mounted || changed != true) {
+      return;
+    }
+
+    onPetDataChanged();
+  }
+
+  Future<void> _openReminders(BuildContext context) async {
+    final bool? changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => ReminderListPage(
+          petId: dashboard.pet.petId,
+          petName: dashboard.pet.petName,
+        ),
+      ),
+    );
+    if (!context.mounted || changed != true) {
+      return;
+    }
+
+    onPetDataChanged();
+  }
+
+  Future<void> _openDailyLogs(BuildContext context) async {
+    final bool? changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => DailyLogListPage(
+          petId: dashboard.pet.petId,
+          petName: dashboard.pet.petName,
+        ),
+      ),
+    );
+    if (!context.mounted || changed != true) {
+      return;
+    }
+
+    onPetDataChanged();
+  }
+
+  Future<void> _openTimeline(BuildContext context) async {
+    final bool? changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => TimelinePage(
+          petId: dashboard.pet.petId,
+          petName: dashboard.pet.petName,
+        ),
+      ),
+    );
+    if (!context.mounted || changed != true) {
+      return;
+    }
+
+    onPetDataChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +115,11 @@ class PetIndexPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _PetHeroCard(currentUser: currentUser, dashboard: dashboard),
+        _PetHeroCard(
+          currentUser: currentUser,
+          dashboard: dashboard,
+          onManagePetPressed: () => _openPetManagement(context),
+        ),
         const SizedBox(height: 16),
         PageSection(
           title: '宠物概览',
@@ -41,21 +131,35 @@ class PetIndexPage extends StatelessWidget {
           title: '健康档案',
           description: '疫苗、体重、用药和体检等结构化记录都会在这里聚合回看。',
           child: _HealthArchiveSection(
-              healthRecords: dashboard.healthRecords.take(3).toList()),
+            healthRecords: dashboard.healthRecords.take(3).toList(),
+            onOpenHealthRecords: () => _openHealthRecords(context),
+          ),
         ),
         const SizedBox(height: 16),
         PageSection(
           title: '提醒计划',
           description: '提醒完成后会自动影响首页待办和宠物主页摘要。',
           child: _ReminderPlanSection(
-              reminders: dashboard.reminders.take(3).toList()),
+            reminders: dashboard.reminders.take(3).toList(),
+            onOpenReminders: () => _openReminders(context),
+          ),
         ),
         const SizedBox(height: 16),
         PageSection(
           title: '萌宠日常',
           description: '日常记录先沉淀为宠物资产，再决定是否同步到社区。',
           child: _DailyEntrySection(
-              dailyLogs: dashboard.dailyLogs.take(3).toList()),
+            dailyLogs: dashboard.dailyLogs.take(3).toList(),
+            onOpenDailyLogs: () => _openDailyLogs(context),
+          ),
+        ),
+        const SizedBox(height: 16),
+        PageSection(
+          title: '成长时间轴',
+          description: '把健康记录和萌宠日常串在一条线上回看，方便判断宠物近期发生了哪些关键变化。',
+          child: _TimelineEntrySection(
+            onOpenTimeline: () => _openTimeline(context),
+          ),
         ),
       ],
     );
@@ -66,10 +170,12 @@ class _PetHeroCard extends StatelessWidget {
   const _PetHeroCard({
     required this.currentUser,
     required this.dashboard,
+    required this.onManagePetPressed,
   });
 
   final CurrentUserSnapshot currentUser;
   final PetDashboardSnapshot dashboard;
+  final VoidCallback onManagePetPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +217,11 @@ class _PetHeroCard extends StatelessWidget {
                   style: textTheme.bodyMedium
                       ?.copyWith(color: const Color(0xFF64748B)),
                 ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: onManagePetPressed,
+                  child: const Text('管理宠物'),
+                ),
               ],
             ),
           ),
@@ -145,82 +256,193 @@ class _MetricSection extends StatelessWidget {
 }
 
 class _HealthArchiveSection extends StatelessWidget {
-  const _HealthArchiveSection({required this.healthRecords});
+  const _HealthArchiveSection({
+    required this.healthRecords,
+    required this.onOpenHealthRecords,
+  });
 
   final List<HealthRecordSnapshot> healthRecords;
+  final VoidCallback onOpenHealthRecords;
 
   @override
   Widget build(BuildContext context) {
-    if (healthRecords.isEmpty) {
-      return const _EmptySectionPlaceholder(label: '还没有健康档案记录');
-    }
+    final Widget content = healthRecords.isEmpty
+        ? const _EmptySectionPlaceholder(label: '还没有健康档案记录')
+        : Column(
+            children: healthRecords
+                .map(
+                  (HealthRecordSnapshot record) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _TimelineCard(
+                      title: record.title,
+                      description: _buildHealthDescription(record),
+                      leadingColor: const Color(0xFF0F766E),
+                    ),
+                  ),
+                )
+                .toList(),
+          );
 
     return Column(
-      children: healthRecords
-          .map(
-            (HealthRecordSnapshot record) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _TimelineCard(
-                title: record.title,
-                description: _buildHealthDescription(record),
-                leadingColor: const Color(0xFF0F766E),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '已收录 ${healthRecords.length} 条记录',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: const Color(0xFF64748B)),
               ),
             ),
-          )
-          .toList(),
+            TextButton(
+              onPressed: onOpenHealthRecords,
+              child: const Text('查看全部'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        content,
+      ],
     );
   }
 }
 
 class _ReminderPlanSection extends StatelessWidget {
-  const _ReminderPlanSection({required this.reminders});
+  const _ReminderPlanSection({
+    required this.reminders,
+    required this.onOpenReminders,
+  });
 
   final List<ReminderSnapshot> reminders;
+  final VoidCallback onOpenReminders;
 
   @override
   Widget build(BuildContext context) {
-    if (reminders.isEmpty) {
-      return const _EmptySectionPlaceholder(label: '当前没有提醒计划');
-    }
+    final Widget content = reminders.isEmpty
+        ? const _EmptySectionPlaceholder(label: '当前没有提醒计划')
+        : Column(
+            children: reminders
+                .map(
+                  (ReminderSnapshot entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _ReminderPlanCard(entry: entry),
+                  ),
+                )
+                .toList(),
+          );
 
     return Column(
-      children: reminders
-          .map(
-            (ReminderSnapshot entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _ReminderPlanCard(entry: entry),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '已配置 ${reminders.length} 条提醒',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: const Color(0xFF64748B)),
+              ),
             ),
-          )
-          .toList(),
+            TextButton(
+              onPressed: onOpenReminders,
+              child: const Text('查看全部'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        content,
+      ],
     );
   }
 }
 
 class _DailyEntrySection extends StatelessWidget {
-  const _DailyEntrySection({required this.dailyLogs});
+  const _DailyEntrySection({
+    required this.dailyLogs,
+    required this.onOpenDailyLogs,
+  });
 
   final List<DailyLogSnapshot> dailyLogs;
+  final VoidCallback onOpenDailyLogs;
 
   @override
   Widget build(BuildContext context) {
-    if (dailyLogs.isEmpty) {
-      return const _EmptySectionPlaceholder(label: '还没有萌宠日常记录');
-    }
+    final Widget content = dailyLogs.isEmpty
+        ? const _EmptySectionPlaceholder(label: '还没有萌宠日常记录')
+        : Column(
+            children: dailyLogs
+                .map(
+                  (DailyLogSnapshot entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _TimelineCard(
+                      title: entry.content,
+                      description:
+                          '${_toLocalizedVisibility(entry.visibility)} · ${entry.tags.join(' / ')}',
+                      leadingColor: const Color(0xFFB45309),
+                    ),
+                  ),
+                )
+                .toList(),
+          );
 
     return Column(
-      children: dailyLogs
-          .map(
-            (DailyLogSnapshot entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _TimelineCard(
-                title: entry.content,
-                description:
-                    '${_toLocalizedVisibility(entry.visibility)} · ${entry.tags.join(' / ')}',
-                leadingColor: const Color(0xFFB45309),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '已记录 ${dailyLogs.length} 条日常',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: const Color(0xFF64748B)),
               ),
             ),
-          )
-          .toList(),
+            TextButton(
+              onPressed: onOpenDailyLogs,
+              child: const Text('查看全部'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        content,
+      ],
+    );
+  }
+}
+
+class _TimelineEntrySection extends StatelessWidget {
+  const _TimelineEntrySection({
+    required this.onOpenTimeline,
+  });
+
+  final VoidCallback onOpenTimeline;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '当前已接入健康记录与萌宠日常事件，后续会继续补服务记录和设备事件。',
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: const Color(0xFF64748B)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        FilledButton(
+          onPressed: onOpenTimeline,
+          child: const Text('查看时间轴'),
+        ),
+      ],
     );
   }
 }

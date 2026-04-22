@@ -47,4 +47,12 @@ public class ReminderController {
     ) {
         return ApiResponse.success(reminderApplicationService.completeReminder(petId, reminderId));
     }
+
+    @PatchMapping("/{reminderId}/skip")
+    public ApiResponse<ReminderResponse> skipReminder(
+        @PathVariable Long petId,
+        @PathVariable Long reminderId
+    ) {
+        return ApiResponse.success(reminderApplicationService.skipReminder(petId, reminderId));
+    }
 }
