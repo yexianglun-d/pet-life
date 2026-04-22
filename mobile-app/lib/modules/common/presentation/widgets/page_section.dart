@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 
 /// 页面内容分区组件。
 ///
-/// 该组件用于在不堆叠厚重卡片的前提下建立稳定层级，
-/// 保持页面视觉克制、清晰，符合当前项目的设计基线。
+/// 新版分区组件强调轻盈、圆润和陪伴感，
+/// 让页面像被温柔整理过的宠物生活空间，而不是后台面板。
 class PageSection extends StatelessWidget {
   const PageSection({
     super.key,
@@ -18,30 +20,33 @@ class PageSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
+    return CompanionCard(
+      color: AppThemePalette.surface,
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: 42,
+            height: 6,
+            decoration: BoxDecoration(
+              color: AppThemePalette.rose,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(height: 14),
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context).textTheme.titleLarge,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             description,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+                  color: AppThemePalette.muted,
                 ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           child,
         ],
       ),

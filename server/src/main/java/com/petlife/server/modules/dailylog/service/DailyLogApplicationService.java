@@ -4,6 +4,7 @@ import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
 import com.petlife.server.common.time.DateTimeConverters;
 import com.petlife.server.modules.auth.security.CurrentUserContext;
+import com.petlife.server.modules.community.service.CommunityApplicationService;
 import com.petlife.server.modules.dailylog.converter.DailyLogEntityConverter;
 import com.petlife.server.modules.dailylog.domain.entity.DailyLogEntity;
 import com.petlife.server.modules.dailylog.dto.request.CreateDailyLogRequest;
@@ -12,6 +13,7 @@ import com.petlife.server.modules.dailylog.dto.response.DailyLogResponse;
 import com.petlife.server.modules.dailylog.persistence.DailyLogPersistenceMapper;
 import com.petlife.server.modules.dailylog.persistence.command.CreateDailyLogCommand;
 import com.petlife.server.modules.dailylog.persistence.command.DeleteDailyLogCommand;
+import com.petlife.server.modules.dailylog.persistence.command.UpdateDailyLogCommunityBindingCommand;
 import com.petlife.server.modules.dailylog.persistence.command.UpdateDailyLogCommand;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
 import com.petlife.server.modules.timeline.service.TimelineApplicationService;
@@ -35,17 +37,20 @@ public class DailyLogApplicationService {
     private final PetPersistenceMapper petPersistenceMapper;
     private final DailyLogEntityConverter dailyLogEntityConverter;
     private final TimelineApplicationService timelineApplicationService;
+    private final CommunityApplicationService communityApplicationService;
 
     public DailyLogApplicationService(
         DailyLogPersistenceMapper dailyLogPersistenceMapper,
         PetPersistenceMapper petPersistenceMapper,
         DailyLogEntityConverter dailyLogEntityConverter,
-        TimelineApplicationService timelineApplicationService
+        TimelineApplicationService timelineApplicationService,
+        CommunityApplicationService communityApplicationService
     ) {
         this.dailyLogPersistenceMapper = dailyLogPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
         this.dailyLogEntityConverter = dailyLogEntityConverter;
         this.timelineApplicationService = timelineApplicationService;
+        this.communityApplicationService = communityApplicationService;
     }
 
     public List<DailyLogResponse> listDailyLogs(Long petId) {
@@ -68,7 +73,7 @@ public class DailyLogApplicationService {
         CreateDailyLogCommand command = buildCreateDailyLogCommand(petId, currentUserId, request);
         dailyLogPersistenceMapper.insertDailyLog(command);
         DailyLogEntity dailyLog = dailyLogEntityConverter.toEntity(dailyLogPersistenceMapper.findDailyLogById(command.getId()));
-        timelineApplicationService.syncDailyLogEvent(dailyLog);
+        dailyLog = syncDerivedModels(dailyLog);
         return dailyLogEntityConverter.toResponse(dailyLog);
     }
 
@@ -82,14 +87,14 @@ public class DailyLogApplicationService {
             throw new BusinessException(ResponseCode.DAILY_LOG_NOT_FOUND);
         }
         DailyLogEntity dailyLog = requireDailyLog(petId, dailyLogId);
-        timelineApplicationService.syncDailyLogEvent(dailyLog);
+        dailyLog = syncDerivedModels(dailyLog);
         return dailyLogEntityConverter.toResponse(dailyLog);
     }
 
     @Transactional
     public void deleteDailyLog(Long petId, Long dailyLogId) {
         requireAccessiblePet(petId);
-        requireDailyLog(petId, dailyLogId);
+        DailyLogEntity dailyLog = requireDailyLog(petId, dailyLogId);
         DeleteDailyLogCommand command = new DeleteDailyLogCommand();
         command.setPetId(petId);
         command.setDailyLogId(dailyLogId);
@@ -97,7 +102,37 @@ public class DailyLogApplicationService {
         if (updatedRows == 0) {
             throw new BusinessException(ResponseCode.DAILY_LOG_NOT_FOUND);
         }
+        if (dailyLog.getCommunityPostId() != null) {
+            communityApplicationService.removeDailyLogPost(dailyLog.getCommunityPostId(), dailyLog.getDailyLogId());
+        }
         timelineApplicationService.deleteDailyLogEvent(petId, dailyLogId);
+    }
+
+    private DailyLogEntity syncDerivedModels(DailyLogEntity dailyLog) {
+        timelineApplicationService.syncDailyLogEvent(dailyLog);
+        return syncCommunityDistribution(dailyLog);
+    }
+
+    /**
+     * 社区帖子是萌宠日常的派生分发表，不允许两边各自独立编辑。
+     * 这里统一处理“发布、撤回、修复脏绑定”三种状态，避免日常和社区出现双写漂移。
+     */
+    private DailyLogEntity syncCommunityDistribution(DailyLogEntity dailyLog) {
+        if (dailyLog.isSyncToCommunity()) {
+            Long communityPostId = communityApplicationService.publishDailyLog(dailyLog);
+            if (!communityPostId.equals(dailyLog.getCommunityPostId())) {
+                updateCommunityBinding(dailyLog.getDailyLogId(), communityPostId, true);
+                return requireDailyLog(dailyLog.getPetId(), dailyLog.getDailyLogId());
+            }
+            return dailyLog;
+        }
+
+        if (dailyLog.getCommunityPostId() != null) {
+            communityApplicationService.removeDailyLogPost(dailyLog.getCommunityPostId(), dailyLog.getDailyLogId());
+            updateCommunityBinding(dailyLog.getDailyLogId(), null, false);
+            return requireDailyLog(dailyLog.getPetId(), dailyLog.getDailyLogId());
+        }
+        return dailyLog;
     }
 
     private void requireAccessiblePet(Long petId) {
@@ -127,7 +162,9 @@ public class DailyLogApplicationService {
         command.setAuthorUserId(authorUserId);
         command.setContent(normalizeContent(request.content()));
         command.setTagsJson(dailyLogEntityConverter.toTagsJson(normalizeTags(request.tags())));
-        command.setVisibility(normalizeVisibility(request.visibility()));
+        String visibility = normalizeVisibility(request.visibility());
+        command.setVisibility(visibility);
+        command.setSyncToCommunity(normalizeSyncToCommunity(request.syncToCommunity(), visibility));
         command.setHappenedAt(normalizeHappenedAt(request.happenedAt()));
         return command;
     }
@@ -142,7 +179,9 @@ public class DailyLogApplicationService {
         command.setDailyLogId(dailyLogId);
         command.setContent(normalizeContent(request.content()));
         command.setTagsJson(dailyLogEntityConverter.toTagsJson(normalizeTags(request.tags())));
-        command.setVisibility(normalizeVisibility(request.visibility()));
+        String visibility = normalizeVisibility(request.visibility());
+        command.setVisibility(visibility);
+        command.setSyncToCommunity(normalizeSyncToCommunity(request.syncToCommunity(), visibility));
         command.setHappenedAt(normalizeHappenedAt(request.happenedAt()));
         return command;
     }
@@ -182,8 +221,28 @@ public class DailyLogApplicationService {
         throw new BusinessException(ResponseCode.BAD_REQUEST, "可见范围仅支持 private、family 或 public");
     }
 
+    /**
+     * 当前阶段社区只承接公开内容，同步开关必须和可见范围一起校验，
+     * 否则会出现“用户以为仅家庭可见，社区却仍然可见”的数据越权问题。
+     */
+    private boolean normalizeSyncToCommunity(Boolean syncToCommunity, String visibility) {
+        boolean normalizedValue = Boolean.TRUE.equals(syncToCommunity);
+        if (normalizedValue && !"public".equals(visibility)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "仅公开内容支持同步到社区");
+        }
+        return normalizedValue;
+    }
+
     private LocalDateTime normalizeHappenedAt(OffsetDateTime happenedAt) {
         return DateTimeConverters.toLocalDateTime(happenedAt, LocalDateTime.now());
+    }
+
+    private void updateCommunityBinding(Long dailyLogId, Long communityPostId, boolean syncToCommunity) {
+        UpdateDailyLogCommunityBindingCommand command = new UpdateDailyLogCommunityBindingCommand();
+        command.setDailyLogId(dailyLogId);
+        command.setCommunityPostId(communityPostId);
+        command.setSyncToCommunity(syncToCommunity);
+        dailyLogPersistenceMapper.updateCommunityBinding(command);
     }
 
 }

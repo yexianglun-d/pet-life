@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/dailylog/presentation/pages/daily_log_list_page.dart';
 import 'package:petlife_mobile_app/modules/health/presentation/pages/health_record_list_page.dart';
@@ -9,9 +11,6 @@ import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.da
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 
 /// 宠物主页索引页。
-///
-/// 当前阶段先把宠物主页需要承接的摘要能力稳定下来，后续接入接口时优先替换数据装配，
-/// 不打乱页面结构和用户认知路径。
 class PetIndexPage extends StatelessWidget {
   const PetIndexPage({
     super.key,
@@ -122,14 +121,14 @@ class PetIndexPage extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         PageSection(
-          title: '宠物概览',
-          description: '主页先承接宠物主档、统计指标和关键动作，后续再扩成完整档案页。',
+          title: '最近的照护概览',
+          description: '把最常回看的状态先放在眼前，照顾起来会更顺手。',
           child: _MetricSection(metrics: metrics),
         ),
         const SizedBox(height: 16),
         PageSection(
           title: '健康档案',
-          description: '疫苗、体重、用药和体检等结构化记录都会在这里聚合回看。',
+          description: '体检、疫苗、用药和异常观察，都会慢慢沉淀成完整档案。',
           child: _HealthArchiveSection(
             healthRecords: dashboard.healthRecords.take(3).toList(),
             onOpenHealthRecords: () => _openHealthRecords(context),
@@ -138,7 +137,7 @@ class PetIndexPage extends StatelessWidget {
         const SizedBox(height: 16),
         PageSection(
           title: '提醒计划',
-          description: '提醒完成后会自动影响首页待办和宠物主页摘要。',
+          description: '把需要记住的时间点排好，平时就不会总担心漏掉。',
           child: _ReminderPlanSection(
             reminders: dashboard.reminders.take(3).toList(),
             onOpenReminders: () => _openReminders(context),
@@ -147,7 +146,7 @@ class PetIndexPage extends StatelessWidget {
         const SizedBox(height: 16),
         PageSection(
           title: '萌宠日常',
-          description: '日常记录先沉淀为宠物资产，再决定是否同步到社区。',
+          description: '生活里的小片段，会把它慢慢拼成更真实的样子。',
           child: _DailyEntrySection(
             dailyLogs: dashboard.dailyLogs.take(3).toList(),
             onOpenDailyLogs: () => _openDailyLogs(context),
@@ -156,7 +155,7 @@ class PetIndexPage extends StatelessWidget {
         const SizedBox(height: 16),
         PageSection(
           title: '成长时间轴',
-          description: '把健康记录和萌宠日常串在一条线上回看，方便判断宠物近期发生了哪些关键变化。',
+          description: '把重要变化串成一条线，回头看时会更安心也更清晰。',
           child: _TimelineEntrySection(
             onOpenTimeline: () => _openTimeline(context),
           ),
@@ -181,49 +180,90 @@ class _PetHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFE9DC),
+          Color(0xFFFFFBF7),
+        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 68,
-            height: 68,
-            decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: const Icon(Icons.pets_outlined,
-                size: 34, color: Color(0xFF166534)),
+          const CompanionPill(
+            label: '正在照顾的小可爱',
+            icon: Icons.pets_rounded,
+            backgroundColor: Color(0xFFFFE1D2),
+            foregroundColor: AppThemePalette.primaryDeep,
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(dashboard.pet.petName, style: textTheme.titleLarge),
-                const SizedBox(height: 6),
-                Text(
-                  '${dashboard.pet.breed} · ${_toLocalizedGender(dashboard.pet.gender)} · ${_toLocalizedPetType(dashboard.pet.petType)}',
-                  style: textTheme.bodyMedium,
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppThemePalette.surface,
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '当前由 ${currentUser.familyName} 共享照护，主页优先聚合提醒、健康和萌宠日常摘要。',
-                  style: textTheme.bodyMedium
-                      ?.copyWith(color: const Color(0xFF64748B)),
+                child: Icon(
+                  dashboard.pet.petType == 'dog'
+                      ? Icons.pets_rounded
+                      : Icons.cruelty_free_outlined,
+                  size: 34,
+                  color: AppThemePalette.primaryDeep,
                 ),
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: onManagePetPressed,
-                  child: const Text('管理宠物'),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(dashboard.pet.petName, style: textTheme.headlineSmall),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${dashboard.pet.breed} · ${_toLocalizedGender(dashboard.pet.gender)} · ${_toLocalizedPetType(dashboard.pet.petType)}',
+                      style: textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${currentUser.familyName} 正一起照顾它，这里会把成长、健康和日常慢慢整理成一份完整档案。',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: AppThemePalette.body,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              CompanionPill(
+                label: '待办 ${dashboard.todayTodoCount}',
+                backgroundColor: AppThemePalette.surface,
+              ),
+              CompanionPill(
+                label: '健康 ${dashboard.healthRecords.length}',
+                backgroundColor: AppThemePalette.surface,
+              ),
+              CompanionPill(
+                label: '日常 ${dashboard.dailyLogs.length}',
+                backgroundColor: AppThemePalette.surface,
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          OutlinedButton(
+            onPressed: onManagePetPressed,
+            child: const Text('管理宠物'),
           ),
         ],
       ),
@@ -267,7 +307,11 @@ class _HealthArchiveSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Widget content = healthRecords.isEmpty
-        ? const _EmptySectionPlaceholder(label: '还没有健康档案记录')
+        ? const CompanionEmptyState(
+            title: '还没有健康档案记录',
+            description: '第一次体检、疫苗或用药记录，都会成为以后回看的起点。',
+            icon: Icons.health_and_safety_outlined,
+          )
         : Column(
             children: healthRecords
                 .map(
@@ -294,7 +338,7 @@ class _HealthArchiveSection extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
-                    ?.copyWith(color: const Color(0xFF64748B)),
+                    ?.copyWith(color: AppThemePalette.muted),
               ),
             ),
             TextButton(
@@ -322,7 +366,11 @@ class _ReminderPlanSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Widget content = reminders.isEmpty
-        ? const _EmptySectionPlaceholder(label: '当前没有提醒计划')
+        ? const CompanionEmptyState(
+            title: '还没有提醒计划',
+            description: '把驱虫、体检或自定义照护时间排好，会轻松很多。',
+            icon: Icons.schedule_rounded,
+          )
         : Column(
             children: reminders
                 .map(
@@ -345,7 +393,7 @@ class _ReminderPlanSection extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
-                    ?.copyWith(color: const Color(0xFF64748B)),
+                    ?.copyWith(color: AppThemePalette.muted),
               ),
             ),
             TextButton(
@@ -373,7 +421,11 @@ class _DailyEntrySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Widget content = dailyLogs.isEmpty
-        ? const _EmptySectionPlaceholder(label: '还没有萌宠日常记录')
+        ? const CompanionEmptyState(
+            title: '还没有萌宠日常记录',
+            description: '它今天的样子、情绪和可爱时刻，都可以从这里开始留下。',
+            icon: Icons.auto_awesome_outlined,
+          )
         : Column(
             children: dailyLogs
                 .map(
@@ -401,7 +453,7 @@ class _DailyEntrySection extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
-                    ?.copyWith(color: const Color(0xFF64748B)),
+                    ?.copyWith(color: AppThemePalette.muted),
               ),
             ),
             TextButton(
@@ -426,23 +478,27 @@ class _TimelineEntrySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            '当前已接入健康记录与萌宠日常事件，后续会继续补服务记录和设备事件。',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFF64748B)),
+    return CompanionCard(
+      color: AppThemePalette.surfaceRaised,
+      radius: 24,
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '把每一次体检、提醒和日常小事放到同一条线里，回看会很有安全感。',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppThemePalette.body,
+                  ),
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        FilledButton(
-          onPressed: onOpenTimeline,
-          child: const Text('查看时间轴'),
-        ),
-      ],
+          const SizedBox(width: 12),
+          FilledButton(
+            onPressed: onOpenTimeline,
+            child: const Text('查看时间轴'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -456,17 +512,15 @@ class _MetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return Container(
+    return CompanionCard(
+      radius: 22,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-      ),
+      color: AppThemePalette.surfaceRaised,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(metric.label, style: textTheme.bodyMedium),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(metric.value, style: textTheme.titleLarge),
         ],
       ),
@@ -489,34 +543,44 @@ class _TimelineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          margin: const EdgeInsets.only(top: 6),
-          decoration: BoxDecoration(
-            color: leadingColor,
-            shape: BoxShape.circle,
+    return CompanionCard(
+      radius: 22,
+      padding: const EdgeInsets.all(16),
+      color: AppThemePalette.surfaceRaised,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: leadingColor.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.favorite_border_rounded,
+              color: leadingColor,
+              size: 20,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: textTheme.bodyMedium
-                    ?.copyWith(color: const Color(0xFF64748B)),
-              ),
-            ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppThemePalette.muted,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -530,12 +594,10 @@ class _ReminderPlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return Container(
+    return CompanionCard(
+      radius: 22,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-      ),
+      color: AppThemePalette.surfaceRaised,
       child: Row(
         children: [
           Expanded(
@@ -546,8 +608,9 @@ class _ReminderPlanCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   _formatDueAt(entry.dueAt),
-                  style: textTheme.bodyMedium
-                      ?.copyWith(color: const Color(0xFF64748B)),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppThemePalette.muted,
+                  ),
                 ),
               ],
             ),
@@ -555,13 +618,18 @@ class _ReminderPlanCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
+              color: entry.status == 'completed'
+                  ? AppThemePalette.mint.withValues(alpha: 0.2)
+                  : AppThemePalette.warmTint,
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
               entry.status == 'completed' ? '已完成' : '待处理',
-              style: textTheme.bodyMedium
-                  ?.copyWith(color: const Color(0xFF166534)),
+              style: textTheme.bodySmall?.copyWith(
+                color: entry.status == 'completed'
+                    ? const Color(0xFF65846D)
+                    : AppThemePalette.primaryDeep,
+              ),
             ),
           ),
         ],
@@ -578,23 +646,6 @@ class _PetMetric {
 
   final String label;
   final String value;
-}
-
-class _EmptySectionPlaceholder extends StatelessWidget {
-  const _EmptySectionPlaceholder({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(context)
-          .textTheme
-          .bodyMedium
-          ?.copyWith(color: const Color(0xFF64748B)),
-    );
-  }
 }
 
 String _toLocalizedPetType(String petType) {

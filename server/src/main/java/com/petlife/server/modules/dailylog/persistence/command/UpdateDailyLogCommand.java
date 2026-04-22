@@ -12,6 +12,7 @@ public class UpdateDailyLogCommand {
     private String content;
     private String tagsJson;
     private String visibility;
+    private Boolean syncToCommunity;
     private LocalDateTime happenedAt;
 
     public Long getPetId() {
@@ -52,6 +53,14 @@ public class UpdateDailyLogCommand {
 
     public void setVisibility(String visibility) {
         this.visibility = visibility;
+    }
+
+    public Boolean getSyncToCommunity() {
+        return syncToCommunity;
+    }
+
+    public void setSyncToCommunity(Boolean syncToCommunity) {
+        this.syncToCommunity = syncToCommunity;
     }
 
     public LocalDateTime getHappenedAt() {

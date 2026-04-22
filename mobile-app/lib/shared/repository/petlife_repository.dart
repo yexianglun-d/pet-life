@@ -1,3 +1,6 @@
+import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/community_report_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/community_report_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/daily_log_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_detail_snapshot.dart';
@@ -94,6 +97,32 @@ abstract interface class PetLifeRepository {
   Future<void> deleteDailyLog({
     required String petId,
     required String dailyLogId,
+  });
+
+  Future<List<CommunityPostSnapshot>> listCommunityFeed({
+    String tab = 'recommended',
+  });
+
+  Future<CommunityPostSnapshot> getCommunityPost(String postId);
+
+  Future<List<CommunityCommentSnapshot>> listCommunityComments(String postId);
+
+  Future<CommunityCommentSnapshot> createCommunityComment({
+    required String postId,
+    required String content,
+  });
+
+  Future<CommunityPostSnapshot> likeCommunityPost(String postId);
+
+  Future<CommunityPostSnapshot> unlikeCommunityPost(String postId);
+
+  Future<CommunityPostSnapshot> favoriteCommunityPost(String postId);
+
+  Future<CommunityPostSnapshot> unfavoriteCommunityPost(String postId);
+
+  Future<CommunityReportSnapshot> reportCommunityPost({
+    required String postId,
+    required CommunityReportDraft draft,
   });
 
   Future<List<TimelineEventSnapshot>> listTimelineEvents({

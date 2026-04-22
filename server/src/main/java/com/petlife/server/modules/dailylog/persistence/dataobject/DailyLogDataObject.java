@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
  * @param content 内容
  * @param tagsJson 标签 JSON
  * @param visibility 可见范围
+ * @param syncToCommunity 是否同步社区
+ * @param communityPostId 社区帖子 ID
  * @param happenedAt 发生时间
  * @param createdAt 创建时间
  */
@@ -21,6 +23,8 @@ public record DailyLogDataObject(
     String content,
     String tagsJson,
     String visibility,
+    Boolean syncToCommunity,
+    Long communityPostId,
     LocalDateTime happenedAt,
     LocalDateTime createdAt
 ) {

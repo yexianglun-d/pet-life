@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petlife_mobile_app/app/pet_life_app.dart';
+import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/community_report_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/community_report_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/daily_log_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_detail_snapshot.dart';
@@ -270,6 +273,7 @@ class _FakePetLifeRepository implements PetLifeRepository {
         content: '今天追着逗猫棒跑了十分钟，状态很活跃。',
         tags: const <String>['玩耍', '活跃'],
         visibility: 'family',
+        syncToCommunity: false,
         happenedAt: DateTime(2026, 4, 17, 8),
         createdAt: DateTime(2026, 4, 17, 8, 5),
       ),
@@ -286,6 +290,7 @@ class _FakePetLifeRepository implements PetLifeRepository {
       content: '今天追着逗猫棒跑了十分钟，状态很活跃。',
       tags: const <String>['玩耍', '活跃'],
       visibility: 'family',
+      syncToCommunity: false,
       happenedAt: DateTime(2026, 4, 17, 8),
       createdAt: DateTime(2026, 4, 17, 8, 5),
     );
@@ -301,6 +306,7 @@ class _FakePetLifeRepository implements PetLifeRepository {
       content: draft.content,
       tags: draft.tags,
       visibility: draft.visibility,
+      syncToCommunity: draft.syncToCommunity,
       happenedAt: draft.happenedAt,
       createdAt: DateTime(2026, 4, 21, 18),
     );
@@ -317,6 +323,7 @@ class _FakePetLifeRepository implements PetLifeRepository {
       content: draft.content,
       tags: draft.tags,
       visibility: draft.visibility,
+      syncToCommunity: draft.syncToCommunity,
       happenedAt: draft.happenedAt,
       createdAt: DateTime(2026, 4, 21, 18),
     );
@@ -327,6 +334,145 @@ class _FakePetLifeRepository implements PetLifeRepository {
     required String petId,
     required String dailyLogId,
   }) async {}
+
+  @override
+  Future<List<CommunityPostSnapshot>> listCommunityFeed({
+    String tab = 'recommended',
+  }) async {
+    return const <CommunityPostSnapshot>[
+      CommunityPostSnapshot(
+        postId: '70001',
+        postType: 'experience',
+        title: '今天第一次主动跳上窗台晒太阳',
+        content: '今天第一次主动跳上窗台晒太阳，看起来对家里的环境更放松了。',
+        sourceDailyLogId: '50001',
+        visibility: 'public',
+        likeCount: 8,
+        commentCount: 2,
+        favoriteCount: 3,
+        liked: false,
+        favorited: false,
+        author: CommunityAuthorSnapshot(
+          userId: '10001',
+          nickname: 'Momo',
+        ),
+        pet: CommunityPetSnapshot(
+          petId: '10001',
+          petName: 'Momo',
+          petType: 'cat',
+          breed: 'British Shorthair',
+        ),
+      ),
+    ];
+  }
+
+  @override
+  Future<CommunityPostSnapshot> getCommunityPost(String postId) async {
+    return const CommunityPostSnapshot(
+      postId: '70001',
+      postType: 'experience',
+      title: '今天第一次主动跳上窗台晒太阳',
+      content: '今天第一次主动跳上窗台晒太阳，看起来对家里的环境更放松了。',
+      sourceDailyLogId: '50001',
+      visibility: 'public',
+      likeCount: 8,
+      commentCount: 2,
+      favoriteCount: 3,
+      liked: false,
+      favorited: false,
+      author: CommunityAuthorSnapshot(
+        userId: '10001',
+        nickname: 'Momo',
+      ),
+      pet: CommunityPetSnapshot(
+        petId: '10001',
+        petName: 'Momo',
+        petType: 'cat',
+        breed: 'British Shorthair',
+      ),
+    );
+  }
+
+  @override
+  Future<List<CommunityCommentSnapshot>> listCommunityComments(
+      String postId) async {
+    return const <CommunityCommentSnapshot>[
+      CommunityCommentSnapshot(
+        commentId: '71001',
+        postId: '70001',
+        content: '这条观察很真实，能看出已经越来越放松了。',
+        author: CommunityAuthorSnapshot(
+          userId: '10002',
+          nickname: '奶糖',
+        ),
+      ),
+    ];
+  }
+
+  @override
+  Future<CommunityCommentSnapshot> createCommunityComment({
+    required String postId,
+    required String content,
+  }) async {
+    return CommunityCommentSnapshot(
+      commentId: '71002',
+      postId: postId,
+      content: content,
+      author: const CommunityAuthorSnapshot(
+        userId: '10001',
+        nickname: 'Momo',
+      ),
+      createdAt: DateTime(2026, 4, 22, 13, 30),
+    );
+  }
+
+  @override
+  Future<CommunityPostSnapshot> likeCommunityPost(String postId) async {
+    return (await getCommunityPost(postId)).copyWith(
+      liked: true,
+      likeCount: 9,
+    );
+  }
+
+  @override
+  Future<CommunityPostSnapshot> unlikeCommunityPost(String postId) async {
+    return (await getCommunityPost(postId)).copyWith(
+      liked: false,
+      likeCount: 7,
+    );
+  }
+
+  @override
+  Future<CommunityPostSnapshot> favoriteCommunityPost(String postId) async {
+    return (await getCommunityPost(postId)).copyWith(
+      favorited: true,
+      favoriteCount: 4,
+    );
+  }
+
+  @override
+  Future<CommunityPostSnapshot> unfavoriteCommunityPost(String postId) async {
+    return (await getCommunityPost(postId)).copyWith(
+      favorited: false,
+      favoriteCount: 2,
+    );
+  }
+
+  @override
+  Future<CommunityReportSnapshot> reportCommunityPost({
+    required String postId,
+    required CommunityReportDraft draft,
+  }) async {
+    return CommunityReportSnapshot(
+      reportId: '72001',
+      targetType: 'post',
+      targetId: postId,
+      reasonCode: draft.reasonCode,
+      reasonDetail: draft.reasonDetail,
+      status: 'pending',
+      createdAt: DateTime(2026, 4, 22, 14, 0),
+    );
+  }
 
   @override
   Future<List<TimelineEventSnapshot>> listTimelineEvents({
@@ -533,6 +679,7 @@ class _FakePetLifeRepository implements PetLifeRepository {
           content: '今天追着逗猫棒跑了十分钟，状态很活跃。',
           tags: const <String>['玩耍', '活跃'],
           visibility: 'family',
+          syncToCommunity: false,
           happenedAt: DateTime(2026, 4, 17, 8),
           createdAt: DateTime(2026, 4, 17, 8, 5),
         ),

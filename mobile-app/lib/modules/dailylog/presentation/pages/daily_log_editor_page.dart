@@ -25,6 +25,7 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
   late final TextEditingController _happenedAtController;
   late String _visibility;
   late DateTime _happenedAt;
+  late bool _syncToCommunity;
   bool _isSubmitting = false;
 
   @override
@@ -38,6 +39,8 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
       text: initialDailyLog == null ? '' : initialDailyLog.tags.join('，'),
     );
     _visibility = initialDailyLog?.visibility ?? 'family';
+    _syncToCommunity = initialDailyLog?.visibility == 'public' &&
+        (initialDailyLog?.syncToCommunity ?? false);
     _happenedAt = initialDailyLog?.happenedAt ?? DateTime.now();
     _happenedAtController =
         TextEditingController(text: _formatDateTimeLabel(_happenedAt));
@@ -101,6 +104,7 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
         content: _contentController.text.trim(),
         tags: _parseTags(_tagsController.text),
         visibility: _visibility,
+        syncToCommunity: _syncToCommunity,
         happenedAt: _happenedAt,
       );
       if (widget.initialDailyLog == null) {
@@ -208,8 +212,33 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
                   }
                   setState(() {
                     _visibility = value;
+                    if (_visibility != 'public') {
+                      _syncToCommunity = false;
+                    }
                   });
                 },
+              ),
+            ),
+            const SizedBox(height: 16),
+            _DailyLogFormSection(
+              title: '社区同步',
+              description: '社区只承接公开内容。关闭同步后，这条日常仍会保留在宠物记录中，但不会出现在社区推荐流。',
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('同步到社区'),
+                subtitle: Text(
+                  _visibility == 'public'
+                      ? '开启后会将这条公开日常同步到社区。'
+                      : '只有选择“公开到社区”后才允许同步。',
+                ),
+                value: _syncToCommunity,
+                onChanged: _visibility == 'public'
+                    ? (bool value) {
+                        setState(() {
+                          _syncToCommunity = value;
+                        });
+                      }
+                    : null,
               ),
             ),
           ],

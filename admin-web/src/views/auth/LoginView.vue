@@ -26,10 +26,9 @@
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus';
+import { ADMIN_ACCESS_TOKEN_KEY, ADMIN_OPERATOR_NAME_KEY } from '@/shared/constants/adminSession';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-
-const ADMIN_ACCESS_TOKEN_KEY = 'petlife_admin_access_token';
 
 const router = useRouter();
 const account = ref('admin');
@@ -42,7 +41,8 @@ const handleSubmit = async () => {
   }
 
   window.localStorage.setItem(ADMIN_ACCESS_TOKEN_KEY, 'bootstrap-admin-token');
-  ElMessage.success('已进入后台骨架');
+  window.localStorage.setItem(ADMIN_OPERATOR_NAME_KEY, account.value.trim());
+  ElMessage.success('已进入后台');
   await router.push({ name: 'dashboard' });
 };
 </script>

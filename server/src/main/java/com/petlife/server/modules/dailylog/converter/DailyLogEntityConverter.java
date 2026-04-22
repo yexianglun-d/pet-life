@@ -39,6 +39,8 @@ public class DailyLogEntityConverter {
             dailyLogDataObject.content(),
             fromJson(dailyLogDataObject.tagsJson()),
             dailyLogDataObject.visibility(),
+            Boolean.TRUE.equals(dailyLogDataObject.syncToCommunity()),
+            dailyLogDataObject.communityPostId(),
             dailyLogDataObject.happenedAt(),
             dailyLogDataObject.createdAt()
         );
@@ -51,6 +53,8 @@ public class DailyLogEntityConverter {
             dailyLog.getContent(),
             dailyLog.getTags(),
             dailyLog.getVisibility(),
+            dailyLog.isSyncToCommunity(),
+            dailyLog.getCommunityPostId() == null ? null : String.valueOf(dailyLog.getCommunityPostId()),
             DateTimeConverters.toOffsetDateTime(dailyLog.getHappenedAt()),
             DateTimeConverters.toOffsetDateTime(dailyLog.getCreatedAt())
         );

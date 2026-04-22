@@ -403,12 +403,336 @@ class PhaseOneApiTests {
                       "content": "今天第一次主动跳上窗台晒太阳。",
                       "tags": ["晒太阳", "成长"],
                       "visibility": "public",
+                      "sync_to_community": false,
                       "happened_at": "2026-04-17T10:00:00+08:00"
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.visibility", is("public")))
+            .andExpect(jsonPath("$.data.sync_to_community", is(false)))
             .andExpect(jsonPath("$.data.tags[0]", is("晒太阳")));
+    }
+
+    @Test
+    void shouldSyncDailyLogToCommunityFeedAndDetail() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        String dailyLogId = createDailyLog(authorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+
+        mockMvc.perform(get("/api/v1/pets/%s/daily-logs/%s".formatted(petId, dailyLogId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.sync_to_community", is(true)))
+            .andExpect(jsonPath("$.data.community_post_id").exists());
+
+        MvcResult feedResult = mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()", is(1)))
+            .andExpect(jsonPath("$.data[0].source_daily_log_id", is(dailyLogId)))
+            .andExpect(jsonPath("$.data[0].title", is("今天第一次主动跳上窗台晒太阳。")))
+            .andExpect(jsonPath("$.data[0].author.nickname", is("Momo")))
+            .andReturn();
+
+        String postId = JsonPath.read(feedResult.getResponse().getContentAsString(), "$.data[0].post_id");
+        mockMvc.perform(get("/api/v1/community/posts/%s".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.post_id", is(postId)))
+            .andExpect(jsonPath("$.data.source_daily_log_id", is(dailyLogId)))
+            .andExpect(jsonPath("$.data.pet.pet_name", is("Momo")))
+            .andExpect(jsonPath("$.data.content", is("今天第一次主动跳上窗台晒太阳。")));
+    }
+
+    @Test
+    void shouldUpdateAndWithdrawCommunityPostWhenDailyLogSyncChanges() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        String dailyLogId = createDailyLog(authorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+
+        MvcResult feedResult = mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andReturn();
+        String postId = JsonPath.read(feedResult.getResponse().getContentAsString(), "$.data[0].post_id");
+
+        mockMvc.perform(patch("/api/v1/pets/%s/daily-logs/%s".formatted(petId, dailyLogId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "今天会主动叼玩具找人互动。",
+                      "tags": ["互动", "成长"],
+                      "visibility": "public",
+                      "sync_to_community": true,
+                      "happened_at": "2026-04-18T19:30:00+08:00"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.sync_to_community", is(true)))
+            .andExpect(jsonPath("$.data.community_post_id", is(postId)));
+
+        mockMvc.perform(get("/api/v1/community/posts/%s".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.content", is("今天会主动叼玩具找人互动。")))
+            .andExpect(jsonPath("$.data.title", is("今天会主动叼玩具找人互动。")));
+
+        mockMvc.perform(patch("/api/v1/pets/%s/daily-logs/%s".formatted(petId, dailyLogId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "今天会主动叼玩具找人互动。",
+                      "tags": ["互动", "成长"],
+                      "visibility": "family",
+                      "sync_to_community": false,
+                      "happened_at": "2026-04-18T19:30:00+08:00"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.sync_to_community", is(false)));
+
+        mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.post_id == '%s')]".formatted(postId)).isEmpty());
+    }
+
+    @Test
+    void shouldDeleteCommunityPostWhenDeletingSyncedDailyLog() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        String dailyLogId = createDailyLog(authorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+
+        MvcResult feedResult = mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andReturn();
+        String postId = JsonPath.read(feedResult.getResponse().getContentAsString(), "$.data[0].post_id");
+
+        mockMvc.perform(delete("/api/v1/pets/%s/daily-logs/%s".formatted(petId, dailyLogId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.post_id == '%s')]".formatted(postId)).isEmpty());
+    }
+
+    @Test
+    void shouldCreateAndListCommunityComments() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        createDailyLog(authorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+
+        MvcResult feedResult = mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andReturn();
+        String postId = JsonPath.read(feedResult.getResponse().getContentAsString(), "$.data[0].post_id");
+
+        mockMvc.perform(post("/api/v1/community/posts/%s/comments".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "这条观察很真实，能看出已经越来越放松了。"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.post_id", is(postId)))
+            .andExpect(jsonPath("$.data.content", is("这条观察很真实，能看出已经越来越放松了。")))
+            .andExpect(jsonPath("$.data.author.nickname", is("Momo")));
+
+        mockMvc.perform(get("/api/v1/community/posts/%s/comments".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()", is(1)))
+            .andExpect(jsonPath("$.data[0].content", is("这条观察很真实，能看出已经越来越放松了。")));
+
+        mockMvc.perform(get("/api/v1/community/posts/%s".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.comment_count", is(1)));
+    }
+
+    @Test
+    void shouldLikeAndUnlikeCommunityPost() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        createDailyLog(authorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+
+        MvcResult feedResult = mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andReturn();
+        String postId = JsonPath.read(feedResult.getResponse().getContentAsString(), "$.data[0].post_id");
+
+        mockMvc.perform(post("/api/v1/community/posts/%s/like".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.post_id", is(postId)))
+            .andExpect(jsonPath("$.data.liked", is(true)))
+            .andExpect(jsonPath("$.data.like_count", is(1)));
+
+        mockMvc.perform(delete("/api/v1/community/posts/%s/like".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.liked", is(false)))
+            .andExpect(jsonPath("$.data.like_count", is(0)));
+    }
+
+    @Test
+    void shouldFavoriteAndUnfavoriteCommunityPost() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        createDailyLog(authorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+
+        MvcResult feedResult = mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andReturn();
+        String postId = JsonPath.read(feedResult.getResponse().getContentAsString(), "$.data[0].post_id");
+
+        mockMvc.perform(post("/api/v1/community/posts/%s/favorite".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.post_id", is(postId)))
+            .andExpect(jsonPath("$.data.favorited", is(true)))
+            .andExpect(jsonPath("$.data.favorite_count", is(1)));
+
+        mockMvc.perform(delete("/api/v1/community/posts/%s/favorite".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.favorited", is(false)))
+            .andExpect(jsonPath("$.data.favorite_count", is(0)));
+    }
+
+    @Test
+    void shouldCreateAndReusePendingCommunityReport() throws Exception {
+        String authorAuthorizationHeader = authorizationHeader();
+        String reporterAuthorizationHeader = authorizationHeader("13900000000");
+        String petId = currentPetId(authorAuthorizationHeader);
+        createDailyLog(authorAuthorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+
+        MvcResult feedResult = mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andReturn();
+        String postId = JsonPath.read(feedResult.getResponse().getContentAsString(), "$.data[0].post_id");
+
+        MvcResult firstReportResult = mockMvc.perform(post("/api/v1/community/posts/%s/report".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "reason_code": "spam",
+                      "reason_detail": "连续出现重复引流内容"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.target_type", is("post")))
+            .andExpect(jsonPath("$.data.target_id", is(postId)))
+            .andExpect(jsonPath("$.data.reason_code", is("spam")))
+            .andExpect(jsonPath("$.data.reason_detail", is("连续出现重复引流内容")))
+            .andExpect(jsonPath("$.data.status", is("pending")))
+            .andReturn();
+
+        String reportId = JsonPath.read(firstReportResult.getResponse().getContentAsString(), "$.data.report_id");
+
+        mockMvc.perform(post("/api/v1/community/posts/%s/report".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "reason_code": "spam",
+                      "reason_detail": "再次提交同一条举报"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.report_id", is(reportId)))
+            .andExpect(jsonPath("$.data.reason_detail", is("连续出现重复引流内容")))
+            .andExpect(jsonPath("$.data.status", is("pending")));
+    }
+
+    @Test
+    void shouldListModerationReports() throws Exception {
+        String authorAuthorizationHeader = authorizationHeader();
+        String reporterAuthorizationHeader = authorizationHeader("13900000000");
+        String petId = currentPetId(authorAuthorizationHeader);
+        createDailyLog(authorAuthorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+        String postId = currentCommunityPostId(reporterAuthorizationHeader);
+        createCommunityPostReport(reporterAuthorizationHeader, postId, "harassment", "持续使用攻击性语言");
+
+        mockMvc.perform(get("/api/v1/admin/moderation/reports")
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()", is(1)))
+            .andExpect(jsonPath("$.data[0].reporter_nickname", is("宠物家长")))
+            .andExpect(jsonPath("$.data[0].reason_code", is("harassment")))
+            .andExpect(jsonPath("$.data[0].post_title", is("今天第一次主动跳上窗台晒太阳。")))
+            .andExpect(jsonPath("$.data[0].status", is("pending")));
+    }
+
+    @Test
+    void shouldConfirmViolationAndHideReportedPost() throws Exception {
+        String authorAuthorizationHeader = authorizationHeader();
+        String reporterAuthorizationHeader = authorizationHeader("13900000000");
+        String petId = currentPetId(authorAuthorizationHeader);
+        createDailyLog(authorAuthorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+        String postId = currentCommunityPostId(reporterAuthorizationHeader);
+        String reportId = createCommunityPostReport(reporterAuthorizationHeader, postId, "illegal", "包含违规售卖信息");
+
+        mockMvc.perform(patch("/api/v1/admin/moderation/reports/%s".formatted(reportId))
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader)
+                .header("X-Admin-Operator", "risk-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "action": "confirm_violation"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status", is("processed")))
+            .andExpect(jsonPath("$.data.processed_by", is("risk-admin")))
+            .andExpect(jsonPath("$.data.post_review_status", is("rejected")));
+
+        mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void shouldDismissReportAndKeepReportedPostVisible() throws Exception {
+        String authorAuthorizationHeader = authorizationHeader();
+        String reporterAuthorizationHeader = authorizationHeader("13900000000");
+        String petId = currentPetId(authorAuthorizationHeader);
+        createDailyLog(authorAuthorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
+        String postId = currentCommunityPostId(reporterAuthorizationHeader);
+        String reportId = createCommunityPostReport(reporterAuthorizationHeader, postId, "spam", "误报测试");
+
+        mockMvc.perform(patch("/api/v1/admin/moderation/reports/%s".formatted(reportId))
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader)
+                .header("X-Admin-Operator", "content-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "action": "dismiss_report"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status", is("rejected")))
+            .andExpect(jsonPath("$.data.processed_by", is("content-admin")))
+            .andExpect(jsonPath("$.data.post_review_status", is("approved")));
+
+        mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()", is(1)))
+            .andExpect(jsonPath("$.data[0].post_id", is(postId)));
     }
 
     @Test
@@ -431,6 +755,7 @@ class PhaseOneApiTests {
                       "content": "今天学会了在门口等人回家。",
                       "tags": ["等待", "互动"],
                       "visibility": "family",
+                      "sync_to_community": false,
                       "happened_at": "2026-04-18T19:30:00+08:00"
                     }
                     """))
@@ -507,6 +832,7 @@ class PhaseOneApiTests {
                       "content": "今天学会了在门口等人回家。",
                       "tags": ["等待", "互动"],
                       "visibility": "family",
+                      "sync_to_community": false,
                       "happened_at": "2026-04-18T19:30:00+08:00"
                     }
                     """))
@@ -702,6 +1028,15 @@ class PhaseOneApiTests {
     }
 
     private String createDailyLog(String authorizationHeader, String petId, String content) throws Exception {
+        return createDailyLog(authorizationHeader, petId, content, false);
+    }
+
+    private String createDailyLog(
+        String authorizationHeader,
+        String petId,
+        String content,
+        boolean syncToCommunity
+    ) throws Exception {
         MvcResult createDailyLogResult = mockMvc.perform(post("/api/v1/pets/%s/daily-logs".formatted(petId))
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -710,13 +1045,44 @@ class PhaseOneApiTests {
                       "content": "%s",
                       "tags": ["晒太阳", "成长"],
                       "visibility": "public",
+                      "sync_to_community": %s,
                       "happened_at": "2026-04-17T10:00:00+08:00"
                     }
-                    """.formatted(content)))
+                    """.formatted(content, syncToCommunity)))
             .andExpect(status().isOk())
             .andReturn();
 
         return JsonPath.read(createDailyLogResult.getResponse().getContentAsString(), "$.data.daily_log_id");
+    }
+
+    private String currentCommunityPostId(String authorizationHeader) throws Exception {
+        MvcResult feedResult = mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        return JsonPath.read(feedResult.getResponse().getContentAsString(), "$.data[0].post_id");
+    }
+
+    private String createCommunityPostReport(
+        String authorizationHeader,
+        String postId,
+        String reasonCode,
+        String reasonDetail
+    ) throws Exception {
+        MvcResult reportResult = mockMvc.perform(post("/api/v1/community/posts/%s/report".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "reason_code": "%s",
+                      "reason_detail": "%s"
+                    }
+                    """.formatted(reasonCode, reasonDetail)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        return JsonPath.read(reportResult.getResponse().getContentAsString(), "$.data.report_id");
     }
 
     private String createFamilyInvitation(String authorizationHeader, String mobile, String petId) throws Exception {

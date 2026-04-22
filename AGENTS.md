@@ -27,6 +27,7 @@
 5. Prefer vertical business modules on the server side. Cross-module concerns go into `common` or `config`.
 6. Keep deferred capabilities behind explicit placeholders or reserved interfaces. Do not expose half-finished backend chains.
 7. All UI implementation in `mobile-app` and `admin-web` must follow `DESIGN.md`.
+8. Unless the user explicitly marks a capability as deferred, do not treat skeletons, placeholders, or main-path-only flows as “completed”. Non-deferred scope must target full delivery quality across `mobile-app + server + admin-web`.
 
 ## Server Code Structure
 

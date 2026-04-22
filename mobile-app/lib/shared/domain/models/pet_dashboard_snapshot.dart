@@ -72,7 +72,9 @@ class DailyLogSnapshot {
     required this.content,
     required this.tags,
     required this.visibility,
+    required this.syncToCommunity,
     required this.happenedAt,
+    this.communityPostId,
     this.createdAt,
   });
 
@@ -80,6 +82,8 @@ class DailyLogSnapshot {
   final String content;
   final List<String> tags;
   final String visibility;
+  final bool syncToCommunity;
   final DateTime happenedAt;
+  final String? communityPostId;
   final DateTime? createdAt;
 }

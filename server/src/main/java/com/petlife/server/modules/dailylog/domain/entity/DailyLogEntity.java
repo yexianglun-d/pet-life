@@ -17,6 +17,8 @@ public final class DailyLogEntity {
     private final String content;
     private final List<String> tags;
     private final String visibility;
+    private final boolean syncToCommunity;
+    private final Long communityPostId;
     private final LocalDateTime happenedAt;
     private final LocalDateTime createdAt;
 
@@ -27,6 +29,8 @@ public final class DailyLogEntity {
         String content,
         List<String> tags,
         String visibility,
+        boolean syncToCommunity,
+        Long communityPostId,
         LocalDateTime happenedAt,
         LocalDateTime createdAt
     ) {
@@ -36,6 +40,8 @@ public final class DailyLogEntity {
         this.content = content;
         this.tags = tags == null ? List.of() : List.copyOf(tags);
         this.visibility = visibility;
+        this.syncToCommunity = syncToCommunity;
+        this.communityPostId = communityPostId;
         this.happenedAt = happenedAt;
         this.createdAt = createdAt;
     }
@@ -62,6 +68,14 @@ public final class DailyLogEntity {
 
     public String getVisibility() {
         return visibility;
+    }
+
+    public boolean isSyncToCommunity() {
+        return syncToCommunity;
+    }
+
+    public Long getCommunityPostId() {
+        return communityPostId;
     }
 
     public LocalDateTime getHappenedAt() {

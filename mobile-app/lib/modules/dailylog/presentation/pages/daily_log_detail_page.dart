@@ -281,6 +281,11 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
                 label: '可见范围',
                 value: _toLocalizedVisibility(dailyLog.visibility),
               ),
+              const SizedBox(height: 12),
+              _DetailRow(
+                label: '社区同步',
+                value: dailyLog.syncToCommunity ? '已同步到社区' : '未同步到社区',
+              ),
               if (dailyLog.createdAt != null) ...[
                 const SizedBox(height: 12),
                 _DetailRow(

@@ -23,6 +23,8 @@ public enum ResponseCode {
     HEALTH_RECORD_NOT_FOUND("HEALTH_RECORD_NOT_FOUND", "health record does not exist"),
     REMINDER_NOT_FOUND("REMINDER_NOT_FOUND", "reminder does not exist"),
     DAILY_LOG_NOT_FOUND("DAILY_LOG_NOT_FOUND", "daily log does not exist"),
+    COMMUNITY_POST_NOT_FOUND("COMMUNITY_POST_NOT_FOUND", "community post does not exist"),
+    MODERATION_REPORT_NOT_FOUND("MODERATION_REPORT_NOT_FOUND", "moderation report does not exist"),
     INTERNAL_SERVER_ERROR("INTERNAL_SERVER_ERROR", "internal server error");
 
     private final String code;

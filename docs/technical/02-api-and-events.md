@@ -363,6 +363,7 @@
   "content": "今天第一次散步，出门有点紧张，但表现很好",
   "tags": ["散步", "成长"],
   "visibility": "family",
+  "sync_to_community": false,
   "happened_at": "2026-04-20T09:00:00Z"
 }
 ```
@@ -370,7 +371,8 @@
 说明：
 
 - 当前阶段先支持文字内容、标签、可见范围和记录时间
-- 媒体资源与同步社区链路仍处于预留态，不进入当前真实接口
+- `sync_to_community` 仅在 `visibility=public` 时允许开启
+- 打开同步后会生成或更新对应社区帖子；关闭同步或改为非公开时会自动撤回社区帖子
 
 ## 5.5 获取萌宠日常详情
 
@@ -398,45 +400,57 @@
 
 ## 6.1 获取社区流
 
-`GET /community/feed?tab=recommended&city_code=310000&cursor=...`
+`GET /community/feed?tab=recommended`
 
 返回卡片字段：
 
 - `post_id`
 - `author`
-- `pet_card`
+- `pet`
 - `title`
-- `media_cover`
-- `interaction_summary`
-- `review_status`
+- `content`
+- `source_daily_log_id`
+- `like_count`
+- `comment_count`
+- `favorite_count`
+- `liked`
+- `favorited`
+- `published_at`
 
 ## 6.2 创建社区帖子
 
-`POST /community/posts`
+当前批次不开放独立发布接口。
 
-请求关键字段：
+真实发布来源：
 
-```json
-{
-  "post_type": "image_text",
-  "pet_id": "10001",
-  "topic_id": "30001",
-  "title": "第一次洗澡记录",
-  "content": "虽然怕水，但很配合",
-  "asset_ids": ["90011"],
-  "source_daily_log_id": "50001",
-  "city_code": "310000",
-  "visibility": "public"
-}
-```
+- 萌宠日常创建/更新时，若 `visibility=public` 且 `sync_to_community=true`，系统会自动生成或更新社区帖子
+- 当前社区帖子类型固定为 `experience`
 
 ## 6.3 获取帖子详情
 
 `GET /community/posts/{post_id}`
 
+说明：
+
+- 返回当前用户视角下的 `liked`、`favorited` 状态
+- 当前内容详情页已接入真实点赞、收藏、评论交互
+
 ## 6.4 评论帖子
 
 `POST /community/posts/{post_id}/comments`
+
+请求：
+
+```json
+{
+  "content": "这条观察很真实，能看出已经越来越放松了。"
+}
+```
+
+补充：
+
+- `GET /community/posts/{post_id}/comments` 已提供评论列表读取
+- 当前阶段仅支持一级评论，不开放楼中楼
 
 ## 6.5 点赞帖子
 
@@ -457,6 +471,21 @@
 ## 6.9 举报帖子
 
 `POST /community/posts/{post_id}/report`
+
+请求关键字段：
+
+```json
+{
+  "reason_code": "spam",
+  "reason_detail": "连续出现重复引流内容"
+}
+```
+
+补充：
+
+- 当前阶段支持的 `reason_code`：`spam`、`pornography`、`harassment`、`illegal`、`other`
+- 当 `reason_code=other` 时，`reason_detail` 必填
+- 同一用户对同一帖子存在 `pending` 举报时，接口返回已有举报，不重复创建新记录
 
 ## 6.10 获取话题详情流
 
@@ -654,6 +683,25 @@
 7. 订单与预约运营处理
 8. 设备厂商配置和设备解绑处理
 9. 消息模板配置
+
+当前已落地的后台举报处理接口：
+
+- `GET /api/v1/admin/moderation/reports?status=pending|processed|rejected|all`
+- `PATCH /api/v1/admin/moderation/reports/{report_id}`
+
+`PATCH /api/v1/admin/moderation/reports/{report_id}` 请求关键字段：
+
+```json
+{
+  "action": "confirm_violation"
+}
+```
+
+补充：
+
+- `action=confirm_violation`：举报记为 `processed`，目标帖子审核状态改为 `rejected`
+- `action=dismiss_report`：举报记为 `rejected`，目标帖子保持当前状态
+- 当前阶段处理人通过请求头 `X-Admin-Operator` 回写，用于后台最小可用审计标识
 
 ## 12. 领域事件设计
 

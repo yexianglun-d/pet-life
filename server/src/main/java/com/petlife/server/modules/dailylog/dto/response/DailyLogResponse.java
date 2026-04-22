@@ -11,6 +11,8 @@ import java.util.List;
  * @param content 内容
  * @param tags 标签
  * @param visibility 可见范围
+ * @param syncToCommunity 是否同步社区
+ * @param communityPostId 社区帖子 ID
  * @param happenedAt 记录时间
  * @param createdAt 创建时间
  */
@@ -20,6 +22,8 @@ public record DailyLogResponse(
     String content,
     List<String> tags,
     String visibility,
+    Boolean syncToCommunity,
+    String communityPostId,
     OffsetDateTime happenedAt,
     OffsetDateTime createdAt
 ) {

@@ -13,6 +13,7 @@ public class CreateDailyLogCommand {
     private String content;
     private String tagsJson;
     private String visibility;
+    private Boolean syncToCommunity;
     private LocalDateTime happenedAt;
 
     public Long getId() {
@@ -61,6 +62,14 @@ public class CreateDailyLogCommand {
 
     public void setVisibility(String visibility) {
         this.visibility = visibility;
+    }
+
+    public Boolean getSyncToCommunity() {
+        return syncToCommunity;
+    }
+
+    public void setSyncToCommunity(Boolean syncToCommunity) {
+        this.syncToCommunity = syncToCommunity;
     }
 
     public LocalDateTime getHappenedAt() {

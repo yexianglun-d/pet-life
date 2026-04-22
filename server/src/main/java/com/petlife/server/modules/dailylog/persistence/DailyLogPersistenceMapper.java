@@ -2,6 +2,7 @@ package com.petlife.server.modules.dailylog.persistence;
 
 import com.petlife.server.modules.dailylog.persistence.command.CreateDailyLogCommand;
 import com.petlife.server.modules.dailylog.persistence.command.DeleteDailyLogCommand;
+import com.petlife.server.modules.dailylog.persistence.command.UpdateDailyLogCommunityBindingCommand;
 import com.petlife.server.modules.dailylog.persistence.command.UpdateDailyLogCommand;
 import com.petlife.server.modules.dailylog.persistence.dataobject.DailyLogDataObject;
 import java.util.List;
@@ -26,6 +27,8 @@ public interface DailyLogPersistenceMapper {
           content AS content,
           JSON_UNQUOTE(JSON_EXTRACT(scene_tags, '$')) AS tagsJson,
           visibility AS visibility,
+          sync_to_community AS syncToCommunity,
+          community_post_id AS communityPostId,
           happened_at AS happenedAt,
           created_at AS createdAt
         FROM pet_daily_logs
@@ -43,6 +46,8 @@ public interface DailyLogPersistenceMapper {
           content AS content,
           JSON_UNQUOTE(JSON_EXTRACT(scene_tags, '$')) AS tagsJson,
           visibility AS visibility,
+          sync_to_community AS syncToCommunity,
+          community_post_id AS communityPostId,
           happened_at AS happenedAt,
           created_at AS createdAt
         FROM pet_daily_logs
@@ -60,6 +65,8 @@ public interface DailyLogPersistenceMapper {
           content AS content,
           JSON_UNQUOTE(JSON_EXTRACT(scene_tags, '$')) AS tagsJson,
           visibility AS visibility,
+          sync_to_community AS syncToCommunity,
+          community_post_id AS communityPostId,
           happened_at AS happenedAt,
           created_at AS createdAt
         FROM pet_daily_logs
@@ -75,10 +82,10 @@ public interface DailyLogPersistenceMapper {
 
     @Insert("""
         INSERT INTO pet_daily_logs (
-          pet_id, author_user_id, content, scene_tags, visibility, happened_at,
+          pet_id, author_user_id, content, scene_tags, visibility, sync_to_community, happened_at,
           sync_to_timeline, created_at, updated_at
         ) VALUES (
-          #{petId}, #{authorUserId}, #{content}, #{tagsJson}, #{visibility}, #{happenedAt},
+          #{petId}, #{authorUserId}, #{content}, #{tagsJson}, #{visibility}, #{syncToCommunity}, #{happenedAt},
           1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
         """)
@@ -90,6 +97,7 @@ public interface DailyLogPersistenceMapper {
         SET content = #{content},
             scene_tags = #{tagsJson},
             visibility = #{visibility},
+            sync_to_community = #{syncToCommunity},
             happened_at = #{happenedAt},
             updated_at = CURRENT_TIMESTAMP
         WHERE id = #{dailyLogId}
@@ -97,6 +105,16 @@ public interface DailyLogPersistenceMapper {
           AND deleted_at IS NULL
         """)
     int updateDailyLog(UpdateDailyLogCommand command);
+
+    @Update("""
+        UPDATE pet_daily_logs
+        SET community_post_id = #{communityPostId},
+            sync_to_community = #{syncToCommunity},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{dailyLogId}
+          AND deleted_at IS NULL
+        """)
+    int updateCommunityBinding(UpdateDailyLogCommunityBindingCommand command);
 
     @Update("""
         UPDATE pet_daily_logs

@@ -270,7 +270,8 @@ String _buildDescription(DailyLogSnapshot dailyLog) {
   final String minute = dailyLog.happenedAt.minute.toString().padLeft(2, '0');
 
   return '${dailyLog.happenedAt.year}-$month-$day $hour:$minute'
-      ' · ${_toLocalizedVisibility(dailyLog.visibility)}';
+      ' · ${_toLocalizedVisibility(dailyLog.visibility)}'
+      ' · ${dailyLog.syncToCommunity ? '已同步社区' : '未同步社区'}';
 }
 
 String _toLocalizedVisibility(String visibility) {

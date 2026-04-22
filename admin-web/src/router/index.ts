@@ -1,12 +1,11 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import AdminLayout from '@/layouts/AdminLayout.vue';
+import { ADMIN_ACCESS_TOKEN_KEY } from '@/shared/constants/adminSession';
 import LoginView from '@/views/auth/LoginView.vue';
 import DashboardView from '@/views/dashboard/DashboardView.vue';
 import ModerationView from '@/views/moderation/ModerationView.vue';
 import ServiceProviderView from '@/views/service/ServiceProviderView.vue';
 import SystemConfigView from '@/views/system/SystemConfigView.vue';
-
-const ADMIN_ACCESS_TOKEN_KEY = 'petlife_admin_access_token';
 
 const routes: RouteRecordRaw[] = [
   {

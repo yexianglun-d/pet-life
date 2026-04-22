@@ -10,6 +10,7 @@ import java.util.List;
  * @param content 内容
  * @param tags 标签
  * @param visibility 可见范围
+ * @param syncToCommunity 是否同步社区
  * @param happenedAt 记录时间
  */
 public record UpdateDailyLogRequest(
@@ -17,6 +18,7 @@ public record UpdateDailyLogRequest(
     String content,
     List<String> tags,
     String visibility,
+    Boolean syncToCommunity,
     OffsetDateTime happenedAt
 ) {
 }

@@ -25,10 +25,10 @@
 </template>
 
 <script setup lang="ts">
+import { ADMIN_ACCESS_TOKEN_KEY, ADMIN_OPERATOR_NAME_KEY } from '@/shared/constants/adminSession';
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-const ADMIN_ACCESS_TOKEN_KEY = 'petlife_admin_access_token';
 const route = useRoute();
 const router = useRouter();
 
@@ -36,6 +36,7 @@ const activePath = computed(() => route.path);
 
 const handleLogout = async () => {
   window.localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+  window.localStorage.removeItem(ADMIN_OPERATOR_NAME_KEY);
   await router.push({ name: 'login' });
 };
 </script>

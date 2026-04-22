@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/family/presentation/pages/family_join_page.dart';
 import 'package:petlife_mobile_app/modules/family/presentation/pages/family_management_page.dart';
@@ -77,15 +79,15 @@ class _ProfilePageState extends State<ProfilePage> {
         _ProfileHeader(currentUser: widget.currentUser),
         const SizedBox(height: 16),
         PageSection(
-          title: '账号与家庭',
-          description: '当前先展示登录用户、家庭和当前宠物摘要，后续继续接家庭共养管理。',
+          title: '我的陪伴资料',
+          description: '这里会整理你、家庭和当前宠物之间的陪伴关系。',
           child: Column(
             children: [
               _AccountSummary(currentUser: widget.currentUser),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
+                child: FilledButton.tonal(
                   onPressed: _openFamilyManagement,
                   child: const Text('家庭共养管理'),
                 ),
@@ -103,8 +105,8 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         const SizedBox(height: 16),
         PageSection(
-          title: '设置',
-          description: '本批次先补齐退出登录闭环，其他设置项后续按模块展开。',
+          title: '账号与安全',
+          description: '如果需要切换账号，可以从这里安全退出。',
           child: SizedBox(
             width: double.infinity,
             child: OutlinedButton(
@@ -126,24 +128,37 @@ class _ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
+    final String avatarText = currentUser.nickname.isEmpty
+        ? '宠'
+        : currentUser.nickname.substring(0, 1);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFECDD),
+          Color(0xFFFFFAF5),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 58,
-            height: 58,
+            width: 62,
+            height: 62,
             decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
-              borderRadius: BorderRadius.circular(20),
+              color: AppThemePalette.surface,
+              borderRadius: BorderRadius.circular(22),
             ),
-            child: const Icon(Icons.person_outline, color: Color(0xFF166534)),
+            child: Center(
+              child: Text(
+                avatarText,
+                style: textTheme.titleLarge?.copyWith(
+                  color: AppThemePalette.primaryDeep,
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -154,8 +169,15 @@ class _ProfileHeader extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   currentUser.familyName,
-                  style: textTheme.bodyMedium
-                      ?.copyWith(color: const Color(0xFF64748B)),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppThemePalette.body,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                CompanionPill(
+                  label: '正在陪伴 ${currentUser.currentPet.petName}',
+                  icon: Icons.favorite_border_rounded,
+                  backgroundColor: AppThemePalette.surface,
                 ),
               ],
             ),
@@ -175,43 +197,82 @@ class _AccountSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _SummaryRow(label: '用户 ID', value: currentUser.userId),
+        _SummaryCard(
+          label: '家庭',
+          value: currentUser.familyName,
+          icon: Icons.home_outlined,
+        ),
         const SizedBox(height: 12),
-        _SummaryRow(label: '当前宠物', value: currentUser.currentPet.petName),
+        _SummaryCard(
+          label: '当前宠物',
+          value: currentUser.currentPet.petName,
+          icon: Icons.pets_outlined,
+        ),
         const SizedBox(height: 12),
-        _SummaryRow(label: '宠物品种', value: currentUser.currentPet.breed),
+        _SummaryCard(
+          label: '宠物品种',
+          value: currentUser.currentPet.breed,
+          icon: Icons.bookmark_border_rounded,
+        ),
+        const SizedBox(height: 12),
+        _SummaryCard(
+          label: '账号编号',
+          value: currentUser.userId,
+          icon: Icons.perm_identity_outlined,
+        ),
       ],
     );
   }
 }
 
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
     required this.label,
     required this.value,
+    required this.icon,
   });
 
   final String label;
   final String value;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return Row(
-      children: [
-        SizedBox(
-          width: 88,
-          child: Text(
-            label,
-            style:
-                textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B)),
+    return CompanionCard(
+      radius: 22,
+      color: AppThemePalette.surfaceRaised,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppThemePalette.warmTint,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: AppThemePalette.primaryDeep),
           ),
-        ),
-        Expanded(
-          child: Text(value, style: textTheme.titleMedium),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppThemePalette.muted,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(value, style: textTheme.titleMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
