@@ -15,6 +15,10 @@ import java.time.OffsetDateTime;
  * @param adoptDate 到家日期
  * @param neuterStatus 绝育状态
  * @param avatarUrl 头像地址
+ * @param weightKg 当前体重（kg）
+ * @param allergyNotes 过敏信息
+ * @param medicalHistory 重要病史
+ * @param status 宠物状态
  * @param createdAt 创建时间
  * @param updatedAt 更新时间
  */
@@ -28,6 +32,10 @@ public record PetDetailResponse(
     LocalDate adoptDate,
     String neuterStatus,
     String avatarUrl,
+    String weightKg,
+    String allergyNotes,
+    String medicalHistory,
+    String status,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt
 ) {

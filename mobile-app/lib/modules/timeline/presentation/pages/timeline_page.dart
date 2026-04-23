@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/dailylog/presentation/pages/daily_log_detail_page.dart';
 import 'package:petlife_mobile_app/modules/health/presentation/pages/health_record_detail_page.dart';
@@ -133,15 +135,16 @@ class _TimelinePageState extends State<TimelinePage> {
     await _loadTimelineEvents();
   }
 
-  Future<bool> _handleWillPop() async {
-    Navigator.of(context).pop(_hasChanges);
-    return false;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _handleWillPop,
+    return PopScope<bool>(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, bool? result) {
+        if (didPop) {
+          return;
+        }
+        Navigator.of(context).pop(_hasChanges);
+      },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('成长时间轴'),
@@ -150,33 +153,51 @@ class _TimelinePageState extends State<TimelinePage> {
             icon: const Icon(Icons.arrow_back),
           ),
         ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            PageSection(
-              title: widget.petName,
-              description: '时间轴把健康记录和萌宠日常串成同一条生命周期视图，便于回看关键节点。',
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _filters
-                    .map(
-                      (_TimelineFilter filter) => ChoiceChip(
-                        label: Text(filter.label),
-                        selected: _selectedFilter == filter.key,
-                        onSelected: (_) => _changeFilter(filter.key),
-                      ),
-                    )
-                    .toList(),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                Color(0xFFFFFBF7),
+                AppThemePalette.background,
+              ],
+            ),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _TimelineHeroCard(
+                petName: widget.petName,
+                filterKey: _selectedFilter,
+                eventCount: _timelineEvents.length,
               ),
-            ),
-            const SizedBox(height: 16),
-            PageSection(
-              title: '事件列表',
-              description: '当前已接入健康记录与萌宠日常，后续会继续补服务、设备等事件来源。',
-              child: _buildTimelineList(),
-            ),
-          ],
+              const SizedBox(height: 16),
+              PageSection(
+                title: '想看哪一类记录',
+                description: '把健康和日常放在同一条成长轨迹里，再按需要轻轻筛一下。',
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _filters
+                      .map(
+                        (_TimelineFilter filter) => ChoiceChip(
+                          label: Text(filter.label),
+                          selected: _selectedFilter == filter.key,
+                          onSelected: (_) => _changeFilter(filter.key),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              PageSection(
+                title: '成长片段',
+                description: '每一条记录都像陪伴里的一个节点，点进去就能回到当时的详细内容。',
+                child: _buildTimelineList(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -184,31 +205,28 @@ class _TimelinePageState extends State<TimelinePage> {
 
   Widget _buildTimelineList() {
     if (_isLoading && _timelineEvents.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
     if (_errorMessage != null && _timelineEvents.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _errorMessage!,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFFB91C1C)),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: _loadTimelineEvents,
-            child: const Text('重新加载'),
-          ),
-        ],
+      return CompanionEmptyState(
+        title: '时间轴暂时没有加载出来',
+        description: _errorMessage!,
+        icon: Icons.cloud_off_outlined,
+        actionLabel: '重新加载',
+        onAction: _loadTimelineEvents,
       );
     }
 
     if (_timelineEvents.isEmpty) {
-      return const Text('当前筛选条件下还没有时间轴事件。');
+      return const CompanionEmptyState(
+        title: '这一类时间轴还没有内容',
+        description: '等健康记录或萌宠日常慢慢积累起来，这里就会连成一条完整的成长轨迹。',
+        icon: Icons.timeline_rounded,
+      );
     }
 
     return Column(
@@ -223,6 +241,66 @@ class _TimelinePageState extends State<TimelinePage> {
             ),
           )
           .toList(),
+    );
+  }
+}
+
+class _TimelineHeroCard extends StatelessWidget {
+  const _TimelineHeroCard({
+    required this.petName,
+    required this.filterKey,
+    required this.eventCount,
+  });
+
+  final String petName;
+  final String filterKey;
+  final int eventCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFECDC),
+          Color(0xFFFFFAF3),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CompanionPill(
+            label: '成长时间轴',
+            icon: Icons.timeline_rounded,
+            backgroundColor: Color(0xFFFFE3D2),
+            foregroundColor: AppThemePalette.primaryDeep,
+          ),
+          const SizedBox(height: 12),
+          Text(petName, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 10),
+          Text(
+            '把体检、疫苗、驱虫和日常小片段放在一起回看，会更容易看见陪伴的痕迹。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              CompanionPill(
+                label: '当前筛选 ${_toFilterLabel(filterKey)}',
+                backgroundColor: AppThemePalette.surface,
+              ),
+              CompanionPill(
+                label: '当前 $eventCount 条',
+                backgroundColor: AppThemePalette.surface,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -242,22 +320,23 @@ class _TimelineEventCard extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(24),
       child: Ink(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(18),
+          color: AppThemePalette.surfaceRaised,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppThemePalette.line),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 color: style.backgroundColor,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Icon(style.icon, color: style.foregroundColor),
             ),
@@ -267,6 +346,7 @@ class _TimelineEventCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Text(
@@ -274,32 +354,20 @@ class _TimelineEventCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: style.backgroundColor,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          style.label,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: style.foregroundColor,
-                                  ),
-                        ),
+                      const SizedBox(width: 10),
+                      CompanionPill(
+                        label: style.label,
+                        backgroundColor: style.backgroundColor,
+                        foregroundColor: style.foregroundColor,
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     _buildEventDescription(event),
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: const Color(0xFF64748B)),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppThemePalette.muted,
+                        ),
                   ),
                 ],
               ),
@@ -335,28 +403,39 @@ class _TimelineCardStyle {
   final Color foregroundColor;
 }
 
+String _toFilterLabel(String filterKey) {
+  switch (filterKey) {
+    case 'health':
+      return '健康';
+    case 'daily_log':
+      return '日常';
+    default:
+      return '全部';
+  }
+}
+
 _TimelineCardStyle _toTimelineCardStyle(String eventType) {
   switch (eventType) {
     case 'health':
       return const _TimelineCardStyle(
         label: '健康',
         icon: Icons.favorite_outline,
-        backgroundColor: Color(0xFFDCFCE7),
-        foregroundColor: Color(0xFF166534),
+        backgroundColor: Color(0xFFE8F3E7),
+        foregroundColor: AppThemePalette.success,
       );
     case 'daily_log':
       return const _TimelineCardStyle(
         label: '日常',
         icon: Icons.auto_stories_outlined,
-        backgroundColor: Color(0xFFFDE68A),
-        foregroundColor: Color(0xFF92400E),
+        backgroundColor: Color(0xFFFFE9D6),
+        foregroundColor: AppThemePalette.primaryDeep,
       );
     default:
       return const _TimelineCardStyle(
         label: '事件',
         icon: Icons.schedule_outlined,
-        backgroundColor: Color(0xFFE2E8F0),
-        foregroundColor: Color(0xFF334155),
+        backgroundColor: Color(0xFFF3E9DF),
+        foregroundColor: AppThemePalette.muted,
       );
   }
 }

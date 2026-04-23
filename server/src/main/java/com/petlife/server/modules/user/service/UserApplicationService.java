@@ -29,45 +29,43 @@ public class UserApplicationService {
     private final PetEntityConverter petEntityConverter;
     private final UserPersistenceMapper userPersistenceMapper;
     private final PetPersistenceMapper petPersistenceMapper;
+    private final UserBootstrapApplicationService userBootstrapApplicationService;
 
     public UserApplicationService(
         AuthResponseConverter authResponseConverter,
         UserEntityConverter userEntityConverter,
         PetEntityConverter petEntityConverter,
         UserPersistenceMapper userPersistenceMapper,
-        PetPersistenceMapper petPersistenceMapper
+        PetPersistenceMapper petPersistenceMapper,
+        UserBootstrapApplicationService userBootstrapApplicationService
     ) {
         this.authResponseConverter = authResponseConverter;
         this.userEntityConverter = userEntityConverter;
         this.petEntityConverter = petEntityConverter;
         this.userPersistenceMapper = userPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
+        this.userBootstrapApplicationService = userBootstrapApplicationService;
     }
 
     public CurrentUserResponse getCurrentUser() {
         Long currentUserId = CurrentUserContext.requireUserId();
+        FamilySummaryEntity familySummary = userBootstrapApplicationService.ensurePrimaryFamilyAndCurrentPet(currentUserId);
         UserProfileEntity currentUser = userEntityConverter.toEntity(userPersistenceMapper.findUserProfileById(currentUserId));
-        if (currentUser == null || currentUser.getCurrentPetId() == null) {
-            throw new BusinessException(ResponseCode.USER_CURRENT_PET_NOT_FOUND);
+        if (currentUser == null) {
+            throw new BusinessException(ResponseCode.RESOURCE_NOT_FOUND, "当前用户不存在");
         }
 
-        PetProfileEntity currentPet = petEntityConverter.toEntity(
-            petPersistenceMapper.findAccessiblePetById(currentUserId, currentUser.getCurrentPetId())
-        );
-        if (currentPet == null) {
-            throw new BusinessException(ResponseCode.USER_CURRENT_PET_NOT_FOUND);
-        }
-
-        FamilySummaryEntity familySummary =
-            userEntityConverter.toEntity(userPersistenceMapper.findPrimaryFamilySummaryByUserId(currentUserId));
-        if (familySummary == null) {
-            throw new BusinessException(ResponseCode.RESOURCE_NOT_FOUND, "当前用户尚未加入家庭");
+        PetProfileEntity currentPet = null;
+        if (currentUser.getCurrentPetId() != null) {
+            currentPet = petEntityConverter.toEntity(
+                petPersistenceMapper.findAccessiblePetById(currentUserId, currentUser.getCurrentPetId())
+            );
         }
 
         return new CurrentUserResponse(
             authResponseConverter.toUserResponse(currentUser),
-            String.valueOf(currentUser.getCurrentPetId()),
-            authResponseConverter.toPetSummary(currentPet),
+            currentUser.getCurrentPetId() == null ? null : String.valueOf(currentUser.getCurrentPetId()),
+            currentPet == null ? null : authResponseConverter.toPetSummary(currentPet),
             authResponseConverter.toFamilySummaryResponse(familySummary)
         );
     }

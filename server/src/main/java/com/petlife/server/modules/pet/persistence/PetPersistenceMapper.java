@@ -1,8 +1,10 @@
 package com.petlife.server.modules.pet.persistence;
 
+import com.petlife.server.modules.pet.persistence.command.ArchivePetCommand;
 import com.petlife.server.modules.pet.persistence.command.CreatePetCommand;
+import com.petlife.server.modules.pet.persistence.command.DeletePetCommand;
+import com.petlife.server.modules.pet.persistence.command.UpdatePetProfileCommand;
 import com.petlife.server.modules.pet.persistence.dataobject.PetProfileDataObject;
-import java.time.LocalDate;
 import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -30,6 +32,10 @@ public interface PetPersistenceMapper {
           p.adopt_date AS adoptDate,
           p.neuter_status AS neuterStatus,
           p.avatar_url AS avatarUrl,
+          p.weight_kg AS weightKg,
+          p.allergy_notes AS allergyNotes,
+          p.medical_history AS medicalHistory,
+          p.status AS status,
           p.created_at AS createdAt,
           p.updated_at AS updatedAt
         FROM pets p
@@ -84,6 +90,10 @@ public interface PetPersistenceMapper {
           p.adopt_date AS adoptDate,
           p.neuter_status AS neuterStatus,
           p.avatar_url AS avatarUrl,
+          p.weight_kg AS weightKg,
+          p.allergy_notes AS allergyNotes,
+          p.medical_history AS medicalHistory,
+          p.status AS status,
           p.created_at AS createdAt,
           p.updated_at AS updatedAt
         FROM pets p
@@ -107,6 +117,10 @@ public interface PetPersistenceMapper {
           p.adopt_date AS adoptDate,
           p.neuter_status AS neuterStatus,
           p.avatar_url AS avatarUrl,
+          p.weight_kg AS weightKg,
+          p.allergy_notes AS allergyNotes,
+          p.medical_history AS medicalHistory,
+          p.status AS status,
           p.created_at AS createdAt,
           p.updated_at AS updatedAt
         FROM pets p
@@ -130,6 +144,10 @@ public interface PetPersistenceMapper {
           p.adopt_date AS adoptDate,
           p.neuter_status AS neuterStatus,
           p.avatar_url AS avatarUrl,
+          p.weight_kg AS weightKg,
+          p.allergy_notes AS allergyNotes,
+          p.medical_history AS medicalHistory,
+          p.status AS status,
           p.created_at AS createdAt,
           p.updated_at AS updatedAt
         FROM pets p
@@ -178,10 +196,11 @@ public interface PetPersistenceMapper {
     @Insert("""
         INSERT INTO pets (
           family_id, owner_user_id, pet_name, pet_type, breed, gender, birthday, adopt_date,
-          neuter_status, avatar_url, status, created_at, updated_at
+          neuter_status, avatar_url, weight_kg, allergy_notes, medical_history, status, created_at, updated_at
         ) VALUES (
           #{familyId}, #{ownerUserId}, #{petName}, #{petType}, #{breed}, #{gender}, #{birthday}, #{adoptDate},
-          #{neuterStatus}, #{avatarUrl}, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          #{neuterStatus}, #{avatarUrl}, #{weightKg}, #{allergyNotes}, #{medicalHistory},
+          'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
         """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -197,6 +216,9 @@ public interface PetPersistenceMapper {
             adopt_date = COALESCE(#{adoptDate}, adopt_date),
             neuter_status = COALESCE(#{neuterStatus}, neuter_status),
             avatar_url = COALESCE(#{avatarUrl}, avatar_url),
+            weight_kg = COALESCE(#{weightKg}, weight_kg),
+            allergy_notes = COALESCE(#{allergyNotes}, allergy_notes),
+            medical_history = COALESCE(#{medicalHistory}, medical_history),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = #{petId}
           AND deleted_at IS NULL
@@ -234,16 +256,47 @@ public interface PetPersistenceMapper {
             )
           )
         """)
-    int updatePetSnapshot(
-        @Param("petId") Long petId,
-        @Param("userId") Long userId,
-        @Param("petName") String petName,
-        @Param("petType") String petType,
-        @Param("breed") String breed,
-        @Param("gender") String gender,
-        @Param("birthday") LocalDate birthday,
-        @Param("adoptDate") LocalDate adoptDate,
-        @Param("neuterStatus") Integer neuterStatus,
-        @Param("avatarUrl") String avatarUrl
-    );
+    int updatePetSnapshot(UpdatePetProfileCommand command);
+
+    @Update("""
+        UPDATE pets
+        SET status = #{archiveStatus},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{petId}
+          AND deleted_at IS NULL
+          AND status = 'active'
+        """)
+    int archivePet(ArchivePetCommand command);
+
+    @Update("""
+        UPDATE pets
+        SET deleted_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{petId}
+          AND deleted_at IS NULL
+        """)
+    int softDeletePet(DeletePetCommand command);
+
+    @Select("""
+        SELECT us.user_id
+        FROM user_settings us
+        WHERE us.current_pet_id = #{petId}
+        ORDER BY us.user_id ASC
+        """)
+    List<Long> listUserIdsByCurrentPetId(@Param("petId") Long petId);
+
+    @Select("""
+        SELECT EXISTS(
+          SELECT 1
+          FROM pets owned_pet
+          WHERE owned_pet.owner_user_id = #{userId}
+          UNION
+          SELECT 1
+          FROM family_members fm
+          JOIN pets family_pet ON family_pet.family_id = fm.family_id
+          WHERE fm.user_id = #{userId}
+            AND fm.invite_status = 'joined'
+        )
+        """)
+    boolean existsPetHistoryByUserId(@Param("userId") Long userId);
 }

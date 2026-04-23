@@ -10,6 +10,10 @@ class PetDetailSnapshot {
     this.birthday,
     this.adoptDate,
     this.avatarUrl,
+    this.weightKg,
+    this.allergyNotes,
+    this.medicalHistory,
+    this.status = 'active',
     this.createdAt,
     this.updatedAt,
   });
@@ -23,6 +27,10 @@ class PetDetailSnapshot {
   final DateTime? birthday;
   final DateTime? adoptDate;
   final String? avatarUrl;
+  final String? weightKg;
+  final String? allergyNotes;
+  final String? medicalHistory;
+  final String status;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 }
@@ -40,6 +48,9 @@ class PetUpsertDraft {
     this.birthday,
     this.adoptDate,
     this.avatarAssetId,
+    this.weightKg,
+    this.allergyNotes,
+    this.medicalHistory,
   });
 
   final String petName;
@@ -50,4 +61,7 @@ class PetUpsertDraft {
   final DateTime? birthday;
   final DateTime? adoptDate;
   final String? avatarAssetId;
+  final String? weightKg;
+  final String? allergyNotes;
+  final String? medicalHistory;
 }

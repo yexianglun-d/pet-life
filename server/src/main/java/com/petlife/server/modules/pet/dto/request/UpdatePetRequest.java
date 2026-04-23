@@ -13,6 +13,9 @@ import java.time.LocalDate;
  * @param adoptDate 到家日期
  * @param neuterStatus 绝育状态
  * @param avatarAssetId 头像资源 ID
+ * @param weightKg 当前体重（kg）
+ * @param allergyNotes 过敏信息
+ * @param medicalHistory 重要病史
  */
 public record UpdatePetRequest(
     String petName,
@@ -22,6 +25,9 @@ public record UpdatePetRequest(
     LocalDate birthday,
     LocalDate adoptDate,
     String neuterStatus,
-    String avatarAssetId
+    String avatarAssetId,
+    String weightKg,
+    String allergyNotes,
+    String medicalHistory
 ) {
 }

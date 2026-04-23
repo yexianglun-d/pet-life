@@ -88,6 +88,10 @@ public class UserBootstrapApplicationService {
             .map(petEntityConverter::toEntity)
             .toList();
         if (accessiblePets.isEmpty()) {
+            if (petPersistenceMapper.existsPetHistoryByUserId(userProfile.getUserId())) {
+                userPersistenceMapper.updateCurrentPet(userProfile.getUserId(), null);
+                return;
+            }
             CreatePetCommand command = new CreatePetCommand();
             command.setFamilyId(familySummary.getFamilyId());
             command.setOwnerUserId(userProfile.getUserId());
@@ -107,6 +111,18 @@ public class UserBootstrapApplicationService {
             && accessiblePets.stream().anyMatch(pet -> pet.getPetId().equals(userProfile.getCurrentPetId()));
         if (!hasAccessibleCurrentPet) {
             userPersistenceMapper.updateCurrentPet(userProfile.getUserId(), accessiblePets.get(0).getPetId());
+        }
+    }
+
+    /**
+     * 宠物被归档、删除或移除访问权限后，所有引用它的成员都必须统一重建当前宠物上下文。
+     *
+     * <p>否则 `/me`、首页和宠物页都会读到悬空的 current_pet_id，导致整条用户主链路报错。</p>
+     */
+    @Transactional
+    public void rebuildCurrentPetContextForPet(Long petId) {
+        for (Long userId : petPersistenceMapper.listUserIdsByCurrentPetId(petId)) {
+            ensurePrimaryFamilyAndCurrentPet(userId);
         }
     }
 }

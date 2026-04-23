@@ -61,6 +61,7 @@
 - 产品与页面结构参考：`docs/product/04-low-fidelity-wireframes.md`
 - 当前阶段交付说明：`docs/project/01-current-delivery-status.md`
 - 功能完成清单：`docs/project/02-feature-completion-checklist.md`
+- UI 收口清单：`docs/project/03-ui-closure-checklist.md`
 - 当前视觉方向：克制、清晰、可信、现代，不做炫技式装饰。
 
 ## 本地启动前提

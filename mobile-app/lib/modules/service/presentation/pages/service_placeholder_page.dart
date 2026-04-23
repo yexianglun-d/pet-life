@@ -20,6 +20,12 @@ class ServicePlaceholderPage extends StatelessWidget {
         ),
         SizedBox(height: 16),
         PageSection(
+          title: '以后会怎么陪你用',
+          description: '服务中心更像照护入口，不会做成一堆杂乱入口的功能广场。',
+          child: _ServiceJourneySection(),
+        ),
+        SizedBox(height: 16),
+        PageSection(
           title: '服务中心会负责什么',
           description: '这里主要承接照护和预约，不会混进购物体验。',
           child: _ServiceBoundarySection(),
@@ -58,6 +64,25 @@ class _ServiceHeroSection extends StatelessWidget {
           SizedBox(height: 10),
           Text(
             '医院、洗护、寄养和训练都会在这里慢慢整理好，让日常照顾不再东一块西一块。',
+          ),
+          SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              CompanionPill(
+                label: '预约更集中',
+                backgroundColor: AppThemePalette.surface,
+              ),
+              CompanionPill(
+                label: '照护更清楚',
+                backgroundColor: AppThemePalette.surface,
+              ),
+              CompanionPill(
+                label: '回访更安心',
+                backgroundColor: AppThemePalette.surface,
+              ),
+            ],
           ),
         ],
       ),
@@ -147,6 +172,35 @@ class _ServicePreviewCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ServiceJourneySection extends StatelessWidget {
+  const _ServiceJourneySection();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: [
+        _ServicePreviewCard(
+          title: '先找到合适服务',
+          description: '按医院、洗护、寄养和训练分类查看，先确认适合这只宠物的照护场景。',
+          icon: Icons.search_rounded,
+        ),
+        SizedBox(height: 12),
+        _ServicePreviewCard(
+          title: '再安排预约和说明',
+          description: '预约信息、备注需求和照护说明会一起整理，不用来回翻聊天记录。',
+          icon: Icons.event_note_rounded,
+        ),
+        SizedBox(height: 12),
+        _ServicePreviewCard(
+          title: '最后留住回访记录',
+          description: '洗护周期、医院复诊和训练反馈，后面都能继续沉淀回顾。',
+          icon: Icons.history_rounded,
+        ),
+      ],
     );
   }
 }

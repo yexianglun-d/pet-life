@@ -19,6 +19,16 @@ public interface AccessTokenRepository {
     IssuedLoginTokens issueLoginTokens(Long userId);
 
     /**
+     * 根据刷新令牌轮换登录令牌。
+     *
+     * <p>刷新成功后会吊销旧会话并签发新会话，避免同一刷新令牌被长期复用。</p>
+     *
+     * @param refreshToken 原始刷新令牌
+     * @return 新登录令牌对
+     */
+    Optional<IssuedLoginTokens> refreshLoginTokens(String refreshToken);
+
+    /**
      * 根据原始访问令牌查找有效用户 ID。
      *
      * @param accessToken 原始访问令牌
@@ -32,4 +42,11 @@ public interface AccessTokenRepository {
      * @param accessToken 原始访问令牌
      */
     void revokeAccessToken(String accessToken);
+
+    /**
+     * 根据刷新令牌吊销登录会话。
+     *
+     * @param refreshToken 原始刷新令牌
+     */
+    void revokeRefreshToken(String refreshToken);
 }

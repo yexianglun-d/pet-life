@@ -1,5 +1,6 @@
 package com.petlife.server.modules.pet.domain.entity;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -22,6 +23,10 @@ public final class PetProfileEntity {
     private final LocalDate adoptDate;
     private final Integer neuterStatus;
     private final String avatarUrl;
+    private final BigDecimal weightKg;
+    private final String allergyNotes;
+    private final String medicalHistory;
+    private final String status;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 
@@ -37,6 +42,10 @@ public final class PetProfileEntity {
         LocalDate adoptDate,
         Integer neuterStatus,
         String avatarUrl,
+        BigDecimal weightKg,
+        String allergyNotes,
+        String medicalHistory,
+        String status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
     ) {
@@ -51,6 +60,10 @@ public final class PetProfileEntity {
         this.adoptDate = adoptDate;
         this.neuterStatus = neuterStatus;
         this.avatarUrl = avatarUrl;
+        this.weightKg = weightKg;
+        this.allergyNotes = allergyNotes;
+        this.medicalHistory = medicalHistory;
+        this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -97,6 +110,22 @@ public final class PetProfileEntity {
 
     public String getAvatarUrl() {
         return avatarUrl;
+    }
+
+    public BigDecimal getWeightKg() {
+        return weightKg;
+    }
+
+    public String getAllergyNotes() {
+        return allergyNotes;
+    }
+
+    public String getMedicalHistory() {
+        return medicalHistory;
+    }
+
+    public String getStatus() {
+        return status;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_draft.dart';
@@ -106,83 +109,97 @@ class _FamilyInvitationPageState extends State<FamilyInvitationPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('邀请家庭成员')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _InvitationSection(
-              title: '邀请对象',
-              description: '当前先支持手机号邀请，后续再扩展分享链接和二维码。',
-              child: TextFormField(
-                controller: _mobileController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: '手机号',
-                  hintText: '请输入被邀请人的手机号',
+      appBar: AppBar(title: const Text('邀请家人')),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[
+              Color(0xFFFFFBF7),
+              AppThemePalette.background,
+            ],
+          ),
+        ),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _InvitationHeroCard(sharedPetCount: widget.sharedPets.length),
+              const SizedBox(height: 16),
+              PageSection(
+                title: '邀请对象',
+                description: '先把对方手机号填好，方便这次邀请准确送达。',
+                child: TextFormField(
+                  controller: _mobileController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: '手机号',
+                    hintText: '请输入被邀请人的手机号',
+                  ),
+                  validator: (String? value) {
+                    final String mobile = value?.trim() ?? '';
+                    if (mobile.isEmpty) {
+                      return '请输入手机号';
+                    }
+                    if (mobile.length < 11) {
+                      return '手机号格式不正确';
+                    }
+                    return null;
+                  },
                 ),
-                validator: (String? value) {
-                  final String mobile = value?.trim() ?? '';
-                  if (mobile.isEmpty) {
-                    return '请输入手机号';
-                  }
-                  if (mobile.length < 11) {
-                    return '手机号格式不正确';
-                  }
-                  return null;
-                },
               ),
-            ),
-            const SizedBox(height: 16),
-            _InvitationSection(
-              title: '邀请角色',
-              description: '普通成员适合协助照护，管理员额外具备成员管理能力。',
-              child: DropdownButtonFormField<String>(
-                value: _role,
-                decoration: const InputDecoration(labelText: '角色'),
-                items: const [
-                  DropdownMenuItem(value: 'member', child: Text('普通成员')),
-                  DropdownMenuItem(value: 'admin', child: Text('管理员')),
-                ],
-                onChanged: (String? value) {
-                  if (value == null) {
-                    return;
-                  }
-                  setState(() {
-                    _role = value;
-                  });
-                },
+              const SizedBox(height: 16),
+              PageSection(
+                title: '邀请身份',
+                description: '普通成员适合协助照护，管理员可以一起管理提醒和家庭成员。',
+                child: DropdownButtonFormField<String>(
+                  value: _role,
+                  decoration: const InputDecoration(labelText: '角色'),
+                  items: const [
+                    DropdownMenuItem(value: 'member', child: Text('普通成员')),
+                    DropdownMenuItem(value: 'admin', child: Text('管理员')),
+                  ],
+                  onChanged: (String? value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _role = value;
+                    });
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _InvitationSection(
-              title: '共享宠物',
-              description: '邀请时必须明确共享哪些宠物，避免成员加入后看到超出预期的数据。',
-              child: Column(
-                children: widget.sharedPets
-                    .map(
-                      (FamilySharedPetSnapshot pet) => CheckboxListTile(
-                        value: _selectedPetIds.contains(pet.petId),
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(pet.petName),
-                        subtitle: Text(
-                            '${_toLocalizedPetType(pet.petType)} · ${pet.breed}'),
-                        onChanged: (bool? value) {
-                          setState(() {
-                            if (value == true) {
-                              _selectedPetIds.add(pet.petId);
-                            } else {
-                              _selectedPetIds.remove(pet.petId);
-                            }
-                          });
-                        },
-                      ),
-                    )
-                    .toList(),
+              const SizedBox(height: 16),
+              PageSection(
+                title: '共享宠物范围',
+                description: '邀请时明确共享哪些宠物，能避免成员加入后看到超出预期的档案。',
+                child: Column(
+                  children: widget.sharedPets
+                      .map(
+                        (FamilySharedPetSnapshot pet) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _PetSelectionCard(
+                            pet: pet,
+                            selected: _selectedPetIds.contains(pet.petId),
+                            onChanged: (bool value) {
+                              setState(() {
+                                if (value) {
+                                  _selectedPetIds.add(pet.petId);
+                                } else {
+                                  _selectedPetIds.remove(pet.petId);
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: SafeArea(
@@ -196,41 +213,123 @@ class _FamilyInvitationPageState extends State<FamilyInvitationPage> {
   }
 }
 
-class _InvitationSection extends StatelessWidget {
-  const _InvitationSection({
-    required this.title,
-    required this.description,
-    required this.child,
-  });
+class _InvitationHeroCard extends StatelessWidget {
+  const _InvitationHeroCard({required this.sharedPetCount});
 
-  final String title;
-  final String description;
-  final Widget child;
+  final int sharedPetCount;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFECDD),
+          Color(0xFFFFFAF4),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
+          const CompanionPill(
+            label: '家庭邀请',
+            icon: Icons.mail_outline_rounded,
+            backgroundColor: Color(0xFFFFE2D2),
+            foregroundColor: AppThemePalette.primaryDeep,
+          ),
+          const SizedBox(height: 12),
           Text(
-            description,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFF64748B)),
+            '把一起照顾的人邀请进来',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '这次邀请会同时写清楚身份和共享宠物范围，后续协作时边界会更稳。',
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
-          child,
+          CompanionPill(
+            label: '可共享宠物 $sharedPetCount 只',
+            backgroundColor: AppThemePalette.surface,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _PetSelectionCard extends StatelessWidget {
+  const _PetSelectionCard({
+    required this.pet,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final FamilySharedPetSnapshot pet;
+  final bool selected;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(14),
+      color: selected ? const Color(0xFFFFEEE4) : AppThemePalette.surfaceRaised,
+      radius: 22,
+      child: InkWell(
+        onTap: () => onChanged(!selected),
+        borderRadius: BorderRadius.circular(18),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: selected
+                    ? const Color(0xFFFFDFC8)
+                    : const Color(0xFFE8F3E7),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                pet.petType == 'dog'
+                    ? Icons.pets_rounded
+                    : Icons.cruelty_free_outlined,
+                color: selected
+                    ? AppThemePalette.primaryDeep
+                    : AppThemePalette.success,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    pet.petName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_toLocalizedPetType(pet.petType)} · ${pet.breed}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppThemePalette.muted,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            Checkbox(
+              value: selected,
+              onChanged: (bool? value) {
+                if (value == null) {
+                  return;
+                }
+                onChanged(value);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -239,9 +338,9 @@ class _InvitationSection extends StatelessWidget {
 String _toLocalizedPetType(String petType) {
   switch (petType) {
     case 'cat':
-      return '猫';
+      return '猫咪';
     case 'dog':
-      return '犬';
+      return '狗狗';
     default:
       return petType;
   }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/dailylog/presentation/pages/daily_log_editor_page.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
@@ -106,7 +108,7 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('删除萌宠日常'),
-          content: const Text('删除后这条日常将不再出现在宠物记录中，确认继续吗？'),
+          content: const Text('删除后这条日常会从宠物记录里移除，确认继续吗？'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -156,17 +158,18 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
     }
   }
 
-  Future<bool> _handleWillPop() async {
-    Navigator.of(context).pop(_hasChanges);
-    return false;
-  }
-
   @override
   Widget build(BuildContext context) {
     final DailyLogSnapshot? dailyLog = _dailyLog;
 
-    return WillPopScope(
-      onWillPop: _handleWillPop,
+    return PopScope<bool>(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, bool? result) {
+        if (didPop) {
+          return;
+        }
+        Navigator.of(context).pop(_hasChanges);
+      },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('日常详情'),
@@ -182,7 +185,19 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
               ),
           ],
         ),
-        body: _buildBody(dailyLog),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                Color(0xFFFFFBF7),
+                AppThemePalette.background,
+              ],
+            ),
+          ),
+          child: _buildBody(dailyLog),
+        ),
         bottomNavigationBar: dailyLog == null
             ? null
             : SafeArea(
@@ -190,7 +205,7 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
                 child: OutlinedButton(
                   onPressed: _isDeleting ? null : _deleteDailyLog,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFB91C1C),
+                    foregroundColor: AppThemePalette.danger,
                   ),
                   child: Text(_isDeleting ? '删除中...' : '删除日常'),
                 ),
@@ -200,8 +215,6 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
   }
 
   Widget _buildBody(DailyLogSnapshot? dailyLog) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-
     if (_isLoading && dailyLog == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -210,17 +223,12 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            _errorMessage!,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFFB91C1C)),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: _loadDailyLog,
-            child: const Text('重新加载'),
+          CompanionEmptyState(
+            title: '日常详情暂时没有加载出来',
+            description: _errorMessage!,
+            icon: Icons.cloud_off_outlined,
+            actionLabel: '重新加载',
+            onAction: _loadDailyLog,
           ),
         ],
       );
@@ -233,31 +241,35 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _DailyLogHeroCard(
+          petName: widget.petName,
+          dailyLog: dailyLog,
+        ),
+        const SizedBox(height: 16),
         _DetailSection(
-          title: widget.petName,
-          description: '萌宠日常先沉淀为宠物资产，详情页用于稳定回看内容、标签和可见范围。',
+          title: '这次记录了什么',
+          description: '把当时的内容、标签和感受整理在一起，以后回看会更完整。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(dailyLog.content, style: textTheme.titleLarge),
+              Text(dailyLog.content,
+                  style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: dailyLog.tags.isEmpty
-                    ? const <Widget>[Text('未填写标签')]
+                    ? const <Widget>[
+                        CompanionPill(
+                          label: '还没有标签',
+                          backgroundColor: AppThemePalette.surfaceRaised,
+                        ),
+                      ]
                     : dailyLog.tags
                         .map(
-                          (String tag) => Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFDE68A),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(tag),
+                          (String tag) => CompanionPill(
+                            label: '#$tag',
+                            backgroundColor: AppThemePalette.warmTint,
                           ),
                         )
                         .toList(),
@@ -268,7 +280,7 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
         const SizedBox(height: 16),
         _DetailSection(
           title: '记录信息',
-          description: '当前阶段先稳定呈现记录时间和可见范围，后续媒体、社区同步等能力会在这里扩展。',
+          description: '把时间、可见范围和同步状态写清楚，之后就不容易混淆。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -301,6 +313,49 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
   }
 }
 
+class _DailyLogHeroCard extends StatelessWidget {
+  const _DailyLogHeroCard({
+    required this.petName,
+    required this.dailyLog,
+  });
+
+  final String petName;
+  final DailyLogSnapshot dailyLog;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFECDD),
+          Color(0xFFFFFBF5),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CompanionPill(
+            label: _toLocalizedVisibility(dailyLog.visibility),
+            icon: Icons.favorite_border_rounded,
+            backgroundColor: const Color(0xFFFFE0CF),
+            foregroundColor: AppThemePalette.primaryDeep,
+          ),
+          const SizedBox(height: 12),
+          Text(petName, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(
+            dailyLog.content,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DetailSection extends StatelessWidget {
   const _DetailSection({
     required this.title,
@@ -314,13 +369,10 @@ class _DetailSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return CompanionCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
+      radius: 24,
+      color: AppThemePalette.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -328,10 +380,9 @@ class _DetailSection extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             description,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFF64748B)),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppThemePalette.muted,
+                ),
           ),
           const SizedBox(height: 16),
           child,
@@ -352,24 +403,29 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 72,
-          child: Text(
-            label,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFF64748B)),
+    return CompanionCard(
+      radius: 22,
+      color: AppThemePalette.surfaceRaised,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 84,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppThemePalette.muted,
+                  ),
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(value, style: Theme.of(context).textTheme.bodyLarge),
-        ),
-      ],
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

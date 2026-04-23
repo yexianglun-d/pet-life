@@ -3,8 +3,11 @@ package com.petlife.server.modules.auth.service;
 import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
 import com.petlife.server.modules.auth.converter.AuthResponseConverter;
+import com.petlife.server.modules.auth.dto.request.AuthLogoutRequest;
+import com.petlife.server.modules.auth.dto.request.AuthRefreshTokenRequest;
 import com.petlife.server.modules.auth.dto.request.AuthSmsLoginRequest;
 import com.petlife.server.modules.auth.dto.request.AuthSmsSendRequest;
+import com.petlife.server.modules.auth.dto.response.AuthRefreshTokenResponse;
 import com.petlife.server.modules.auth.dto.response.AuthLoginSmsResponse;
 import com.petlife.server.modules.auth.dto.response.AuthPetSummaryResponse;
 import com.petlife.server.modules.auth.dto.response.AuthSmsSendResponse;
@@ -35,6 +38,8 @@ public class AuthApplicationService {
 
     private static final String DEVELOPMENT_SMS_CODE = "123456";
     private static final String DEVELOPMENT_MOBILE = "13800000000";
+    private static final int SMS_CODE_EXPIRE_SECONDS = 300;
+    private static final int SMS_RESEND_SECONDS = 60;
 
     private final AccessTokenRepository accessTokenRepository;
     private final UserPersistenceMapper userPersistenceMapper;
@@ -67,7 +72,8 @@ public class AuthApplicationService {
             request.mobile(),
             request.scene(),
             DEVELOPMENT_SMS_CODE,
-            300
+            SMS_CODE_EXPIRE_SECONDS,
+            SMS_RESEND_SECONDS
         );
     }
 
@@ -97,6 +103,24 @@ public class AuthApplicationService {
             pets,
             userProfile.getCurrentPetId() == null ? null : String.valueOf(userProfile.getCurrentPetId())
         );
+    }
+
+    @Transactional
+    public AuthRefreshTokenResponse refreshToken(AuthRefreshTokenRequest request) {
+        IssuedLoginTokens issuedLoginTokens = accessTokenRepository.refreshLoginTokens(request.refreshToken())
+            .orElseThrow(() -> new BusinessException(
+                ResponseCode.AUTH_REFRESH_TOKEN_INVALID,
+                "登录状态已失效，请重新登录"
+            ));
+        return new AuthRefreshTokenResponse(
+            issuedLoginTokens.accessToken(),
+            issuedLoginTokens.refreshToken()
+        );
+    }
+
+    @Transactional
+    public void logout(AuthLogoutRequest request) {
+        accessTokenRepository.revokeRefreshToken(request.refreshToken());
     }
 
     private UserProfileEntity ensureUserProfile(String mobile) {

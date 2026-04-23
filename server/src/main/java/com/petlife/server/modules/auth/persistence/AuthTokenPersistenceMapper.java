@@ -1,6 +1,7 @@
 package com.petlife.server.modules.auth.persistence;
 
 import com.petlife.server.modules.auth.persistence.command.CreateUserSessionCommand;
+import com.petlife.server.modules.auth.persistence.dataobject.UserSessionDataObject;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
@@ -41,6 +42,20 @@ public interface AuthTokenPersistenceMapper {
         @Param("refreshTokenHash") String refreshTokenHash
     );
 
+    @Select("""
+        SELECT id AS sessionId,
+               user_id AS userId
+        FROM user_sessions
+        WHERE refresh_token_hash = #{refreshTokenHash}
+          AND revoked_at IS NULL
+          AND expires_at > CURRENT_TIMESTAMP
+        LIMIT 1
+        FOR UPDATE
+        """)
+    UserSessionDataObject lockActiveSessionByRefreshTokenHash(
+        @Param("refreshTokenHash") String refreshTokenHash
+    );
+
     @Update("""
         UPDATE user_sessions
         SET last_active_at = CURRENT_TIMESTAMP,
@@ -66,4 +81,13 @@ public interface AuthTokenPersistenceMapper {
         @Param("sessionId") Long sessionId,
         @Param("refreshTokenHash") String refreshTokenHash
     );
+
+    @Update("""
+        UPDATE user_sessions
+        SET revoked_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE refresh_token_hash = #{refreshTokenHash}
+          AND revoked_at IS NULL
+        """)
+    int revokeSessionByRefreshTokenHash(@Param("refreshTokenHash") String refreshTokenHash);
 }

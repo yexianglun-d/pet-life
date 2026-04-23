@@ -1,9 +1,17 @@
 <template>
   <section class="page-section">
-    <h1 class="page-section__title">审核中心</h1>
-    <p class="page-section__description">
-      当前先承接社区举报处理主链路，支持查看真实举报记录并完成处理动作。
-    </p>
+    <div class="pet-admin-hero moderation-hero">
+      <p class="page-section__eyebrow">社区治理</p>
+      <h1 class="page-section__title">把社区举报和处理动作收口到同一处</h1>
+      <p class="page-section__description">
+        审核中心承接真实举报记录、帖子状态和处理动作。重点不是“多功能”，而是把每一条治理结果处理准确、回写清楚。
+      </p>
+      <div class="pet-admin-chip-grid">
+        <span class="pet-admin-chip">待处理 {{ pendingCount }} 条</span>
+        <span class="pet-admin-chip">已确认 {{ processedCount }} 条</span>
+        <span class="pet-admin-chip">已关闭 {{ resolvedCount }} 条</span>
+      </div>
+    </div>
 
     <div class="moderation-summary">
       <article class="summary-card">
@@ -18,114 +26,128 @@
         <h2>驳回举报</h2>
         <strong>{{ rejectedCount }} 条</strong>
       </article>
+      <article class="summary-card">
+        <h2>已结案</h2>
+        <strong>{{ resolvedCount }} 条</strong>
+      </article>
     </div>
 
-    <div class="moderation-toolbar">
-      <el-radio-group v-model="statusFilter" size="small">
-        <el-radio-button label="all">全部</el-radio-button>
-        <el-radio-button label="pending">待处理</el-radio-button>
-        <el-radio-button label="processed">确认违规</el-radio-button>
-        <el-radio-button label="rejected">驳回举报</el-radio-button>
-      </el-radio-group>
-      <el-button :loading="isLoading" @click="loadReports">刷新列表</el-button>
-    </div>
+    <article class="pet-admin-panel">
+      <div class="moderation-toolbar">
+        <div>
+          <h2 class="pet-admin-panel__title">举报队列</h2>
+          <p class="pet-admin-panel__description">
+            先按状态筛一下，再逐条确认目标内容、举报原因和处理动作。
+          </p>
+        </div>
+        <div class="moderation-toolbar__actions">
+          <el-radio-group v-model="statusFilter" size="small">
+            <el-radio-button label="all">全部</el-radio-button>
+            <el-radio-button label="pending">待处理</el-radio-button>
+            <el-radio-button label="processed">确认违规</el-radio-button>
+            <el-radio-button label="rejected">驳回举报</el-radio-button>
+          </el-radio-group>
+          <el-button :loading="isLoading" @click="loadReports">刷新列表</el-button>
+        </div>
+      </div>
 
-    <el-alert
-      v-if="errorMessage"
-      :title="errorMessage"
-      type="error"
-      show-icon
-      class="moderation-error"
-      :closable="false"
-    />
+      <el-alert
+        v-if="errorMessage"
+        :title="errorMessage"
+        type="error"
+        show-icon
+        class="moderation-error"
+        :closable="false"
+      />
 
-    <el-table
-      :data="visibleReports"
-      v-loading="isLoading"
-      empty-text="暂无举报记录"
-      class="moderation-table"
-    >
-      <el-table-column label="举报信息" min-width="240">
-        <template #default="{ row }">
-          <div class="report-cell">
-            <div class="report-cell__title">
-              <el-tag size="small" :type="reasonTagType(row.reason_code)">
-                {{ reasonLabel(row.reason_code) }}
-              </el-tag>
-              <span>#{{ row.report_id }}</span>
+      <el-table
+        :data="visibleReports"
+        v-loading="isLoading"
+        empty-text="暂无举报记录"
+        class="moderation-table"
+      >
+        <el-table-column label="举报信息" min-width="240">
+          <template #default="{ row }">
+            <div class="report-cell">
+              <div class="report-cell__title">
+                <el-tag size="small" :type="reasonTagType(row.reason_code)">
+                  {{ reasonLabel(row.reason_code) }}
+                </el-tag>
+                <span>#{{ row.report_id }}</span>
+              </div>
+              <div class="report-cell__meta">
+                举报人：{{ row.reporter_nickname || '未知用户' }}
+                <span v-if="row.reporter_mobile">· {{ row.reporter_mobile }}</span>
+              </div>
+              <div v-if="row.reason_detail" class="report-cell__detail">{{ row.reason_detail }}</div>
+              <div class="report-cell__meta">{{ formatDateTime(row.created_at) }}</div>
             </div>
-            <div class="report-cell__meta">
-              举报人：{{ row.reporter_nickname || '未知用户' }}
-              <span v-if="row.reporter_mobile">· {{ row.reporter_mobile }}</span>
-            </div>
-            <div v-if="row.reason_detail" class="report-cell__detail">{{ row.reason_detail }}</div>
-            <div class="report-cell__meta">{{ formatDateTime(row.created_at) }}</div>
-          </div>
-        </template>
-      </el-table-column>
+          </template>
+        </el-table-column>
 
-      <el-table-column label="目标内容" min-width="340">
-        <template #default="{ row }">
-          <div class="report-cell">
-            <div class="report-cell__title">
-              <span>{{ row.post_title || '目标帖子不存在' }}</span>
-              <el-tag size="small" :type="postStatusTagType(row)">
-                {{ postStatusLabel(row) }}
-              </el-tag>
+        <el-table-column label="目标内容" min-width="340">
+          <template #default="{ row }">
+            <div class="report-cell">
+              <div class="report-cell__title">
+                <span>{{ row.post_title || '目标帖子不存在' }}</span>
+                <el-tag size="small" :type="postStatusTagType(row)">
+                  {{ postStatusLabel(row) }}
+                </el-tag>
+              </div>
+              <div class="report-cell__detail">
+                {{ summarizePostContent(row.post_content) }}
+              </div>
+              <div class="report-cell__meta">
+                作者：{{ row.post_author_nickname || '未知作者' }}
+              </div>
             </div>
-            <div class="report-cell__detail">
-              {{ summarizePostContent(row.post_content) }}
-            </div>
-            <div class="report-cell__meta">
-              作者：{{ row.post_author_nickname || '未知作者' }}
-            </div>
-          </div>
-        </template>
-      </el-table-column>
+          </template>
+        </el-table-column>
 
-      <el-table-column label="处理状态" width="150">
-        <template #default="{ row }">
-          <el-tag :type="reportStatusTagType(row.status)">
-            {{ reportStatusLabel(row.status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
+        <el-table-column label="处理状态" width="150">
+          <template #default="{ row }">
+            <el-tag :type="reportStatusTagType(row.status)">
+              {{ reportStatusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
 
-      <el-table-column label="处理信息" min-width="220">
-        <template #default="{ row }">
-          <div class="report-cell">
-            <div class="report-cell__meta">
-              {{ row.processed_by || '未处理' }}
+        <el-table-column label="处理信息" min-width="220">
+          <template #default="{ row }">
+            <div class="report-cell">
+              <div class="report-cell__meta">
+                {{ row.processed_by || '未处理' }}
+              </div>
+              <div class="report-cell__meta">
+                {{ row.processed_at ? formatDateTime(row.processed_at) : '等待处理' }}
+              </div>
             </div>
-            <div class="report-cell__meta">
-              {{ row.processed_at ? formatDateTime(row.processed_at) : '等待处理' }}
-            </div>
-          </div>
-        </template>
-      </el-table-column>
+          </template>
+        </el-table-column>
 
-      <el-table-column label="操作" width="220" fixed="right">
-        <template #default="{ row }">
-          <div class="moderation-actions">
-            <el-button
-              type="danger"
-              size="small"
-              :disabled="row.status !== 'pending' || processingReportId === row.report_id"
-              @click="handleProcess(row, 'confirm_violation')"
-            >
-              确认违规
-            </el-button>
-            <el-button
-              size="small"
-              :disabled="row.status !== 'pending' || processingReportId === row.report_id"
-              @click="handleProcess(row, 'dismiss_report')"
-            >
-              驳回举报
-            </el-button>
-          </div>
-        </template>
-      </el-table-column>
-    </el-table>
+        <el-table-column label="操作" width="220" fixed="right">
+          <template #default="{ row }">
+            <div class="moderation-actions">
+              <el-button
+                type="danger"
+                size="small"
+                :disabled="row.status !== 'pending' || processingReportId === row.report_id"
+                @click="handleProcess(row, 'confirm_violation')"
+              >
+                确认违规
+              </el-button>
+              <el-button
+                size="small"
+                :disabled="row.status !== 'pending' || processingReportId === row.report_id"
+                @click="handleProcess(row, 'dismiss_report')"
+              >
+                驳回举报
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+    </article>
   </section>
 </template>
 
@@ -157,6 +179,7 @@ const visibleReports = computed(() => {
 const pendingCount = computed(() => reports.value.filter((report) => report.status === 'pending').length);
 const processedCount = computed(() => reports.value.filter((report) => report.status === 'processed').length);
 const rejectedCount = computed(() => reports.value.filter((report) => report.status === 'rejected').length);
+const resolvedCount = computed(() => processedCount.value + rejectedCount.value);
 
 onMounted(() => {
   void loadReports();
@@ -287,15 +310,22 @@ function formatDateTime(value: string) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .moderation-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+}
+
+.moderation-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .moderation-error {
@@ -303,9 +333,9 @@ function formatDateTime(value: string) {
 }
 
 .moderation-table {
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--pet-admin-surface);
 }
 
 .report-cell {
@@ -319,16 +349,16 @@ function formatDateTime(value: string) {
   align-items: center;
   gap: 8px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--pet-admin-title);
 }
 
 .report-cell__detail {
-  color: #334155;
+  color: var(--pet-admin-body);
   line-height: 1.6;
 }
 
 .report-cell__meta {
-  color: #64748b;
+  color: var(--pet-admin-muted);
   font-size: 13px;
 }
 
@@ -337,8 +367,30 @@ function formatDateTime(value: string) {
   gap: 8px;
 }
 
+:deep(.el-table) {
+  --el-table-border-color: var(--pet-admin-line);
+  --el-table-header-bg-color: #fff8f2;
+  --el-table-row-hover-bg-color: #fff6ee;
+  --el-table-text-color: var(--pet-admin-body);
+  --el-table-header-text-color: var(--pet-admin-title);
+  border-radius: 20px;
+}
+
+:deep(.el-radio-button__inner) {
+  border-radius: 14px;
+}
+
+:deep(.el-button) {
+  border-radius: 14px;
+}
+
 @media (max-width: 960px) {
   .moderation-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .moderation-toolbar__actions {
     flex-direction: column;
     align-items: stretch;
   }

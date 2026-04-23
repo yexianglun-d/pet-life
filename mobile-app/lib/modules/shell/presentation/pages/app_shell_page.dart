@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_home_page.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/home/presentation/pages/home_page.dart';
 import 'package:petlife_mobile_app/modules/pet/presentation/pages/pet_index_page.dart';
+import 'package:petlife_mobile_app/modules/pet/presentation/pages/pet_management_page.dart';
 import 'package:petlife_mobile_app/modules/profile/presentation/pages/profile_page.dart';
 import 'package:petlife_mobile_app/modules/service/presentation/pages/service_placeholder_page.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
@@ -34,13 +36,28 @@ class _AppShellPageState extends State<AppShellPage> {
   Future<_ShellViewData> _loadShellViewData() async {
     final repository = PetLifeAppScope.repositoryOf(context);
     final CurrentUserSnapshot currentUser = await repository.getCurrentUser();
-    final PetDashboardSnapshot dashboard =
-        await repository.getPetDashboard(currentUser.currentPetId);
+    final PetDashboardSnapshot? dashboard = currentUser.currentPetId == null
+        ? null
+        : await repository.getPetDashboard(currentUser.currentPetId!);
 
     return _ShellViewData(
       currentUser: currentUser,
       dashboard: dashboard,
     );
+  }
+
+  Future<void> _openPetManagement(CurrentUserSnapshot currentUser) async {
+    final bool? changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => PetManagementPage(
+          initialCurrentPetId: currentUser.currentPetId,
+        ),
+      ),
+    );
+    if (!mounted || changed != true) {
+      return;
+    }
+    _reloadShellViewData();
   }
 
   void _reloadShellViewData() {
@@ -139,21 +156,36 @@ class _AppShellPageState extends State<AppShellPage> {
           icon: Icons.home_outlined,
           selectedIcon: Icons.home_rounded,
           subtitle: '看看毛孩子今天的状态和待办',
-          builder: (_ShellViewData data) => HomePage(
-            currentUser: data.currentUser,
-            dashboard: data.dashboard,
-          ),
+          builder: (_ShellViewData data) => data.dashboard == null
+              ? _NoPetShellView(
+                  title: '先把第一只毛孩子接进来',
+                  description: '建立宠物主档之后，首页才会慢慢长出提醒、健康变化和陪伴片段。',
+                  actionLabel: '去创建宠物',
+                  onAction: () => _openPetManagement(data.currentUser),
+                )
+              : HomePage(
+                  currentUser: data.currentUser,
+                  dashboard: data.dashboard!,
+                  onHomeDataChanged: _reloadShellViewData,
+                ),
         ),
         _ShellDestination(
           label: '宠物',
           icon: Icons.pets_outlined,
           selectedIcon: Icons.pets,
           subtitle: '把成长、健康和照护都留在档案里',
-          builder: (_ShellViewData data) => PetIndexPage(
-            currentUser: data.currentUser,
-            dashboard: data.dashboard,
-            onPetDataChanged: _reloadShellViewData,
-          ),
+          builder: (_ShellViewData data) => data.dashboard == null
+              ? _NoPetShellView(
+                  title: '宠物档案还没有开始',
+                  description: '先创建第一只宠物主档，健康记录、提醒计划和成长时间轴才会有明确归属。',
+                  actionLabel: '创建宠物档案',
+                  onAction: () => _openPetManagement(data.currentUser),
+                )
+              : PetIndexPage(
+                  currentUser: data.currentUser,
+                  dashboard: data.dashboard!,
+                  onPetDataChanged: _reloadShellViewData,
+                ),
         ),
         _ShellDestination(
           label: '社区',
@@ -206,7 +238,67 @@ class _ShellViewData {
   });
 
   final CurrentUserSnapshot currentUser;
-  final PetDashboardSnapshot dashboard;
+  final PetDashboardSnapshot? dashboard;
+}
+
+class _NoPetShellView extends StatelessWidget {
+  const _NoPetShellView({
+    required this.title,
+    required this.description,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final String title;
+  final String description;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        CompanionCard(
+          padding: const EdgeInsets.all(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              Color(0xFFFFECDD),
+              Color(0xFFFFFBF6),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const CompanionPill(
+                label: '宠物档案中心',
+                icon: Icons.pets_rounded,
+                backgroundColor: Color(0xFFFFE0CE),
+                foregroundColor: AppThemePalette.primaryDeep,
+              ),
+              const SizedBox(height: 14),
+              Text(title, style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 10),
+              Text(description, style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: onAction,
+                child: Text(actionLabel),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        const CompanionEmptyState(
+          title: '等第一只毛孩子加入后，这里会热闹起来',
+          description: '提醒、健康记录、日常片段和成长时间轴都会围绕当前宠物慢慢整理出来。',
+          icon: Icons.auto_awesome_outlined,
+        ),
+      ],
+    );
+  }
 }
 
 class _ShellLoadingView extends StatelessWidget {

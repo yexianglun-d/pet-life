@@ -1,6 +1,7 @@
 package com.petlife.server.modules.pet.controller;
 
 import com.petlife.server.common.response.ApiResponse;
+import com.petlife.server.modules.pet.dto.request.ArchivePetRequest;
 import com.petlife.server.modules.pet.dto.request.CreatePetRequest;
 import com.petlife.server.modules.pet.dto.request.UpdatePetRequest;
 import com.petlife.server.modules.pet.dto.response.PetDetailResponse;
@@ -8,6 +9,7 @@ import com.petlife.server.modules.pet.dto.response.PetSummaryResponse;
 import com.petlife.server.modules.pet.service.PetApplicationService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -50,6 +52,21 @@ public class PetController {
         @RequestBody UpdatePetRequest request
     ) {
         return ApiResponse.success(petApplicationService.updatePet(petId, request));
+    }
+
+    @PatchMapping("/{petId}/archive")
+    public ApiResponse<Void> archivePet(
+        @PathVariable Long petId,
+        @RequestBody ArchivePetRequest request
+    ) {
+        petApplicationService.archivePet(petId, request);
+        return ApiResponse.success(null);
+    }
+
+    @DeleteMapping("/{petId}")
+    public ApiResponse<Void> deletePet(@PathVariable Long petId) {
+        petApplicationService.deletePet(petId);
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/{petId}/summary")

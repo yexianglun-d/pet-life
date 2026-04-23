@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
+import 'package:petlife_mobile_app/shared/domain/models/auth_sms_send_snapshot.dart';
 
 /// 登录页。
 class LoginPage extends StatefulWidget {
@@ -18,6 +21,9 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   late final TextEditingController _mobileController;
   late final TextEditingController _codeController;
+  Timer? _countdownTimer;
+  int _countdownSeconds = 0;
+  bool _isSendingCode = false;
   bool _isSubmitting = false;
 
   @override
@@ -29,9 +35,55 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _mobileController.dispose();
     _codeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendSmsCode() async {
+    if (_isSendingCode || _countdownSeconds > 0) {
+      return;
+    }
+
+    final String mobile = _mobileController.text.trim();
+    if (!_isValidMobile(mobile)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请输入正确的 11 位手机号')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSendingCode = true;
+    });
+
+    try {
+      final repository = PetLifeAppScope.repositoryOf(context);
+      final AuthSmsSendSnapshot result =
+          await repository.sendLoginSmsCode(mobile: mobile);
+      if (!mounted) {
+        return;
+      }
+      _codeController.text = result.mockedCode;
+      _startCountdown(result.resendInSeconds);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('验证码已发送，当前演示验证码 ${result.mockedCode}')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingCode = false;
+        });
+      }
+    }
   }
 
   Future<void> _submit() async {
@@ -73,6 +125,33 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     }
+  }
+
+  void _startCountdown(int seconds) {
+    _countdownTimer?.cancel();
+    setState(() {
+      _countdownSeconds = seconds;
+    });
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_countdownSeconds <= 1) {
+        timer.cancel();
+        setState(() {
+          _countdownSeconds = 0;
+        });
+        return;
+      }
+      setState(() {
+        _countdownSeconds -= 1;
+      });
+    });
+  }
+
+  bool _isValidMobile(String mobile) {
+    return RegExp(r'^1\d{10}$').hasMatch(mobile);
   }
 
   @override
@@ -127,12 +206,35 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    TextField(
-                      controller: _codeController,
-                      decoration: const InputDecoration(
-                        labelText: '验证码',
-                        hintText: '请输入验证码',
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _codeController,
+                            decoration: const InputDecoration(
+                              labelText: '验证码',
+                              hintText: '请输入验证码',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 124,
+                          child: FilledButton.tonal(
+                            onPressed: (_isSendingCode || _countdownSeconds > 0)
+                                ? null
+                                : _sendSmsCode,
+                            child: Text(
+                              _isSendingCode
+                                  ? '发送中...'
+                                  : _countdownSeconds > 0
+                                      ? '${_countdownSeconds}s'
+                                      : '发送验证码',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     Container(
@@ -143,7 +245,9 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(22),
                       ),
                       child: Text(
-                        '当前演示环境可直接使用默认验证码 123456 登录，真实短信能力会在完整交付阶段接入。',
+                        _countdownSeconds > 0
+                            ? '验证码已发送，演示环境会自动填入 123456，$_countdownSeconds 秒后可重新发送。'
+                            : '当前演示环境可直接发送验证码并自动填入 123456，真实短信能力会在完整交付阶段接入。',
                         style: textTheme.bodySmall?.copyWith(
                           color: AppThemePalette.body,
                         ),

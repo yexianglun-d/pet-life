@@ -1,19 +1,41 @@
 :root {
-  color: #0f172a;
-  background: #f8fafc;
+  color: #5e473a;
+  background: #fff8f2;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   line-height: 1.5;
   font-weight: 400;
+  --pet-admin-bg: #fff8f2;
+  --pet-admin-surface: #fffdfb;
+  --pet-admin-surface-soft: #fff3e9;
+  --pet-admin-line: #f0ddcd;
+  --pet-admin-title: #5e473a;
+  --pet-admin-body: #7a6256;
+  --pet-admin-muted: #a08779;
+  --pet-admin-primary: #e68c72;
+  --pet-admin-primary-deep: #c9674f;
+  --pet-admin-success: #78a47f;
+  --pet-admin-warning: #d9a05b;
+  --pet-admin-danger: #d97669;
+  --pet-admin-shadow: 0 18px 40px rgba(94, 71, 58, 0.08);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  background: var(--pet-admin-bg);
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  color: var(--pet-admin-body);
+  background:
+    radial-gradient(circle at top left, rgba(255, 234, 217, 0.9), transparent 28%),
+    radial-gradient(circle at top right, rgba(233, 243, 232, 0.75), transparent 24%),
+    linear-gradient(180deg, #fffaf5 0%, #fff6ef 100%);
 }
 
 #app {
@@ -21,18 +43,115 @@ body {
 }
 
 .page-section {
-  padding: 24px;
+  padding: 28px;
+}
+
+.page-section__eyebrow {
+  margin: 0 0 10px;
+  color: var(--pet-admin-primary-deep);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .page-section__title {
   margin: 0 0 12px;
-  font-size: 28px;
+  font-size: 34px;
   line-height: 1.2;
+  color: var(--pet-admin-title);
 }
 
 .page-section__description {
   margin: 0 0 24px;
-  color: #475569;
+  max-width: 760px;
+  color: var(--pet-admin-body);
+  line-height: 1.7;
+}
+
+.pet-admin-hero {
+  margin-bottom: 24px;
+  padding: 28px;
+  border: 1px solid var(--pet-admin-line);
+  border-radius: 30px;
+  background: linear-gradient(135deg, #ffe9da 0%, #fffaf5 100%);
+  box-shadow: var(--pet-admin-shadow);
+}
+
+.pet-admin-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.pet-admin-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--pet-admin-title);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pet-admin-panel {
+  padding: 22px;
+  border: 1px solid var(--pet-admin-line);
+  border-radius: 24px;
+  background: var(--pet-admin-surface);
+  box-shadow: var(--pet-admin-shadow);
+}
+
+.pet-admin-panel__title {
+  margin: 0 0 8px;
+  color: var(--pet-admin-title);
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.pet-admin-panel__description {
+  margin: 0 0 18px;
+  color: var(--pet-admin-muted);
+  line-height: 1.7;
+}
+
+.pet-admin-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.pet-admin-grid--two {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.pet-admin-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pet-admin-list li {
+  position: relative;
+  padding-left: 18px;
+  color: var(--pet-admin-body);
+  line-height: 1.7;
+}
+
+.pet-admin-list li + li {
+  margin-top: 12px;
+}
+
+.pet-admin-list li::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--pet-admin-primary);
 }
 
 .summary-grid {
@@ -43,18 +162,44 @@ body {
 
 .summary-card {
   padding: 20px;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--pet-admin-line);
+  border-radius: 24px;
+  background: var(--pet-admin-surface);
+  box-shadow: var(--pet-admin-shadow);
 }
 
 .summary-card h2 {
   margin: 0 0 8px;
   font-size: 18px;
+  color: var(--pet-admin-title);
 }
 
 .summary-card p {
   margin: 0;
-  color: #475569;
+  color: var(--pet-admin-body);
+  line-height: 1.7;
+}
+
+.summary-card strong {
+  display: block;
+  margin-top: 16px;
+  color: var(--pet-admin-primary-deep);
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+@media (max-width: 768px) {
+  .page-section {
+    padding: 20px;
+  }
+
+  .page-section__title {
+    font-size: 28px;
+  }
+
+  .pet-admin-hero,
+  .pet-admin-panel,
+  .summary-card {
+    padding: 18px;
+  }
 }

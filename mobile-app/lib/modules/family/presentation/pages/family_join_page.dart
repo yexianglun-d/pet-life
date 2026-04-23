@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_detail_snapshot.dart';
@@ -129,7 +131,7 @@ class _FamilyJoinPageState extends State<FamilyJoinPage> {
         _invitationPreview = rejectedPreview;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已拒绝当前邀请')),
+        const SnackBar(content: Text('这次邀请已经拒绝')),
       );
     } catch (error) {
       if (!mounted) {
@@ -153,122 +155,202 @@ class _FamilyJoinPageState extends State<FamilyJoinPage> {
         _invitationPreview;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('通过邀请码加入家庭')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          PageSection(
-            title: '邀请码',
-            description: '输入家庭邀请码后，先确认角色、共享宠物和邀请状态，再决定是否加入。',
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextFormField(
-                    controller: _inviteCodeController,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: '邀请码',
-                      hintText: '请输入邀请人提供的邀请码',
-                    ),
-                    validator: (String? value) {
-                      final String inviteCode = value?.trim() ?? '';
-                      if (inviteCode.isEmpty) {
-                        return '请输入邀请码';
-                      }
-                      if (inviteCode.length < 8) {
-                        return '邀请码格式不正确';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _isLoadingPreview || _isSubmitting
-                          ? null
-                          : _loadInvitationPreview,
-                      child: Text(_isLoadingPreview ? '查询中...' : '查看邀请'),
-                    ),
-                  ),
-                  if (_errorMessage != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _errorMessage!,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: const Color(0xFFB91C1C)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+      appBar: AppBar(title: const Text('加入家庭')),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[
+              Color(0xFFFFFBF7),
+              AppThemePalette.background,
+            ],
           ),
-          if (invitationPreview != null) ...[
+        ),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const _JoinHeroCard(),
             const SizedBox(height: 16),
             PageSection(
-              title: invitationPreview.familyName,
-              description: '接受后会切换到本次共享宠物所在家庭上下文，方便直接查看对应档案与待办。',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _InfoRow(
-                      label: '邀请人', value: invitationPreview.inviterNickname),
-                  const SizedBox(height: 12),
-                  _InfoRow(
-                    label: '加入身份',
-                    value: _toLocalizedRole(invitationPreview.role),
-                  ),
-                  const SizedBox(height: 12),
-                  _InfoRow(
-                    label: '邀请状态',
-                    value:
-                        _toLocalizedInvitationStatus(invitationPreview.status),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '共享宠物',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 12),
-                  ...invitationPreview.sharedPets.map(
-                    (FamilySharedPetSnapshot pet) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _SharedPetTile(pet: pet),
+              title: '输入邀请码',
+              description: '先看看这是哪个家庭、谁邀请了你、会共享哪些宠物，再决定要不要加入。',
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: _inviteCodeController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        labelText: '邀请码',
+                        hintText: '请输入邀请人发来的邀请码',
+                      ),
+                      validator: (String? value) {
+                        final String inviteCode = value?.trim() ?? '';
+                        if (inviteCode.isEmpty) {
+                          return '请输入邀请码';
+                        }
+                        if (inviteCode.length < 8) {
+                          return '邀请码格式不正确';
+                        }
+                        return null;
+                      },
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _isLoadingPreview || _isSubmitting
+                            ? null
+                            : _loadInvitationPreview,
+                        child: Text(_isLoadingPreview ? '查询中...' : '查看邀请'),
+                      ),
+                    ),
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      CompanionEmptyState(
+                        title: '没有找到这条邀请',
+                        description: _errorMessage!,
+                        icon: Icons.search_off_rounded,
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
+            if (invitationPreview != null) ...[
+              const SizedBox(height: 16),
+              PageSection(
+                title: invitationPreview.familyName,
+                description: '确认角色和共享范围后再加入，进入后当前家庭上下文会自动切换到这次共养关系。',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        CompanionPill(
+                          label: '邀请人 ${invitationPreview.inviterNickname}',
+                          backgroundColor: AppThemePalette.surfaceRaised,
+                        ),
+                        CompanionPill(
+                          label: _toLocalizedRole(invitationPreview.role),
+                          backgroundColor: const Color(0xFFFFE8D9),
+                          foregroundColor: AppThemePalette.primaryDeep,
+                        ),
+                        CompanionPill(
+                          label: _toLocalizedInvitationStatus(
+                            invitationPreview.status,
+                          ),
+                          backgroundColor: _statusBackgroundColor(
+                            invitationPreview.status,
+                          ),
+                          foregroundColor: _statusForegroundColor(
+                            invitationPreview.status,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _InfoRow(
+                      label: '受邀手机号',
+                      value: invitationPreview.inviteeMobile,
+                    ),
+                    const SizedBox(height: 12),
+                    _InfoRow(
+                      label: '邀请码',
+                      value: invitationPreview.inviteCode,
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      '这次会一起照顾的宠物',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    ...invitationPreview.sharedPets.map(
+                      (FamilySharedPetSnapshot pet) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _SharedPetTile(pet: pet),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
       bottomNavigationBar:
           invitationPreview == null || invitationPreview.status != 'pending'
               ? null
               : SafeArea(
                   minimum: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isSubmitting ? null : _rejectInvitation,
-                          child: const Text('拒绝邀请'),
+                  child: CompanionCard(
+                    padding: const EdgeInsets.all(12),
+                    color: AppThemePalette.surface,
+                    radius: 26,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _isSubmitting ? null : _rejectInvitation,
+                            child: const Text('先拒绝'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: _isSubmitting ? null : _acceptInvitation,
-                          child: Text(_isSubmitting ? '处理中...' : '接受加入'),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: _isSubmitting ? null : _acceptInvitation,
+                            child: Text(_isSubmitting ? '处理中...' : '接受加入'),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
+    );
+  }
+}
+
+class _JoinHeroCard extends StatelessWidget {
+  const _JoinHeroCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFECDC),
+          Color(0xFFFFFAF4),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CompanionPill(
+            label: '邀请码加入',
+            icon: Icons.key_rounded,
+            backgroundColor: Color(0xFFFFE2D1),
+            foregroundColor: AppThemePalette.primaryDeep,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '确认后再走进这个家庭',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '每个邀请都会写清楚谁邀请你、共享哪些宠物，以及你在家庭里的身份。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -285,15 +367,15 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 84,
+          width: 92,
           child: Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFF64748B)),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppThemePalette.muted,
+                ),
           ),
         ),
         Expanded(
@@ -314,23 +396,21 @@ class _SharedPetTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return CompanionCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
+      color: AppThemePalette.surfaceRaised,
+      radius: 22,
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
-              borderRadius: BorderRadius.circular(14),
+              color: const Color(0xFFE8F3E7),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(Icons.pets_outlined, color: Color(0xFF166534)),
+            child:
+                const Icon(Icons.pets_rounded, color: AppThemePalette.success),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -342,10 +422,9 @@ class _SharedPetTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '${_toLocalizedPetType(pet.petType)} · ${pet.breed}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: const Color(0xFF64748B)),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppThemePalette.muted,
+                      ),
                 ),
               ],
             ),
@@ -370,7 +449,7 @@ String _toLocalizedRole(String role) {
 String _toLocalizedInvitationStatus(String status) {
   switch (status) {
     case 'pending':
-      return '待处理';
+      return '待回应';
     case 'accepted':
       return '已接受';
     case 'rejected':
@@ -379,6 +458,32 @@ String _toLocalizedInvitationStatus(String status) {
       return '已过期';
     default:
       return status;
+  }
+}
+
+Color _statusBackgroundColor(String status) {
+  switch (status) {
+    case 'accepted':
+      return const Color(0xFFE8F3E7);
+    case 'rejected':
+      return const Color(0xFFF6DFDA);
+    case 'expired':
+      return const Color(0xFFF2E8DE);
+    default:
+      return const Color(0xFFFFE8D9);
+  }
+}
+
+Color _statusForegroundColor(String status) {
+  switch (status) {
+    case 'accepted':
+      return AppThemePalette.success;
+    case 'rejected':
+      return AppThemePalette.danger;
+    case 'expired':
+      return AppThemePalette.muted;
+    default:
+      return AppThemePalette.primaryDeep;
   }
 }
 

@@ -1,3 +1,4 @@
+import 'package:petlife_mobile_app/shared/domain/models/auth_sms_send_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_report_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_report_snapshot.dart';
@@ -7,6 +8,7 @@ import 'package:petlife_mobile_app/shared/domain/models/family_detail_snapshot.d
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_preview_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/health_record_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/home_pet_report_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_profile_snapshot.dart';
@@ -33,7 +35,31 @@ class NetworkPetLifeRepository implements PetLifeRepository {
 
   @override
   Future<bool> hasLocalSession() {
-    return _sessionStore.hasAccessToken();
+    return _sessionStore.hasSession();
+  }
+
+  @override
+  Future<AuthSmsSendSnapshot> sendLoginSmsCode({
+    required String mobile,
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.postData(
+        '/api/v1/auth/sms/send',
+        body: <String, Object?>{
+          'mobile': mobile,
+          'scene': 'login',
+        },
+      ),
+      context: '发送验证码响应',
+    );
+
+    return AuthSmsSendSnapshot(
+      mobile: _readString(data, 'mobile'),
+      scene: _readString(data, 'scene'),
+      mockedCode: _readString(data, 'mocked_code'),
+      expiresInSeconds: _readInt(data, 'expires_in_seconds'),
+      resendInSeconds: _readInt(data, 'resend_in_seconds'),
+    );
   }
 
   @override
@@ -52,12 +78,24 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       context: '登录响应',
     );
 
-    await _sessionStore.saveAccessToken(_readString(data, 'access_token'));
+    await _sessionStore.saveSession(
+      accessToken: _readString(data, 'access_token'),
+      refreshToken: _readString(data, 'refresh_token'),
+    );
   }
 
   @override
-  Future<void> logout() {
-    return _sessionStore.clear();
+  Future<void> logout() async {
+    final String? refreshToken = await _sessionStore.readRefreshToken();
+    if (refreshToken != null) {
+      await _apiClient.postData(
+        '/api/v1/auth/logout',
+        body: <String, Object?>{
+          'refresh_token': refreshToken,
+        },
+      );
+    }
+    await _sessionStore.clear();
   }
 
   @override
@@ -77,6 +115,15 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     );
 
     return pets.map(_toPetDetailSnapshot).toList();
+  }
+
+  @override
+  Future<PetDetailSnapshot> getPet(String petId) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/pets/$petId'),
+      context: '宠物详情',
+    );
+    return _toPetDetailSnapshot(data);
   }
 
   @override
@@ -104,6 +151,24 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       context: '编辑宠物响应',
     );
     return _toPetDetailSnapshot(data);
+  }
+
+  @override
+  Future<void> archivePet({
+    required String petId,
+    required String archiveStatus,
+  }) async {
+    await _apiClient.patchData(
+      '/api/v1/pets/$petId/archive',
+      body: <String, Object?>{
+        'archive_status': archiveStatus,
+      },
+    );
+  }
+
+  @override
+  Future<void> deletePet(String petId) async {
+    await _apiClient.deleteData('/api/v1/pets/$petId');
   }
 
   @override
@@ -553,17 +618,20 @@ class NetworkPetLifeRepository implements PetLifeRepository {
 
   CurrentUserSnapshot _toCurrentUserSnapshot(Map<String, dynamic> data) {
     final Map<String, dynamic> user = _asMap(data['user'], context: '用户信息');
-    final Map<String, dynamic> currentPet =
-        _asMap(data['current_pet'], context: '当前宠物信息');
     final Map<String, dynamic> familySummary =
         _asMap(data['family_summary'], context: '家庭信息');
+    final Object? currentPetPayload = data['current_pet'];
 
     return CurrentUserSnapshot(
       userId: _readString(user, 'user_id'),
       nickname: _readString(user, 'nickname'),
       familyName: _readString(familySummary, 'family_name'),
-      currentPetId: _readString(data, 'current_pet_id'),
-      currentPet: _toPetProfileSnapshot(currentPet),
+      currentPetId: _readNullableString(data, 'current_pet_id'),
+      currentPet: currentPetPayload == null
+          ? null
+          : _toPetProfileSnapshot(
+              _asMap(currentPetPayload, context: '当前宠物信息'),
+            ),
     );
   }
 
@@ -594,6 +662,24 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     );
   }
 
+  @override
+  Future<HomePetReportSnapshot> getWeeklyPetReport() async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/home/reports/weekly'),
+      context: '周报数据',
+    );
+    return _toHomePetReportSnapshot(data);
+  }
+
+  @override
+  Future<HomePetReportSnapshot> getMonthlyPetReport() async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/home/reports/monthly'),
+      context: '月报数据',
+    );
+    return _toHomePetReportSnapshot(data);
+  }
+
   PetProfileSnapshot _toPetProfileSnapshot(Map<String, dynamic> payload) {
     return PetProfileSnapshot(
       petId: _readString(payload, 'pet_id'),
@@ -615,6 +701,10 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       birthday: _readNullableDate(payload, 'birthday'),
       adoptDate: _readNullableDate(payload, 'adopt_date'),
       avatarUrl: _readNullableString(payload, 'avatar_url'),
+      weightKg: _readNullableString(payload, 'weight_kg'),
+      allergyNotes: _readNullableString(payload, 'allergy_notes'),
+      medicalHistory: _readNullableString(payload, 'medical_history'),
+      status: _readNullableString(payload, 'status') ?? 'active',
       createdAt: _readNullableDateTime(payload, 'created_at'),
       updatedAt: _readNullableDateTime(payload, 'updated_at'),
     );
@@ -657,6 +747,39 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       happenedAt: _readDateTime(payload, 'happened_at'),
       communityPostId: _readNullableString(payload, 'community_post_id'),
       createdAt: _readNullableDateTime(payload, 'created_at'),
+    );
+  }
+
+  HomePetReportSnapshot _toHomePetReportSnapshot(Map<String, dynamic> payload) {
+    return HomePetReportSnapshot(
+      reportType: _readString(payload, 'report_type'),
+      pet: _toPetDetailSnapshot(_asMap(payload['pet'], context: '报告宠物信息')),
+      windowStart: _readDateTime(payload, 'window_start'),
+      windowEnd: _readDateTime(payload, 'window_end'),
+      pendingReminderCount: _readInt(payload, 'pending_reminder_count'),
+      completedReminderCount: _readInt(payload, 'completed_reminder_count'),
+      skippedReminderCount: _readInt(payload, 'skipped_reminder_count'),
+      healthRecordCount: _readInt(payload, 'health_record_count'),
+      dailyLogCount: _readInt(payload, 'daily_log_count'),
+      communitySyncCount: _readInt(payload, 'community_sync_count'),
+      feedCount: _readInt(payload, 'feed_count'),
+      waterCount: _readInt(payload, 'water_count'),
+      toiletCount: _readInt(payload, 'toilet_count'),
+      weightRecordCount: _readInt(payload, 'weight_record_count'),
+      medicationRecordCount: _readInt(payload, 'medication_record_count'),
+      highlights: _asStringList(payload['highlights'], context: '报告亮点'),
+      recentReminders:
+          _asMapList(payload['recent_reminders'], context: '最近提醒列表')
+              .map(_toReminderSnapshot)
+              .toList(),
+      recentHealthRecords: _asMapList(
+        payload['recent_health_records'],
+        context: '最近健康记录列表',
+      ).map(_toHealthRecordSnapshot).toList(),
+      recentDailyLogs:
+          _asMapList(payload['recent_daily_logs'], context: '最近萌宠日常列表')
+              .map(_toDailyLogSnapshot)
+              .toList(),
     );
   }
 
@@ -965,7 +1088,19 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       'adopt_date': _formatDate(draft.adoptDate),
       'neuter_status': draft.neuterStatus,
       'avatar_asset_id': draft.avatarAssetId,
+      'weight_kg': _normalizeNullableText(draft.weightKg),
+      'allergy_notes': _normalizeNullableText(draft.allergyNotes),
+      'medical_history': _normalizeNullableText(draft.medicalHistory),
     };
+  }
+
+  String? _normalizeNullableText(String? value) {
+    if (value == null) {
+      return null;
+    }
+
+    final String trimmedValue = value.trim();
+    return trimmedValue.isEmpty ? null : trimmedValue;
   }
 
   String? _formatDate(DateTime? value) {

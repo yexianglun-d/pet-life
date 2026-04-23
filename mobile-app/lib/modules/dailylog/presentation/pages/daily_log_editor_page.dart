@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/daily_log_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
@@ -149,99 +151,113 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
       appBar: AppBar(
         title: Text(isEditMode ? '编辑萌宠日常' : '新建萌宠日常'),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _DailyLogFormSection(
-              title: '记录内容',
-              description: '萌宠日常优先记录高价值内容，保证以后回看时能一眼知道当时发生了什么。',
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _contentController,
-                    minLines: 4,
-                    maxLines: 6,
-                    decoration: const InputDecoration(
-                      labelText: '日常内容',
-                      hintText: '例如：今天第一次主动跳上窗台晒太阳。',
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[
+              Color(0xFFFFFBF7),
+              AppThemePalette.background,
+            ],
+          ),
+        ),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _DailyLogEditorHeroCard(isEditMode: isEditMode),
+              const SizedBox(height: 16),
+              _DailyLogFormSection(
+                title: '记录内容',
+                description: '把今天发生的小事、心情和变化写下来，之后回看会很有温度。',
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _contentController,
+                      minLines: 4,
+                      maxLines: 6,
+                      decoration: const InputDecoration(
+                        labelText: '日常内容',
+                        hintText: '例如：今天第一次主动跳上窗台晒太阳。',
+                      ),
+                      validator: (String? value) {
+                        return value == null || value.trim().isEmpty
+                            ? '请输入日常内容'
+                            : null;
+                      },
                     ),
-                    validator: (String? value) {
-                      return value == null || value.trim().isEmpty
-                          ? '请输入日常内容'
-                          : null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _tagsController,
-                    decoration: const InputDecoration(
-                      labelText: '标签',
-                      hintText: '多个标签请用中文逗号或英文逗号分隔',
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _tagsController,
+                      decoration: const InputDecoration(
+                        labelText: '标签',
+                        hintText: '多个标签请用中文逗号或英文逗号分隔',
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _happenedAtController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: '记录时间',
-                      suffixIcon: Icon(Icons.schedule_outlined),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _happenedAtController,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: '记录时间',
+                        suffixIcon: Icon(Icons.schedule_outlined),
+                      ),
+                      onTap: _pickHappenedAt,
                     ),
-                    onTap: _pickHappenedAt,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            _DailyLogFormSection(
-              title: '可见范围',
-              description: '当前阶段直接在创建时确定可见范围，避免内容沉淀后还要回头统一修正。',
-              child: DropdownButtonFormField<String>(
-                value: _visibility,
-                decoration: const InputDecoration(labelText: '可见范围'),
-                items: const [
-                  DropdownMenuItem(value: 'private', child: Text('仅自己可见')),
-                  DropdownMenuItem(value: 'family', child: Text('家庭可见')),
-                  DropdownMenuItem(value: 'public', child: Text('公开到社区')),
-                ],
-                onChanged: (String? value) {
-                  if (value == null) {
-                    return;
-                  }
-                  setState(() {
-                    _visibility = value;
-                    if (_visibility != 'public') {
-                      _syncToCommunity = false;
-                    }
-                  });
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-            _DailyLogFormSection(
-              title: '社区同步',
-              description: '社区只承接公开内容。关闭同步后，这条日常仍会保留在宠物记录中，但不会出现在社区推荐流。',
-              child: SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('同步到社区'),
-                subtitle: Text(
-                  _visibility == 'public'
-                      ? '开启后会将这条公开日常同步到社区。'
-                      : '只有选择“公开到社区”后才允许同步。',
+                  ],
                 ),
-                value: _syncToCommunity,
-                onChanged: _visibility == 'public'
-                    ? (bool value) {
-                        setState(() {
-                          _syncToCommunity = value;
-                        });
-                      }
-                    : null,
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              _DailyLogFormSection(
+                title: '可见范围',
+                description: '先想清楚这条内容想留给谁看，后面整理时会更轻松。',
+                child: DropdownButtonFormField<String>(
+                  value: _visibility,
+                  decoration: const InputDecoration(labelText: '可见范围'),
+                  items: const [
+                    DropdownMenuItem(value: 'private', child: Text('仅自己可见')),
+                    DropdownMenuItem(value: 'family', child: Text('家庭可见')),
+                    DropdownMenuItem(value: 'public', child: Text('公开到社区')),
+                  ],
+                  onChanged: (String? value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _visibility = value;
+                      if (_visibility != 'public') {
+                        _syncToCommunity = false;
+                      }
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              _DailyLogFormSection(
+                title: '社区同步',
+                description: '只有公开内容才能同步到社区。关闭后，这条日常仍然会留在宠物档案里。',
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('同步到社区'),
+                  subtitle: Text(
+                    _visibility == 'public'
+                        ? '开启后会把这条公开日常同步到社区推荐流。'
+                        : '只有选择“公开到社区”后才允许同步。',
+                  ),
+                  value: _syncToCommunity,
+                  onChanged: _visibility == 'public'
+                      ? (bool value) {
+                          setState(() {
+                            _syncToCommunity = value;
+                          });
+                        }
+                      : null,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: SafeArea(
@@ -261,6 +277,48 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
   }
 }
 
+class _DailyLogEditorHeroCard extends StatelessWidget {
+  const _DailyLogEditorHeroCard({required this.isEditMode});
+
+  final bool isEditMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFECDD),
+          Color(0xFFFFFBF5),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CompanionPill(
+            label: '萌宠日常编辑',
+            icon: Icons.edit_note_rounded,
+            backgroundColor: Color(0xFFFFE2CF),
+            foregroundColor: AppThemePalette.primaryDeep,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isEditMode ? '把这一刻补得更完整一些' : '把今天的小瞬间记下来',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '一句话、一个小动作、一次状态变化，都可能是以后回头看时最柔软的记忆。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DailyLogFormSection extends StatelessWidget {
   const _DailyLogFormSection({
     required this.title,
@@ -274,13 +332,10 @@ class _DailyLogFormSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return CompanionCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
+      radius: 24,
+      color: AppThemePalette.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -288,10 +343,9 @@ class _DailyLogFormSection extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             description,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFF64748B)),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppThemePalette.muted,
+                ),
           ),
           const SizedBox(height: 16),
           child,

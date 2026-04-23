@@ -22,7 +22,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException exception) {
-        return ResponseEntity.badRequest()
+        return ResponseEntity.status(resolveBusinessStatus(exception.getResponseCode()))
             .body(ApiResponse.failure(exception.getResponseCode(), exception.getMessage()));
     }
 
@@ -47,5 +47,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleException(Exception exception) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(ApiResponse.failure(ResponseCode.INTERNAL_SERVER_ERROR, exception.getMessage()));
+    }
+
+    private HttpStatus resolveBusinessStatus(ResponseCode responseCode) {
+        return switch (responseCode) {
+            case UNAUTHORIZED, AUTH_REFRESH_TOKEN_INVALID -> HttpStatus.UNAUTHORIZED;
+            case FORBIDDEN, FAMILY_ROLE_FORBIDDEN, PET_PERMISSION_DENIED -> HttpStatus.FORBIDDEN;
+            case RESOURCE_NOT_FOUND,
+                 USER_CURRENT_PET_NOT_FOUND,
+                 FAMILY_NOT_FOUND,
+                 FAMILY_MEMBER_NOT_FOUND,
+                 FAMILY_INVITATION_NOT_FOUND,
+                 PET_NOT_FOUND,
+                 HEALTH_RECORD_NOT_FOUND,
+                 REMINDER_NOT_FOUND,
+                 DAILY_LOG_NOT_FOUND,
+                 COMMUNITY_POST_NOT_FOUND,
+                 MODERATION_REPORT_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            default -> HttpStatus.BAD_REQUEST;
+        };
     }
 }

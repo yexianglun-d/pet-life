@@ -2,30 +2,235 @@ import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
+import 'package:petlife_mobile_app/modules/dailylog/presentation/pages/daily_log_editor_page.dart';
+import 'package:petlife_mobile_app/modules/home/presentation/pages/home_reminder_center_page.dart';
+import 'package:petlife_mobile_app/modules/home/presentation/pages/pet_report_page.dart';
+import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/daily_log_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/health_record_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 
 /// 首页。
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     required this.currentUser,
     required this.dashboard,
+    required this.onHomeDataChanged,
   });
 
   final CurrentUserSnapshot currentUser;
   final PetDashboardSnapshot dashboard;
+  final VoidCallback onHomeDataChanged;
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  String? _submittingQuickRecordKey;
+
+  Future<void> _openReminderCenter() async {
+    final bool? changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => HomeReminderCenterPage(
+          petId: widget.dashboard.pet.petId,
+          petName: widget.dashboard.pet.petName,
+        ),
+      ),
+    );
+    if (!mounted || changed != true) {
+      return;
+    }
+    widget.onHomeDataChanged();
+  }
+
+  Future<void> _openReportPage(String reportType) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PetReportPage(reportType: reportType),
+      ),
+    );
+  }
+
+  Future<void> _openDailyLogEditor() async {
+    final bool? changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => DailyLogEditorPage(petId: widget.dashboard.pet.petId),
+      ),
+    );
+    if (!mounted || changed != true) {
+      return;
+    }
+    widget.onHomeDataChanged();
+  }
+
+  Future<void> _handleQuickRecordAction(_QuickRecordAction action) async {
+    if (_submittingQuickRecordKey != null) {
+      return;
+    }
+
+    switch (action.key) {
+      case 'daily_log':
+        await _openDailyLogEditor();
+        return;
+      case 'feed':
+      case 'water':
+      case 'toilet':
+        await _submitSimpleDailyQuickRecord(action);
+        return;
+      case 'weight':
+        await _submitWeightQuickRecord();
+        return;
+      case 'medication':
+        await _submitMedicationQuickRecord();
+        return;
+    }
+  }
+
+  Future<void> _submitSimpleDailyQuickRecord(_QuickRecordAction action) async {
+    final String? note = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return _SimpleQuickRecordSheet(action: action);
+      },
+    );
+    if (!mounted || note == null) {
+      return;
+    }
+
+    await _runQuickRecord(
+      action.key,
+      successMessage: '${action.label}已经记下来了',
+      task: () async {
+        final repository = PetLifeAppScope.repositoryOf(context);
+        await repository.createDailyLog(
+          petId: widget.dashboard.pet.petId,
+          draft: DailyLogDraft(
+            content: _buildQuickRecordContent(action, note),
+            tags: <String>['快捷记录', action.label],
+            visibility: 'family',
+            syncToCommunity: false,
+            happenedAt: DateTime.now(),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _submitWeightQuickRecord() async {
+    final _WeightQuickRecordSubmission? submission =
+        await showModalBottomSheet<_WeightQuickRecordSubmission>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return const _WeightQuickRecordSheet();
+      },
+    );
+    if (!mounted || submission == null) {
+      return;
+    }
+
+    await _runQuickRecord(
+      'weight',
+      successMessage: '体重记录已经存进健康档案',
+      task: () async {
+        final repository = PetLifeAppScope.repositoryOf(context);
+        await repository.createHealthRecord(
+          petId: widget.dashboard.pet.petId,
+          draft: HealthRecordDraft(
+            recordType: 'weight',
+            title: '体重记录',
+            occurredAt: DateTime.now(),
+            value: submission.weightValue,
+            unit: 'kg',
+            notes: submission.notes,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _submitMedicationQuickRecord() async {
+    final _MedicationQuickRecordSubmission? submission =
+        await showModalBottomSheet<_MedicationQuickRecordSubmission>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return const _MedicationQuickRecordSheet();
+      },
+    );
+    if (!mounted || submission == null) {
+      return;
+    }
+
+    await _runQuickRecord(
+      'medication',
+      successMessage: '用药记录已经存进健康档案',
+      task: () async {
+        final repository = PetLifeAppScope.repositoryOf(context);
+        await repository.createHealthRecord(
+          petId: widget.dashboard.pet.petId,
+          draft: HealthRecordDraft(
+            recordType: 'medication',
+            title: submission.title,
+            occurredAt: DateTime.now(),
+            notes: submission.notes,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _runQuickRecord(
+    String actionKey, {
+    required String successMessage,
+    required Future<void> Function() task,
+  }) async {
+    setState(() {
+      _submittingQuickRecordKey = actionKey;
+    });
+
+    try {
+      await task();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(successMessage)),
+      );
+      widget.onHomeDataChanged();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submittingQuickRecordKey = null;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final List<ReminderSnapshot> reminders =
-        dashboard.reminders.take(3).toList();
+        widget.dashboard.reminders.take(3).toList();
     final List<HealthRecordSnapshot> healthRecords =
-        dashboard.healthRecords.take(3).toList();
+        widget.dashboard.healthRecords.take(3).toList();
     final List<DailyLogSnapshot> dailyLogs =
-        dashboard.dailyLogs.take(3).toList();
+        widget.dashboard.dailyLogs.take(3).toList();
     final List<String> suggestions = _buildSuggestions(
-      dashboard: dashboard,
+      dashboard: widget.dashboard,
       healthRecords: healthRecords,
       dailyLogs: dailyLogs,
     );
@@ -33,12 +238,31 @@ class HomePage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _HeroSection(currentUser: currentUser, dashboard: dashboard),
+        _HeroSection(
+            currentUser: widget.currentUser, dashboard: widget.dashboard),
+        const SizedBox(height: 16),
+        PageSection(
+          title: '顺手记一条',
+          description: '喂食、饮水、排便、体重和用药，都可以直接从首页记下，不用再绕进去找页面。',
+          child: _QuickRecordSection(
+            actions: _quickRecordActions,
+            submittingActionKey: _submittingQuickRecordKey,
+            onActionTap: _handleQuickRecordAction,
+          ),
+        ),
         const SizedBox(height: 16),
         PageSection(
           title: '今天先照顾这些事',
           description: '把最需要记得的提醒放在前面，照顾起来会更安心。',
+          actionLabel: '查看全部',
+          onAction: _openReminderCenter,
           child: _ReminderSection(reminders: reminders),
+        ),
+        const SizedBox(height: 16),
+        PageSection(
+          title: '这段时间的陪伴回看',
+          description: '周报和月报会把最近的照护节奏、健康变化和生活片段整理成一份更清楚的回看。',
+          child: _ReportEntrySection(onOpenReport: _openReportPage),
         ),
         const SizedBox(height: 16),
         PageSection(
@@ -129,6 +353,78 @@ class _HeroSection extends StatelessWidget {
   }
 }
 
+class _QuickRecordSection extends StatelessWidget {
+  const _QuickRecordSection({
+    required this.actions,
+    required this.submittingActionKey,
+    required this.onActionTap,
+  });
+
+  final List<_QuickRecordAction> actions;
+  final String? submittingActionKey;
+  final ValueChanged<_QuickRecordAction> onActionTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: actions
+          .map(
+            (_QuickRecordAction action) => SizedBox(
+              width: MediaQuery.sizeOf(context).width / 3 - 24,
+              child: InkWell(
+                onTap: submittingActionKey == null
+                    ? () => onActionTap(action)
+                    : null,
+                borderRadius: BorderRadius.circular(22),
+                child: Ink(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppThemePalette.surfaceRaised,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: action.accentColor.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: submittingActionKey == action.key
+                            ? Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: action.accentColor,
+                                ),
+                              )
+                            : Icon(action.icon, color: action.accentColor),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(action.label,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 6),
+                      Text(
+                        action.hint,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppThemePalette.muted,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
 class _ReminderSection extends StatelessWidget {
   const _ReminderSection({required this.reminders});
 
@@ -153,6 +449,93 @@ class _ReminderSection extends StatelessWidget {
             ),
           )
           .toList(),
+    );
+  }
+}
+
+class _ReportEntrySection extends StatelessWidget {
+  const _ReportEntrySection({required this.onOpenReport});
+
+  final ValueChanged<String> onOpenReport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _ReportEntryCard(
+          title: '看看这周过得怎么样',
+          description: '把最近 7 天的提醒、健康记录和陪伴片段整理成一份周报。',
+          icon: Icons.date_range_rounded,
+          onTap: () => onOpenReport('weekly'),
+        ),
+        const SizedBox(height: 12),
+        _ReportEntryCard(
+          title: '再回头看看这个月',
+          description: '把最近 30 天的节奏和变化收成一份月报，适合做更完整的回看。',
+          icon: Icons.calendar_month_rounded,
+          onTap: () => onOpenReport('monthly'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReportEntryCard extends StatelessWidget {
+  const _ReportEntryCard({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppThemePalette.surfaceRaised,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppThemePalette.warmTint,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: AppThemePalette.primaryDeep),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 6),
+                  Text(
+                    description,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppThemePalette.muted,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Icon(Icons.chevron_right, color: AppThemePalette.muted),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -345,7 +728,11 @@ class _ReminderItemCard extends StatelessWidget {
                       ),
                     ),
                     CompanionPill(
-                      label: reminder.status == 'completed' ? '已完成' : '待处理',
+                      label: reminder.status == 'completed'
+                          ? '已完成'
+                          : reminder.status == 'skipped'
+                              ? '已跳过'
+                              : '待处理',
                       backgroundColor: AppThemePalette.warmTint,
                     ),
                   ],
@@ -471,6 +858,456 @@ class _DailyMomentCard extends StatelessWidget {
   }
 }
 
+class _SimpleQuickRecordSheet extends StatefulWidget {
+  const _SimpleQuickRecordSheet({required this.action});
+
+  final _QuickRecordAction action;
+
+  @override
+  State<_SimpleQuickRecordSheet> createState() =>
+      _SimpleQuickRecordSheetState();
+}
+
+class _SimpleQuickRecordSheetState extends State<_SimpleQuickRecordSheet> {
+  final TextEditingController _noteController = TextEditingController();
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _QuickRecordSheetScaffold(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _QuickRecordSheetHeader(
+            title: '记录一次${widget.action.label}',
+            description: '会按当前时间写进萌宠日常，后面回看时能更清楚地看到照护节奏。',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _noteController,
+            minLines: 2,
+            maxLines: 4,
+            decoration: InputDecoration(
+              labelText: '补充一句备注',
+              hintText: widget.action.placeholder,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '将按现在的时间记录，并默认设为家庭可见。',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppThemePalette.muted,
+                ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(
+                    _noteController.text.trim(),
+                  ),
+                  child: const Text('保存记录'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeightQuickRecordSheet extends StatefulWidget {
+  const _WeightQuickRecordSheet();
+
+  @override
+  State<_WeightQuickRecordSheet> createState() =>
+      _WeightQuickRecordSheetState();
+}
+
+class _WeightQuickRecordSheetState extends State<_WeightQuickRecordSheet> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _weightController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
+
+  @override
+  void dispose() {
+    _weightController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _QuickRecordSheetScaffold(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _QuickRecordSheetHeader(
+              title: '记录一次体重',
+              description: '体重会直接存进健康档案，后面在周报和月报里也能一起回看。',
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _weightController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: '体重（kg）',
+                hintText: '例如 4.6',
+              ),
+              validator: (String? value) {
+                final String text = value?.trim() ?? '';
+                if (text.isEmpty) {
+                  return '请输入体重';
+                }
+                return double.tryParse(text) == null ? '请输入有效数字' : null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _notesController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: '备注',
+                hintText: '例如称重前刚吃完饭，或者今天状态很好',
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('取消'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () {
+                      if (!_formKey.currentState!.validate()) {
+                        return;
+                      }
+                      Navigator.of(context).pop(
+                        _WeightQuickRecordSubmission(
+                          weightValue: _weightController.text.trim(),
+                          notes: _normalizeNullableText(_notesController.text),
+                        ),
+                      );
+                    },
+                    child: const Text('保存记录'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MedicationQuickRecordSheet extends StatefulWidget {
+  const _MedicationQuickRecordSheet();
+
+  @override
+  State<_MedicationQuickRecordSheet> createState() =>
+      _MedicationQuickRecordSheetState();
+}
+
+class _MedicationQuickRecordSheetState
+    extends State<_MedicationQuickRecordSheet> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _QuickRecordSheetScaffold(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _QuickRecordSheetHeader(
+              title: '记录一次用药',
+              description: '这条记录会直接进入健康档案，后面回看时就不会只记得“好像喂过药”。',
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: '用药标题',
+                hintText: '例如 耳螨滴药 / 体外驱虫 / 益生菌',
+              ),
+              validator: (String? value) {
+                return value == null || value.trim().isEmpty ? '请输入用药标题' : null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _notesController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: '备注',
+                hintText: '例如用量、饭前饭后或执行时的状态',
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('取消'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () {
+                      if (!_formKey.currentState!.validate()) {
+                        return;
+                      }
+                      Navigator.of(context).pop(
+                        _MedicationQuickRecordSubmission(
+                          title: _titleController.text.trim(),
+                          notes: _normalizeNullableText(_notesController.text),
+                        ),
+                      );
+                    },
+                    child: const Text('保存记录'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickRecordSheetScaffold extends StatelessWidget {
+  const _QuickRecordSheetScaffold({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final EdgeInsets viewInsets = MediaQuery.viewInsetsOf(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, viewInsets.bottom + 16),
+      child: CompanionCard(
+        padding: const EdgeInsets.all(20),
+        radius: 28,
+        color: AppThemePalette.surface,
+        child: child,
+      ),
+    );
+  }
+}
+
+class _QuickRecordSheetHeader extends StatelessWidget {
+  const _QuickRecordSheetHeader({
+    required this.title,
+    required this.description,
+  });
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const CompanionPill(
+          label: '快捷记录',
+          icon: Icons.bolt_rounded,
+          backgroundColor: Color(0xFFFFE3D2),
+          foregroundColor: AppThemePalette.primaryDeep,
+        ),
+        const SizedBox(height: 12),
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Text(
+          description,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppThemePalette.muted,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickRecordAction {
+  const _QuickRecordAction({
+    required this.key,
+    required this.label,
+    required this.hint,
+    required this.placeholder,
+    required this.icon,
+    required this.accentColor,
+  });
+
+  final String key;
+  final String label;
+  final String hint;
+  final String placeholder;
+  final IconData icon;
+  final Color accentColor;
+}
+
+class _WeightQuickRecordSubmission {
+  const _WeightQuickRecordSubmission({
+    required this.weightValue,
+    this.notes,
+  });
+
+  final String weightValue;
+  final String? notes;
+}
+
+class _MedicationQuickRecordSubmission {
+  const _MedicationQuickRecordSubmission({
+    required this.title,
+    this.notes,
+  });
+
+  final String title;
+  final String? notes;
+}
+
+const List<_QuickRecordAction> _quickRecordActions = <_QuickRecordAction>[
+  _QuickRecordAction(
+    key: 'feed',
+    label: '喂食',
+    hint: '记下今天这顿',
+    placeholder: '例如胃口不错，吃得很干净',
+    icon: Icons.restaurant_rounded,
+    accentColor: Color(0xFFC67D4A),
+  ),
+  _QuickRecordAction(
+    key: 'water',
+    label: '饮水',
+    hint: '补一条喝水记录',
+    placeholder: '例如今天喝水明显比平时多一点',
+    icon: Icons.water_drop_rounded,
+    accentColor: Color(0xFF5D92A5),
+  ),
+  _QuickRecordAction(
+    key: 'toilet',
+    label: '排便',
+    hint: '记下今天状态',
+    placeholder: '例如状态正常，没有异常味道或颜色',
+    icon: Icons.sanitizer_rounded,
+    accentColor: Color(0xFF7A8E55),
+  ),
+  _QuickRecordAction(
+    key: 'weight',
+    label: '体重',
+    hint: '直接存进健康档案',
+    placeholder: '记录体重变化',
+    icon: Icons.monitor_weight_rounded,
+    accentColor: Color(0xFF876EA0),
+  ),
+  _QuickRecordAction(
+    key: 'medication',
+    label: '用药',
+    hint: '补一条用药事实',
+    placeholder: '记录药物和备注',
+    icon: Icons.medication_rounded,
+    accentColor: Color(0xFFAF6B6B),
+  ),
+  _QuickRecordAction(
+    key: 'daily_log',
+    label: '记日常',
+    hint: '写一句陪伴片段',
+    placeholder: '打开日常编辑页',
+    icon: Icons.edit_note_rounded,
+    accentColor: Color(0xFF9A7A52),
+  ),
+];
+
+List<String> _buildSuggestions({
+  required PetDashboardSnapshot dashboard,
+  required List<HealthRecordSnapshot> healthRecords,
+  required List<DailyLogSnapshot> dailyLogs,
+}) {
+  final List<String> suggestions = <String>[];
+  if (dashboard.todayTodoCount > 0) {
+    suggestions.add('今天还有 ${dashboard.todayTodoCount} 条待办提醒，可以先从最近的一条开始处理。');
+  }
+  if (healthRecords.isEmpty) {
+    suggestions.add('可以先补一条最近的健康记录，之后回看时会更容易发现变化。');
+  }
+  if (dailyLogs.isEmpty) {
+    suggestions.add('今天还没有记录陪伴片段，哪怕只写一句小观察也很值得。');
+  }
+  if (suggestions.isEmpty) {
+    suggestions.add('今天的照护节奏不错，不妨顺手看看这周的陪伴报告。');
+  }
+  return suggestions;
+}
+
+String _buildQuickRecordContent(_QuickRecordAction action, String note) {
+  final String baseContent;
+  switch (action.key) {
+    case 'feed':
+      baseContent = '快捷记录：今天完成了一次喂食。';
+      break;
+    case 'water':
+      baseContent = '快捷记录：今天补记了一次饮水。';
+      break;
+    case 'toilet':
+      baseContent = '快捷记录：今天补记了一次排便观察。';
+      break;
+    default:
+      baseContent = '快捷记录：补记了一条新的照护事实。';
+      break;
+  }
+  final String trimmedNote = note.trim();
+  if (trimmedNote.isEmpty) {
+    return baseContent;
+  }
+  return '$baseContent\n备注：$trimmedNote';
+}
+
+String? _normalizeNullableText(String value) {
+  final String normalizedValue = value.trim();
+  return normalizedValue.isEmpty ? null : normalizedValue;
+}
+
 String _toLocalizedPetType(String petType) {
   switch (petType) {
     case 'cat':
@@ -484,12 +1321,15 @@ String _toLocalizedPetType(String petType) {
 
 String _toLocalizedReminderType(String reminderType) {
   switch (reminderType) {
+    case 'vaccine':
+      return '疫苗';
     case 'deworming':
       return '驱虫';
+    case 'examination':
     case 'physical_exam':
       return '体检';
-    case 'bath':
-      return '洗护';
+    case 'medication':
+      return '用药';
     default:
       return reminderType;
   }
@@ -524,60 +1364,51 @@ String _toLocalizedVisibility(String visibility) {
   }
 }
 
+IconData _toReminderIcon(String reminderType) {
+  switch (reminderType) {
+    case 'vaccine':
+      return Icons.vaccines_rounded;
+    case 'deworming':
+      return Icons.pest_control_rounded;
+    case 'examination':
+    case 'physical_exam':
+      return Icons.medical_services_rounded;
+    case 'medication':
+      return Icons.medication_rounded;
+    default:
+      return Icons.notifications_active_rounded;
+  }
+}
+
 Color _toReminderAccentColor(String reminderType) {
   switch (reminderType) {
-    case 'physical_exam':
-      return const Color(0xFFC28A52);
-    case 'bath':
-      return const Color(0xFF7EA9B8);
+    case 'vaccine':
+      return const Color(0xFF7A8E55);
     case 'deworming':
+      return const Color(0xFFB07355);
+    case 'examination':
+    case 'physical_exam':
+      return const Color(0xFF6C8A96);
+    case 'medication':
+      return const Color(0xFFB06B68);
     default:
-      return const Color(0xFF7DA17A);
+      return AppThemePalette.primaryDeep;
   }
 }
 
 IconData _toHealthRecordIcon(String recordType) {
   switch (recordType) {
     case 'vaccine':
-      return Icons.vaccines_outlined;
-    case 'weight':
-      return Icons.monitor_weight_outlined;
-    case 'medication':
-      return Icons.medication_outlined;
-    default:
-      return Icons.health_and_safety_outlined;
-  }
-}
-
-IconData _toReminderIcon(String reminderType) {
-  switch (reminderType) {
-    case 'physical_exam':
-      return Icons.medical_services_outlined;
-    case 'bath':
-      return Icons.shower_outlined;
+      return Icons.vaccines_rounded;
     case 'deworming':
+      return Icons.pest_control_rounded;
+    case 'examination':
+      return Icons.monitor_heart_rounded;
+    case 'medication':
+      return Icons.medication_rounded;
+    case 'weight':
+      return Icons.monitor_weight_rounded;
     default:
-      return Icons.schedule_rounded;
+      return Icons.favorite_outline_rounded;
   }
-}
-
-List<String> _buildSuggestions({
-  required PetDashboardSnapshot dashboard,
-  required List<HealthRecordSnapshot> healthRecords,
-  required List<DailyLogSnapshot> dailyLogs,
-}) {
-  final List<String> suggestions = <String>[
-    if (dashboard.todayTodoCount > 0)
-      '先处理 ${dashboard.todayTodoCount} 条待办提醒，今天的照护会更从容。',
-    if (healthRecords.isEmpty)
-      '给 ${dashboard.pet.petName} 留下一条健康记录，后面回看时会更有安全感。',
-    if (dailyLogs.isEmpty) '写一句今天的小日常，哪怕只是“吃饭很认真”也很值得记下来。',
-  ];
-
-  if (suggestions.isEmpty) {
-    suggestions.add('今天已经照顾得很完整了，不妨再多陪 ${dashboard.pet.petName} 玩一会儿。');
-    suggestions.add('如果它今天状态不错，也可以顺手记录一个开心的小瞬间。');
-  }
-
-  return suggestions.take(3).toList();
 }

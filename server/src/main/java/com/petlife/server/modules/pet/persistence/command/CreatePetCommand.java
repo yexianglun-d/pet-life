@@ -1,5 +1,6 @@
 package com.petlife.server.modules.pet.persistence.command;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
@@ -18,6 +19,9 @@ public class CreatePetCommand {
     private LocalDate adoptDate;
     private Integer neuterStatus;
     private String avatarUrl;
+    private BigDecimal weightKg;
+    private String allergyNotes;
+    private String medicalHistory;
 
     public Long getId() {
         return id;
@@ -105,5 +109,29 @@ public class CreatePetCommand {
 
     public void setAvatarUrl(String avatarUrl) {
         this.avatarUrl = avatarUrl;
+    }
+
+    public BigDecimal getWeightKg() {
+        return weightKg;
+    }
+
+    public void setWeightKg(BigDecimal weightKg) {
+        this.weightKg = weightKg;
+    }
+
+    public String getAllergyNotes() {
+        return allergyNotes;
+    }
+
+    public void setAllergyNotes(String allergyNotes) {
+        this.allergyNotes = allergyNotes;
+    }
+
+    public String getMedicalHistory() {
+        return medicalHistory;
+    }
+
+    public void setMedicalHistory(String medicalHistory) {
+        this.medicalHistory = medicalHistory;
     }
 }

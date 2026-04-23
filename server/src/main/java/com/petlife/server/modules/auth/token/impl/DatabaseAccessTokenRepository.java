@@ -2,6 +2,7 @@ package com.petlife.server.modules.auth.token.impl;
 
 import com.petlife.server.modules.auth.persistence.command.CreateUserSessionCommand;
 import com.petlife.server.modules.auth.persistence.AuthTokenPersistenceMapper;
+import com.petlife.server.modules.auth.persistence.dataobject.UserSessionDataObject;
 import com.petlife.server.modules.auth.token.AccessTokenRepository;
 import com.petlife.server.modules.auth.token.IssuedLoginTokens;
 import com.petlife.server.modules.auth.token.TokenHashing;
@@ -41,6 +42,24 @@ public class DatabaseAccessTokenRepository implements AccessTokenRepository {
     }
 
     @Override
+    public Optional<IssuedLoginTokens> refreshLoginTokens(String refreshToken) {
+        String refreshTokenHash = parseRefreshTokenHash(refreshToken);
+        if (refreshTokenHash == null) {
+            return Optional.empty();
+        }
+
+        UserSessionDataObject activeSession =
+            authTokenPersistenceMapper.lockActiveSessionByRefreshTokenHash(refreshTokenHash);
+        if (activeSession == null) {
+            return Optional.empty();
+        }
+
+        // 刷新登录态时必须先吊销旧会话，再签发新会话，避免旧刷新令牌被继续复用。
+        authTokenPersistenceMapper.revokeSession(activeSession.getSessionId(), refreshTokenHash);
+        return Optional.of(issueLoginTokens(activeSession.getUserId()));
+    }
+
+    @Override
     public Optional<Long> findUserIdByAccessToken(String accessToken) {
         ParsedSessionToken parsedToken = parseAccessToken(accessToken);
         if (parsedToken == null) {
@@ -65,6 +84,14 @@ public class DatabaseAccessTokenRepository implements AccessTokenRepository {
         }
     }
 
+    @Override
+    public void revokeRefreshToken(String refreshToken) {
+        String refreshTokenHash = parseRefreshTokenHash(refreshToken);
+        if (refreshTokenHash != null) {
+            authTokenPersistenceMapper.revokeSessionByRefreshTokenHash(refreshTokenHash);
+        }
+    }
+
     private String generateOpaqueToken() {
         return UUID.randomUUID().toString().replace("-", "");
     }
@@ -85,6 +112,13 @@ public class DatabaseAccessTokenRepository implements AccessTokenRepository {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    private String parseRefreshTokenHash(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return null;
+        }
+        return TokenHashing.sha256Hex(refreshToken.trim());
     }
 
     private record ParsedSessionToken(

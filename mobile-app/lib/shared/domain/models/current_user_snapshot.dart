@@ -6,13 +6,13 @@ class CurrentUserSnapshot {
     required this.userId,
     required this.nickname,
     required this.familyName,
-    required this.currentPetId,
-    required this.currentPet,
+    this.currentPetId,
+    this.currentPet,
   });
 
   final String userId;
   final String nickname;
   final String familyName;
-  final String currentPetId;
-  final PetProfileSnapshot currentPet;
+  final String? currentPetId;
+  final PetProfileSnapshot? currentPet;
 }

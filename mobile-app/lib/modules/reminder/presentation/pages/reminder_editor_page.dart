@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
 
@@ -135,151 +137,167 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('新建提醒')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _ReminderFormSection(
-              title: '提醒类型',
-              description: '提醒类型定义业务语义，提醒模式定义它是一次性待办还是持续循环计划。',
-              child: DropdownButtonFormField<String>(
-                value: _reminderType,
-                decoration: const InputDecoration(labelText: '提醒类型'),
-                items: const [
-                  DropdownMenuItem(value: 'vaccine', child: Text('疫苗')),
-                  DropdownMenuItem(value: 'deworming', child: Text('驱虫')),
-                  DropdownMenuItem(value: 'examination', child: Text('体检')),
-                  DropdownMenuItem(value: 'medication', child: Text('用药')),
-                  DropdownMenuItem(value: 'observation', child: Text('观察提醒')),
-                ],
-                onChanged: (String? value) {
-                  if (value == null) {
-                    return;
-                  }
-                  setState(() {
-                    _reminderType = value;
-                  });
-                },
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[
+              Color(0xFFFFFBF7),
+              AppThemePalette.background,
+            ],
+          ),
+        ),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _ReminderEditorHeroCard(reminderMode: _reminderMode),
+              const SizedBox(height: 16),
+              _ReminderFormSection(
+                title: '提醒类型',
+                description: '先选这次想记住的是什么，再决定它是一次还是周期。',
+                child: DropdownButtonFormField<String>(
+                  value: _reminderType,
+                  decoration: const InputDecoration(labelText: '提醒类型'),
+                  items: const [
+                    DropdownMenuItem(value: 'vaccine', child: Text('疫苗')),
+                    DropdownMenuItem(value: 'deworming', child: Text('驱虫')),
+                    DropdownMenuItem(value: 'examination', child: Text('体检')),
+                    DropdownMenuItem(value: 'medication', child: Text('用药')),
+                    DropdownMenuItem(value: 'observation', child: Text('观察提醒')),
+                  ],
+                  onChanged: (String? value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _reminderType = value;
+                    });
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _ReminderFormSection(
-              title: '提醒模式',
-              description: '周期提醒在完成或跳过后会自动生成下一次待办，适合驱虫、体检等重复照护事项。',
-              child: Column(
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: _reminderMode,
-                    decoration: const InputDecoration(labelText: '提醒模式'),
-                    items: const [
-                      DropdownMenuItem(value: 'single', child: Text('单次提醒')),
-                      DropdownMenuItem(value: 'cycle', child: Text('周期提醒')),
-                    ],
-                    onChanged: (String? value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _reminderMode = value;
-                      });
-                    },
-                  ),
-                  if (_reminderMode == 'cycle') ...[
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _cycleValueController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: '间隔值',
-                              hintText: '例如 1',
-                            ),
-                            validator: (String? value) {
-                              if (_reminderMode != 'cycle') {
-                                return null;
-                              }
-                              final int? cycleValue =
-                                  int.tryParse((value ?? '').trim());
-                              if (cycleValue == null || cycleValue <= 0) {
-                                return '请输入大于 0 的间隔值';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _cycleUnit,
-                            decoration:
-                                const InputDecoration(labelText: '周期单位'),
-                            items: const [
-                              DropdownMenuItem(value: 'day', child: Text('天')),
-                              DropdownMenuItem(value: 'week', child: Text('周')),
-                              DropdownMenuItem(
-                                  value: 'month', child: Text('月')),
-                            ],
-                            onChanged: (String? value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() {
-                                _cycleUnit = value;
-                              });
-                            },
-                          ),
-                        ),
+              const SizedBox(height: 16),
+              _ReminderFormSection(
+                title: '提醒模式',
+                description: '周期提醒适合驱虫、体检这类会重复发生的照护事项。',
+                child: Column(
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: _reminderMode,
+                      decoration: const InputDecoration(labelText: '提醒模式'),
+                      items: const [
+                        DropdownMenuItem(value: 'single', child: Text('单次提醒')),
+                        DropdownMenuItem(value: 'cycle', child: Text('周期提醒')),
                       ],
+                      onChanged: (String? value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _reminderMode = value;
+                        });
+                      },
+                    ),
+                    if (_reminderMode == 'cycle') ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _cycleValueController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: '间隔值',
+                                hintText: '例如 1',
+                              ),
+                              validator: (String? value) {
+                                if (_reminderMode != 'cycle') {
+                                  return null;
+                                }
+                                final int? cycleValue =
+                                    int.tryParse((value ?? '').trim());
+                                if (cycleValue == null || cycleValue <= 0) {
+                                  return '请输入大于 0 的间隔值';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _cycleUnit,
+                              decoration:
+                                  const InputDecoration(labelText: '周期单位'),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'day', child: Text('天')),
+                                DropdownMenuItem(
+                                    value: 'week', child: Text('周')),
+                                DropdownMenuItem(
+                                    value: 'month', child: Text('月')),
+                              ],
+                              onChanged: (String? value) {
+                                if (value == null) {
+                                  return;
+                                }
+                                setState(() {
+                                  _cycleUnit = value;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _ReminderFormSection(
+                title: '提醒内容',
+                description: '时间、标题和备注越清楚，到点时看到的提示就越好理解。',
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _titleController,
+                      decoration: InputDecoration(
+                        labelText: '提醒标题',
+                        hintText: _defaultTitleHint(_reminderType),
+                      ),
+                      validator: (String? value) {
+                        return value == null || value.trim().isEmpty
+                            ? '请输入提醒标题'
+                            : null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _dueAtController,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: '提醒时间',
+                        suffixIcon: Icon(Icons.schedule_outlined),
+                      ),
+                      onTap: _pickDueAt,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _notesController,
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: const InputDecoration(
+                        labelText: '备注',
+                        hintText: '例如医院、药量、注意事项和执行说明',
+                      ),
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _ReminderFormSection(
-              title: '提醒内容',
-              description: '标题、提醒时间和备注决定用户看到的待办内容，周期配置只负责派生后续提醒。',
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _titleController,
-                    decoration: InputDecoration(
-                      labelText: '提醒标题',
-                      hintText: _defaultTitleHint(_reminderType),
-                    ),
-                    validator: (String? value) {
-                      return value == null || value.trim().isEmpty
-                          ? '请输入提醒标题'
-                          : null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _dueAtController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: '提醒时间',
-                      suffixIcon: Icon(Icons.schedule_outlined),
-                    ),
-                    onTap: _pickDueAt,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _notesController,
-                    minLines: 3,
-                    maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: '备注',
-                      hintText: '可填写医院、药量、注意事项等信息',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: SafeArea(
@@ -288,6 +306,48 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
           onPressed: _isSubmitting ? null : _submit,
           child: Text(_isSubmitting ? '保存中...' : '保存提醒'),
         ),
+      ),
+    );
+  }
+}
+
+class _ReminderEditorHeroCard extends StatelessWidget {
+  const _ReminderEditorHeroCard({required this.reminderMode});
+
+  final String reminderMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFEBDD),
+          Color(0xFFFFFBF5),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CompanionPill(
+            label: reminderMode == 'cycle' ? '周期提醒' : '单次提醒',
+            icon: Icons.alarm_add_rounded,
+            backgroundColor: const Color(0xFFFFE0CF),
+            foregroundColor: AppThemePalette.primaryDeep,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '把要记住的时间点先排好',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '到时间时你会更从容，不需要一直担心自己有没有漏掉。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
       ),
     );
   }
@@ -306,13 +366,10 @@ class _ReminderFormSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return CompanionCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
+      radius: 24,
+      color: AppThemePalette.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -320,10 +377,9 @@ class _ReminderFormSection extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             description,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFF64748B)),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppThemePalette.muted,
+                ),
           ),
           const SizedBox(height: 16),
           child,

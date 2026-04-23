@@ -4,6 +4,7 @@ import com.petlife.server.common.time.DateTimeConverters;
 import com.petlife.server.modules.pet.domain.entity.PetProfileEntity;
 import com.petlife.server.modules.pet.dto.response.PetDetailResponse;
 import com.petlife.server.modules.pet.persistence.dataobject.PetProfileDataObject;
+import java.math.BigDecimal;
 import org.springframework.stereotype.Component;
 
 /**
@@ -29,6 +30,10 @@ public class PetEntityConverter {
             petProfileDataObject.adoptDate(),
             petProfileDataObject.neuterStatus(),
             petProfileDataObject.avatarUrl(),
+            petProfileDataObject.weightKg(),
+            petProfileDataObject.allergyNotes(),
+            petProfileDataObject.medicalHistory(),
+            petProfileDataObject.status(),
             petProfileDataObject.createdAt(),
             petProfileDataObject.updatedAt()
         );
@@ -45,6 +50,10 @@ public class PetEntityConverter {
             petProfile.getAdoptDate(),
             toNeuterStatusLabel(petProfile.getNeuterStatus()),
             petProfile.getAvatarUrl(),
+            petProfile.getWeightKg() == null ? null : petProfile.getWeightKg().stripTrailingZeros().toPlainString(),
+            petProfile.getAllergyNotes(),
+            petProfile.getMedicalHistory(),
+            petProfile.getStatus(),
             DateTimeConverters.toOffsetDateTime(petProfile.getCreatedAt()),
             DateTimeConverters.toOffsetDateTime(petProfile.getUpdatedAt())
         );
@@ -62,6 +71,20 @@ public class PetEntityConverter {
             case "completed", "yes", "true", "1" -> 1;
             default -> 0;
         };
+    }
+
+    /**
+     * 体重输入来自表单，接口层统一按字符串接收，避免前端与序列化精度绑定。
+     */
+    public BigDecimal toWeightKg(String weightKg) {
+        if (weightKg == null || weightKg.isBlank()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(weightKg.trim());
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private String toNeuterStatusLabel(Integer neuterStatus) {

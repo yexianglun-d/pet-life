@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_report_draft.dart';
@@ -177,8 +179,8 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
           padding: EdgeInsets.only(
             left: 16,
             right: 16,
-            top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
           ),
           child: StatefulBuilder(
             builder: (BuildContext context, StateSetter setModalState) {
@@ -186,17 +188,21 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('写评论', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 10),
                   Text(
-                    '写评论',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    '说一点真实的观察、经验或鼓励，会比一句空话更有温度。',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppThemePalette.muted,
+                        ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   TextField(
                     controller: controller,
                     minLines: 3,
                     maxLines: 5,
                     decoration: const InputDecoration(
-                      hintText: '说点真实有价值的内容，比如经验、观察或鼓励。',
+                      hintText: '写下你的评论',
                     ),
                     onChanged: (_) => setModalState(() {}),
                   ),
@@ -294,22 +300,19 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
               padding: EdgeInsets.only(
                 left: 16,
                 right: 16,
-                top: 16,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '举报内容',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
+                  Text('举报内容', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 10),
                   Text(
                     '请选择最接近的问题类型，我们会进入人工核查队列。',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF64748B),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppThemePalette.muted,
                         ),
                   ),
                   const SizedBox(height: 12),
@@ -410,7 +413,6 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
   @override
   Widget build(BuildContext context) {
     final CommunityPostSnapshot? post = _post;
-    final TextTheme textTheme = Theme.of(context).textTheme;
 
     if (_isLoading && post == null) {
       return const Scaffold(
@@ -421,26 +423,14 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
     if (_errorMessage != null && post == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('社区内容详情')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFFB91C1C),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton(
-                  onPressed: _loadPostDetail,
-                  child: const Text('重新加载'),
-                ),
-              ],
-            ),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: CompanionEmptyState(
+            title: '社区内容暂时没有加载出来',
+            description: _errorMessage!,
+            icon: Icons.cloud_off_outlined,
+            actionLabel: '重新加载',
+            onAction: _loadPostDetail,
           ),
         ),
       );
@@ -458,25 +448,37 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _CommunityPostDetailCard(
-            post: post!,
-            isUpdatingLike: _isUpdatingLike,
-            isUpdatingFavorite: _isUpdatingFavorite,
-            isSubmittingComment: _isSubmittingComment,
-            onToggleLike: _toggleLike,
-            onToggleFavorite: _toggleFavorite,
-            onComment: _openCommentComposer,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[
+              Color(0xFFFFFBF7),
+              AppThemePalette.background,
+            ],
           ),
-          const SizedBox(height: 16),
-          _CommunityCommentsSection(
-            comments: _comments,
-            onComment: _openCommentComposer,
-            isSubmittingComment: _isSubmittingComment,
-          ),
-        ],
+        ),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _CommunityPostDetailCard(
+              post: post!,
+              isUpdatingLike: _isUpdatingLike,
+              isUpdatingFavorite: _isUpdatingFavorite,
+              isSubmittingComment: _isSubmittingComment,
+              onToggleLike: _toggleLike,
+              onToggleFavorite: _toggleFavorite,
+              onComment: _openCommentComposer,
+            ),
+            const SizedBox(height: 16),
+            _CommunityCommentsSection(
+              comments: _comments,
+              onComment: _openCommentComposer,
+              isSubmittingComment: _isSubmittingComment,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -515,22 +517,32 @@ class _CommunityPostDetailCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return Container(
+    return CompanionCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+      radius: 28,
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFECDD),
+          Color(0xFFFFFBF6),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          CompanionPill(
+            label: post.sourceDailyLogId == null ? '社区内容' : '来自萌宠日常',
+            icon: Icons.forum_outlined,
+            backgroundColor: AppThemePalette.surface,
+          ),
+          const SizedBox(height: 12),
           Text(post.title, style: textTheme.titleLarge),
           const SizedBox(height: 12),
           Text(
             '${post.author.nickname} · ${_formatCommunityTime(post.publishedAt ?? post.createdAt)}',
             style: textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF64748B),
+              color: AppThemePalette.muted,
             ),
           ),
           if (post.pet != null) ...[
@@ -550,8 +562,6 @@ class _CommunityPostDetailCard extends StatelessWidget {
               _InfoChip(label: '点赞 ${post.likeCount}'),
               _InfoChip(label: '评论 ${post.commentCount}'),
               _InfoChip(label: '收藏 ${post.favoriteCount}'),
-              if (post.sourceDailyLogId != null)
-                const _InfoChip(label: '来自萌宠日常同步'),
             ],
           ),
           const SizedBox(height: 20),
@@ -608,13 +618,10 @@ class _CommunityCommentsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return Container(
+    return CompanionCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
+      radius: 28,
+      color: AppThemePalette.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -633,7 +640,7 @@ class _CommunityCommentsSection extends StatelessWidget {
             Text(
               '还没有评论，先留下第一条真实反馈。',
               style: textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF64748B),
+                color: AppThemePalette.muted,
               ),
             )
           else
@@ -662,19 +669,17 @@ class _CommunityCommentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return Container(
+    return CompanionCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-      ),
+      radius: 22,
+      color: AppThemePalette.surfaceRaised,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '${comment.author.nickname} · ${_formatCommunityTime(comment.createdAt)}',
             style: textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF64748B),
+              color: AppThemePalette.muted,
             ),
           ),
           const SizedBox(height: 8),
@@ -695,14 +700,9 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Text(label),
+    return CompanionPill(
+      label: label,
+      backgroundColor: AppThemePalette.surface,
     );
   }
 }

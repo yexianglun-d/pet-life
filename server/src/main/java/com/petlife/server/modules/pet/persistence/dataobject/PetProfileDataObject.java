@@ -1,5 +1,6 @@
 package com.petlife.server.modules.pet.persistence.dataobject;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -17,6 +18,10 @@ import java.time.LocalDateTime;
  * @param adoptDate 到家日期
  * @param neuterStatus 绝育状态：0-否 1-是
  * @param avatarUrl 头像地址
+ * @param weightKg 当前体重（kg）
+ * @param allergyNotes 过敏信息
+ * @param medicalHistory 重要病史
+ * @param status 宠物状态
  * @param createdAt 创建时间
  * @param updatedAt 更新时间
  */
@@ -32,6 +37,10 @@ public record PetProfileDataObject(
     LocalDate adoptDate,
     Integer neuterStatus,
     String avatarUrl,
+    BigDecimal weightKg,
+    String allergyNotes,
+    String medicalHistory,
+    String status,
     LocalDateTime createdAt,
     LocalDateTime updatedAt
 ) {

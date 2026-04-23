@@ -12,11 +12,15 @@ class PageSection extends StatelessWidget {
     required this.title,
     required this.description,
     required this.child,
+    this.actionLabel,
+    this.onAction,
   });
 
   final String title;
   final String description;
   final Widget child;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -35,9 +39,20 @@ class PageSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              if (actionLabel != null && onAction != null)
+                TextButton(
+                  onPressed: onAction,
+                  child: Text(actionLabel!),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(

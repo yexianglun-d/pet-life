@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petlife_mobile_app/app/pet_life_app.dart';
+import 'package:petlife_mobile_app/shared/domain/models/auth_sms_send_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_report_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_report_snapshot.dart';
@@ -9,6 +10,7 @@ import 'package:petlife_mobile_app/shared/domain/models/family_detail_snapshot.d
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_preview_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/health_record_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/home_pet_report_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_profile_snapshot.dart';
@@ -32,6 +34,19 @@ class _FakePetLifeRepository implements PetLifeRepository {
   @override
   Future<bool> hasLocalSession() async {
     return true;
+  }
+
+  @override
+  Future<AuthSmsSendSnapshot> sendLoginSmsCode({
+    required String mobile,
+  }) async {
+    return AuthSmsSendSnapshot(
+      mobile: mobile,
+      scene: 'login',
+      mockedCode: '123456',
+      expiresInSeconds: 300,
+      resendInSeconds: 60,
+    );
   }
 
   @override
@@ -75,6 +90,21 @@ class _FakePetLifeRepository implements PetLifeRepository {
   }
 
   @override
+  Future<PetDetailSnapshot> getPet(String petId) async {
+    return const PetDetailSnapshot(
+      petId: '10001',
+      petName: 'Momo',
+      petType: 'cat',
+      breed: 'British Shorthair',
+      gender: 'female',
+      neuterStatus: 'completed',
+      weightKg: '4.6',
+      allergyNotes: '对海鲜较敏感',
+      medicalHistory: '2025 年做过牙结石清理。',
+    );
+  }
+
+  @override
   Future<PetDetailSnapshot> createPet(PetUpsertDraft draft) async {
     return PetDetailSnapshot(
       petId: '10002',
@@ -85,6 +115,9 @@ class _FakePetLifeRepository implements PetLifeRepository {
       neuterStatus: draft.neuterStatus,
       birthday: draft.birthday,
       adoptDate: draft.adoptDate,
+      weightKg: draft.weightKg,
+      allergyNotes: draft.allergyNotes,
+      medicalHistory: draft.medicalHistory,
     );
   }
 
@@ -102,8 +135,20 @@ class _FakePetLifeRepository implements PetLifeRepository {
       neuterStatus: draft.neuterStatus,
       birthday: draft.birthday,
       adoptDate: draft.adoptDate,
+      weightKg: draft.weightKg,
+      allergyNotes: draft.allergyNotes,
+      medicalHistory: draft.medicalHistory,
     );
   }
+
+  @override
+  Future<void> archivePet({
+    required String petId,
+    required String archiveStatus,
+  }) async {}
+
+  @override
+  Future<void> deletePet(String petId) async {}
 
   @override
   Future<CurrentUserSnapshot> updateCurrentPet(String petId) async {
@@ -674,6 +719,85 @@ class _FakePetLifeRepository implements PetLifeRepository {
         ),
       ],
       dailyLogs: <DailyLogSnapshot>[
+        DailyLogSnapshot(
+          dailyLogId: '50001',
+          content: '今天追着逗猫棒跑了十分钟，状态很活跃。',
+          tags: const <String>['玩耍', '活跃'],
+          visibility: 'family',
+          syncToCommunity: false,
+          happenedAt: DateTime(2026, 4, 17, 8),
+          createdAt: DateTime(2026, 4, 17, 8, 5),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<HomePetReportSnapshot> getWeeklyPetReport() async {
+    return _buildReportSnapshot('weekly');
+  }
+
+  @override
+  Future<HomePetReportSnapshot> getMonthlyPetReport() async {
+    return _buildReportSnapshot('monthly');
+  }
+
+  HomePetReportSnapshot _buildReportSnapshot(String reportType) {
+    return HomePetReportSnapshot(
+      reportType: reportType,
+      pet: const PetDetailSnapshot(
+        petId: '10001',
+        petName: 'Momo',
+        petType: 'cat',
+        breed: 'British Shorthair',
+        gender: 'female',
+        neuterStatus: 'completed',
+        weightKg: '4.6',
+      ),
+      windowStart: reportType == 'monthly'
+          ? DateTime(2026, 3, 24, 0)
+          : DateTime(2026, 4, 17, 0),
+      windowEnd: DateTime(2026, 4, 23, 18),
+      pendingReminderCount: 1,
+      completedReminderCount: 2,
+      skippedReminderCount: 0,
+      healthRecordCount: 3,
+      dailyLogCount: 4,
+      communitySyncCount: 1,
+      feedCount: 2,
+      waterCount: 3,
+      toiletCount: 2,
+      weightRecordCount: 1,
+      medicationRecordCount: 1,
+      highlights: const <String>[
+        '这段时间已经完成了 2 条提醒，照护节奏保持得不错。',
+        '围绕 Momo 留下了 3 条健康记录。',
+      ],
+      recentReminders: <ReminderSnapshot>[
+        ReminderSnapshot(
+          reminderId: '40001',
+          reminderType: 'deworming',
+          title: '体内驱虫提醒',
+          reminderMode: 'cycle',
+          dueAt: DateTime(2026, 4, 18, 9),
+          status: 'pending',
+          cycleValue: 1,
+          cycleUnit: 'month',
+          notes: '晚饭后执行',
+        ),
+      ],
+      recentHealthRecords: <HealthRecordSnapshot>[
+        HealthRecordSnapshot(
+          healthRecordId: '30001',
+          recordType: 'weight',
+          title: '体重复查',
+          occurredAt: DateTime(2026, 4, 15, 10),
+          value: '4.3',
+          unit: 'kg',
+          notes: '状态稳定',
+        ),
+      ],
+      recentDailyLogs: <DailyLogSnapshot>[
         DailyLogSnapshot(
           dailyLogId: '50001',
           content: '今天追着逗猫棒跑了十分钟，状态很活跃。',

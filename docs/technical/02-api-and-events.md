@@ -136,7 +136,37 @@
 
 `POST /auth/refresh`
 
-## 2.4 获取当前用户信息
+请求：
+
+```json
+{
+  "refresh_token": "opaque_refresh_token"
+}
+```
+
+说明：
+
+- 成功后返回新的 `access_token` 与 `refresh_token`
+- 刷新时会吊销旧会话并轮换新会话，避免旧刷新令牌继续复用
+
+## 2.4 退出登录
+
+`POST /auth/logout`
+
+请求：
+
+```json
+{
+  "refresh_token": "opaque_refresh_token"
+}
+```
+
+说明：
+
+- 服务端按刷新令牌对应会话执行吊销
+- 客户端收到成功后需同步清理本地会话
+
+## 2.5 获取当前用户信息
 
 `GET /me`
 
@@ -147,7 +177,11 @@
 - 当前宠物
 - 家庭摘要
 
-## 2.5 修改当前宠物
+说明：
+
+- 若用户当前没有任何活跃宠物，`current_pet_id` 和 `current_pet` 会返回 `null`
+
+## 2.6 修改当前宠物
 
 `PATCH /me/settings/current-pet`
 
@@ -179,6 +213,9 @@
 - `adopt_date`
 - `neuter_status`
 - `avatar_asset_id`
+- `weight_kg`
+- `allergy_notes`
+- `medical_history`
 
 ## 3.3 获取宠物详情
 
@@ -187,6 +224,8 @@
 ## 3.4 更新宠物
 
 `PATCH /pets/{pet_id}`
+
+支持与创建接口相同的扩展字段回写。
 
 ## 3.5 获取宠物主页摘要
 
@@ -201,15 +240,43 @@
 - 最近时间轴
 - 设备状态摘要
 
-## 3.6 获取家庭信息
+## 3.6 归档宠物
+
+`PATCH /pets/{pet_id}/archive`
+
+请求：
+
+```json
+{
+  "archive_status": "memorial"
+}
+```
+
+说明：
+
+- `archive_status` 仅支持 `memorial` 或 `rehomed`
+- 归档后宠物会从活跃列表移出
+- 若该宠物正被家庭成员作为当前宠物使用，服务端会自动重建当前宠物上下文
+
+## 3.7 删除宠物
+
+`DELETE /pets/{pet_id}`
+
+说明：
+
+- 服务端执行软删除，不做物理删库
+- 删除后会自动重建所有受影响成员的 `current_pet_id`
+- 若删除后用户没有任何活跃宠物，`/me` 将返回无宠物态
+
+## 3.8 获取家庭信息
 
 `GET /family`
 
-## 3.7 创建或初始化家庭
+## 3.9 创建或初始化家庭
 
 `POST /family`
 
-## 3.8 发起家庭邀请
+## 3.10 发起家庭邀请
 
 `POST /family/invitations`
 
@@ -223,11 +290,11 @@
 }
 ```
 
-## 3.9 查看家庭邀请
+## 3.11 查看家庭邀请
 
 `GET /family/invitations/{invite_code}`
 
-## 3.10 接受家庭邀请
+## 3.12 接受家庭邀请
 
 `POST /family/invitations/{invite_code}/accept`
 
@@ -662,11 +729,61 @@
 - 服务入口
 - 设备摘要
 
-## 10.2 消息通知列表
+说明：
+
+- 当前该接口仍为预留契约，App 首页展示暂时由现有宠物摘要、提醒、健康记录、萌宠日常接口组合得到
+- 当前批次首页已落地“快捷记录 / 提醒中心 / 周报 / 月报”，但没有单独新增首页写接口
+- 快捷记录复用既有事实接口：
+  - `喂食 / 饮水 / 排便` 通过 `POST /pets/{pet_id}/daily-logs` 写入标准化萌宠日常
+  - `体重 / 用药` 通过 `POST /pets/{pet_id}/health-records` 写入健康记录
+  - `记日常` 直接进入日常编辑流程
+
+## 10.2 首页周报
+
+`GET /home/reports/weekly`
+
+返回关键字段：
+
+- `report_type`
+- `pet`
+- `window_start`
+- `window_end`
+- `pending_reminder_count`
+- `completed_reminder_count`
+- `skipped_reminder_count`
+- `health_record_count`
+- `daily_log_count`
+- `community_sync_count`
+- `feed_count`
+- `water_count`
+- `toilet_count`
+- `weight_record_count`
+- `medication_record_count`
+- `highlights`
+- `recent_reminders`
+- `recent_health_records`
+- `recent_daily_logs`
+
+说明：
+
+- 统计窗口为“最近 7 天滚动窗口”
+- 周报以当前用户 `current_pet_id` 对应宠物为唯一主轴
+- 快捷记录相关计数来自既有健康记录类型与萌宠日常标签，不创建新事实表
+
+## 10.3 首页月报
+
+`GET /home/reports/monthly`
+
+说明：
+
+- 响应结构与周报一致
+- 统计窗口为“最近 30 天滚动窗口”
+
+## 10.4 消息通知列表
 
 `GET /notifications?read_status=unread&cursor=...`
 
-## 10.3 批量已读
+## 10.5 批量已读
 
 `PATCH /notifications/read`
 

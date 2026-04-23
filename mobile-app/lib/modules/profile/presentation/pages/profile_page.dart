@@ -62,6 +62,13 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
       }
       widget.onLogoutCompleted();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -175,7 +182,9 @@ class _ProfileHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 CompanionPill(
-                  label: '正在陪伴 ${currentUser.currentPet.petName}',
+                  label: currentUser.currentPet == null
+                      ? '还没有当前宠物'
+                      : '正在陪伴 ${currentUser.currentPet!.petName}',
                   icon: Icons.favorite_border_rounded,
                   backgroundColor: AppThemePalette.surface,
                 ),
@@ -205,13 +214,13 @@ class _AccountSummary extends StatelessWidget {
         const SizedBox(height: 12),
         _SummaryCard(
           label: '当前宠物',
-          value: currentUser.currentPet.petName,
+          value: currentUser.currentPet?.petName ?? '暂未选择',
           icon: Icons.pets_outlined,
         ),
         const SizedBox(height: 12),
         _SummaryCard(
           label: '宠物品种',
-          value: currentUser.currentPet.breed,
+          value: currentUser.currentPet?.breed ?? '等待创建宠物档案',
           icon: Icons.bookmark_border_rounded,
         ),
         const SizedBox(height: 12),

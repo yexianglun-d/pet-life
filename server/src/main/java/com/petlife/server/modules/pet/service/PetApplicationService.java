@@ -6,17 +6,24 @@ import com.petlife.server.modules.auth.security.CurrentUserContext;
 import com.petlife.server.modules.dailylog.converter.DailyLogEntityConverter;
 import com.petlife.server.modules.dailylog.domain.entity.DailyLogEntity;
 import com.petlife.server.modules.dailylog.persistence.DailyLogPersistenceMapper;
+import com.petlife.server.modules.family.converter.FamilyEntityConverter;
+import com.petlife.server.modules.family.domain.entity.FamilyMemberEntity;
+import com.petlife.server.modules.family.persistence.FamilyPersistenceMapper;
 import com.petlife.server.modules.health.converter.HealthRecordEntityConverter;
 import com.petlife.server.modules.health.domain.entity.HealthRecordEntity;
 import com.petlife.server.modules.health.persistence.HealthRecordPersistenceMapper;
 import com.petlife.server.modules.pet.converter.PetEntityConverter;
 import com.petlife.server.modules.pet.domain.entity.PetProfileEntity;
-import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
-import com.petlife.server.modules.pet.persistence.command.CreatePetCommand;
+import com.petlife.server.modules.pet.dto.request.ArchivePetRequest;
 import com.petlife.server.modules.pet.dto.request.CreatePetRequest;
 import com.petlife.server.modules.pet.dto.request.UpdatePetRequest;
 import com.petlife.server.modules.pet.dto.response.PetDetailResponse;
 import com.petlife.server.modules.pet.dto.response.PetSummaryResponse;
+import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
+import com.petlife.server.modules.pet.persistence.command.ArchivePetCommand;
+import com.petlife.server.modules.pet.persistence.command.CreatePetCommand;
+import com.petlife.server.modules.pet.persistence.command.DeletePetCommand;
+import com.petlife.server.modules.pet.persistence.command.UpdatePetProfileCommand;
 import com.petlife.server.modules.reminder.converter.ReminderEntityConverter;
 import com.petlife.server.modules.reminder.domain.entity.ReminderEntity;
 import com.petlife.server.modules.reminder.persistence.ReminderPersistenceMapper;
@@ -24,6 +31,7 @@ import com.petlife.server.modules.user.converter.UserEntityConverter;
 import com.petlife.server.modules.user.domain.entity.FamilySummaryEntity;
 import com.petlife.server.modules.user.domain.entity.UserProfileEntity;
 import com.petlife.server.modules.user.persistence.UserPersistenceMapper;
+import com.petlife.server.modules.user.service.UserBootstrapApplicationService;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,37 +47,46 @@ public class PetApplicationService {
 
     private final PetPersistenceMapper petPersistenceMapper;
     private final UserPersistenceMapper userPersistenceMapper;
+    private final FamilyPersistenceMapper familyPersistenceMapper;
     private final HealthRecordPersistenceMapper healthRecordPersistenceMapper;
     private final ReminderPersistenceMapper reminderPersistenceMapper;
     private final DailyLogPersistenceMapper dailyLogPersistenceMapper;
     private final UserEntityConverter userEntityConverter;
+    private final FamilyEntityConverter familyEntityConverter;
     private final PetEntityConverter petEntityConverter;
     private final HealthRecordEntityConverter healthRecordEntityConverter;
     private final ReminderEntityConverter reminderEntityConverter;
     private final DailyLogEntityConverter dailyLogEntityConverter;
+    private final UserBootstrapApplicationService userBootstrapApplicationService;
 
     public PetApplicationService(
         PetPersistenceMapper petPersistenceMapper,
         UserPersistenceMapper userPersistenceMapper,
+        FamilyPersistenceMapper familyPersistenceMapper,
         HealthRecordPersistenceMapper healthRecordPersistenceMapper,
         ReminderPersistenceMapper reminderPersistenceMapper,
         DailyLogPersistenceMapper dailyLogPersistenceMapper,
         UserEntityConverter userEntityConverter,
+        FamilyEntityConverter familyEntityConverter,
         PetEntityConverter petEntityConverter,
         HealthRecordEntityConverter healthRecordEntityConverter,
         ReminderEntityConverter reminderEntityConverter,
-        DailyLogEntityConverter dailyLogEntityConverter
+        DailyLogEntityConverter dailyLogEntityConverter,
+        UserBootstrapApplicationService userBootstrapApplicationService
     ) {
         this.petPersistenceMapper = petPersistenceMapper;
         this.userPersistenceMapper = userPersistenceMapper;
+        this.familyPersistenceMapper = familyPersistenceMapper;
         this.healthRecordPersistenceMapper = healthRecordPersistenceMapper;
         this.reminderPersistenceMapper = reminderPersistenceMapper;
         this.dailyLogPersistenceMapper = dailyLogPersistenceMapper;
         this.userEntityConverter = userEntityConverter;
+        this.familyEntityConverter = familyEntityConverter;
         this.petEntityConverter = petEntityConverter;
         this.healthRecordEntityConverter = healthRecordEntityConverter;
         this.reminderEntityConverter = reminderEntityConverter;
         this.dailyLogEntityConverter = dailyLogEntityConverter;
+        this.userBootstrapApplicationService = userBootstrapApplicationService;
     }
 
     public List<PetDetailResponse> listPets() {
@@ -100,6 +117,9 @@ public class PetApplicationService {
         command.setAdoptDate(request.adoptDate());
         command.setNeuterStatus(petEntityConverter.toNeuterStatusValue(request.neuterStatus()));
         command.setAvatarUrl(request.avatarAssetId());
+        command.setWeightKg(petEntityConverter.toWeightKg(request.weightKg()));
+        command.setAllergyNotes(normalizeNullableText(request.allergyNotes()));
+        command.setMedicalHistory(normalizeNullableText(request.medicalHistory()));
         petPersistenceMapper.insertPet(command);
 
         UserProfileEntity currentUser = userEntityConverter.toEntity(userPersistenceMapper.findUserProfileById(currentUserId));
@@ -116,22 +136,53 @@ public class PetApplicationService {
     @Transactional
     public PetDetailResponse updatePet(Long petId, UpdatePetRequest request) {
         Long currentUserId = CurrentUserContext.requireUserId();
-        int updatedRows = petPersistenceMapper.updatePetSnapshot(
-            petId,
-            currentUserId,
-            request.petName(),
-            request.petType(),
-            request.breed(),
-            request.gender(),
-            request.birthday(),
-            request.adoptDate(),
-            petEntityConverter.toNeuterStatusValue(request.neuterStatus()),
-            request.avatarAssetId()
-        );
+        UpdatePetProfileCommand command = new UpdatePetProfileCommand();
+        command.setPetId(petId);
+        command.setUserId(currentUserId);
+        command.setPetName(normalizeNullableText(request.petName()));
+        command.setPetType(normalizeNullableText(request.petType()));
+        command.setBreed(normalizeNullableText(request.breed()));
+        command.setGender(normalizeNullableText(request.gender()));
+        command.setBirthday(request.birthday());
+        command.setAdoptDate(request.adoptDate());
+        command.setNeuterStatus(petEntityConverter.toNeuterStatusValue(request.neuterStatus()));
+        command.setAvatarUrl(normalizeNullableText(request.avatarAssetId()));
+        command.setWeightKg(petEntityConverter.toWeightKg(request.weightKg()));
+        command.setAllergyNotes(normalizeNullableText(request.allergyNotes()));
+        command.setMedicalHistory(normalizeNullableText(request.medicalHistory()));
+
+        int updatedRows = petPersistenceMapper.updatePetSnapshot(command);
         if (updatedRows == 0) {
             throw new BusinessException(ResponseCode.PET_NOT_FOUND);
         }
         return petEntityConverter.toPetDetailResponse(requireAccessiblePet(petId));
+    }
+
+    @Transactional
+    public void archivePet(Long petId, ArchivePetRequest request) {
+        PetProfileEntity petProfile = requireAccessiblePet(petId);
+        requirePetLifecyclePermission(petProfile);
+
+        ArchivePetCommand command = new ArchivePetCommand();
+        command.setPetId(petId);
+        command.setArchiveStatus(normalizeArchiveStatus(request.archiveStatus()));
+        if (petPersistenceMapper.archivePet(command) == 0) {
+            throw new BusinessException(ResponseCode.PET_NOT_FOUND);
+        }
+        userBootstrapApplicationService.rebuildCurrentPetContextForPet(petId);
+    }
+
+    @Transactional
+    public void deletePet(Long petId) {
+        PetProfileEntity petProfile = requireAccessiblePet(petId);
+        requirePetLifecyclePermission(petProfile);
+
+        DeletePetCommand command = new DeletePetCommand();
+        command.setPetId(petId);
+        if (petPersistenceMapper.softDeletePet(command) == 0) {
+            throw new BusinessException(ResponseCode.PET_NOT_FOUND);
+        }
+        userBootstrapApplicationService.rebuildCurrentPetContextForPet(petId);
     }
 
     public PetSummaryResponse getPetSummary(Long petId) {
@@ -164,5 +215,38 @@ public class PetApplicationService {
             throw new BusinessException(ResponseCode.PET_NOT_FOUND);
         }
         return petProfile;
+    }
+
+    /**
+     * 删除和归档会直接改变家庭成员的当前宠物上下文，因此只允许家庭 owner/admin 操作。
+     */
+    private void requirePetLifecyclePermission(PetProfileEntity petProfile) {
+        Long currentUserId = CurrentUserContext.requireUserId();
+        FamilyMemberEntity familyMember = familyEntityConverter.toEntity(
+            familyPersistenceMapper.findJoinedMemberByFamilyAndUserId(petProfile.getFamilyId(), currentUserId)
+        );
+        if (familyMember == null) {
+            throw new BusinessException(ResponseCode.PET_PERMISSION_DENIED, "当前用户无权管理该宠物");
+        }
+        if ("owner".equals(familyMember.getRole()) || "admin".equals(familyMember.getRole())) {
+            return;
+        }
+        throw new BusinessException(ResponseCode.PET_PERMISSION_DENIED, "当前角色无权删除或归档宠物");
+    }
+
+    private String normalizeArchiveStatus(String archiveStatus) {
+        String normalizedArchiveStatus = archiveStatus == null ? "" : archiveStatus.trim();
+        if ("memorial".equals(normalizedArchiveStatus) || "rehomed".equals(normalizedArchiveStatus)) {
+            return normalizedArchiveStatus;
+        }
+        throw new BusinessException(ResponseCode.BAD_REQUEST, "宠物归档状态仅支持 memorial 或 rehomed");
+    }
+
+    private String normalizeNullableText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalizedValue = value.trim();
+        return normalizedValue.isEmpty() ? null : normalizedValue;
     }
 }

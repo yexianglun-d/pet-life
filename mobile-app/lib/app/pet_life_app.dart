@@ -21,7 +21,7 @@ class PetLifeApp extends StatelessWidget {
         );
 
   PetLifeApp._internal({
-    Key? key,
+    super.key,
     PetLifeRepository? repository,
     required AppSessionStore sessionStore,
   })  : _sessionStore = sessionStore,
@@ -32,8 +32,7 @@ class PetLifeApp extends StatelessWidget {
                 sessionStore: sessionStore,
               ),
               sessionStore: sessionStore,
-            ),
-        super(key: key);
+            );
 
   final PetLifeRepository _repository;
   final AppSessionStore _sessionStore;

@@ -3,6 +3,7 @@ import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/auth/presentation/pages/login_page.dart';
 import 'package:petlife_mobile_app/modules/shell/presentation/pages/app_shell_page.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
+import 'package:petlife_mobile_app/shared/session/app_session_store.dart';
 
 /// 应用入口页。
 class AppEntryPage extends StatefulWidget {
@@ -14,11 +15,24 @@ class AppEntryPage extends StatefulWidget {
 
 class _AppEntryPageState extends State<AppEntryPage> {
   Future<bool>? _sessionFuture;
+  AppSessionStore? _sessionStore;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final sessionStore = PetLifeAppScope.sessionStoreOf(context);
+    if (!identical(_sessionStore, sessionStore)) {
+      _sessionStore?.removeListener(_handleSessionChanged);
+      _sessionStore = sessionStore;
+      _sessionStore?.addListener(_handleSessionChanged);
+    }
     _sessionFuture ??= _checkSession();
+  }
+
+  @override
+  void dispose() {
+    _sessionStore?.removeListener(_handleSessionChanged);
+    super.dispose();
   }
 
   Future<bool> _checkSession() async {
@@ -30,6 +44,13 @@ class _AppEntryPageState extends State<AppEntryPage> {
     setState(() {
       _sessionFuture = _checkSession();
     });
+  }
+
+  void _handleSessionChanged() {
+    if (!mounted) {
+      return;
+    }
+    _refreshSession();
   }
 
   @override

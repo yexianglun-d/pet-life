@@ -1,6 +1,7 @@
 package com.petlife.server.bootstrap;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -51,6 +52,52 @@ class PhaseOneApiTests {
     }
 
     @Test
+    void shouldRefreshAndLogoutSession() throws Exception {
+        LoginTokensFixture loginTokens = loginTokens("13800000000");
+
+        MvcResult refreshResult = mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "refresh_token": "%s"
+                    }
+                    """.formatted(loginTokens.refreshToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.access_token").exists())
+            .andExpect(jsonPath("$.data.refresh_token").exists())
+            .andReturn();
+
+        String refreshedResponseBody = refreshResult.getResponse().getContentAsString();
+        String nextAccessToken = JsonPath.read(refreshedResponseBody, "$.data.access_token");
+        String nextRefreshToken = JsonPath.read(refreshedResponseBody, "$.data.refresh_token");
+
+        mockMvc.perform(get("/api/v1/me")
+                .header(HttpHeaders.AUTHORIZATION, loginTokens.authorizationHeader()))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(get("/api/v1/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + nextAccessToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.current_pet.pet_name", is("Momo")));
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "refresh_token": "%s"
+                    }
+                    """.formatted(nextRefreshToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code", is("OK")));
+
+        mockMvc.perform(get("/api/v1/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + nextAccessToken))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+    }
+
+    @Test
     void shouldReturnCurrentUser() throws Exception {
         mockMvc.perform(get("/api/v1/me")
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader()))
@@ -96,6 +143,121 @@ class PhaseOneApiTests {
                     """.formatted(petId)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.current_pet_id", is(petId)));
+    }
+
+    @Test
+    void shouldGetPetDetailAndUpdateExtendedPetFields() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+
+        mockMvc.perform(patch("/api/v1/pets/%s".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "pet_name": "Momo",
+                      "pet_type": "cat",
+                      "breed": "British Shorthair",
+                      "gender": "female",
+                      "birthday": "2023-05-20",
+                      "adopt_date": "2023-08-01",
+                      "neuter_status": "completed",
+                      "weight_kg": "4.8",
+                      "allergy_notes": "对海鲜较敏感",
+                      "medical_history": "2025 年做过牙结石清理"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.weight_kg", is("4.8")))
+            .andExpect(jsonPath("$.data.allergy_notes", is("对海鲜较敏感")))
+            .andExpect(jsonPath("$.data.medical_history", is("2025 年做过牙结石清理")))
+            .andExpect(jsonPath("$.data.status", is("active")));
+
+        mockMvc.perform(get("/api/v1/pets/%s".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.pet_id", is(petId)))
+            .andExpect(jsonPath("$.data.weight_kg", is("4.8")))
+            .andExpect(jsonPath("$.data.allergy_notes", is("对海鲜较敏感")))
+            .andExpect(jsonPath("$.data.medical_history", is("2025 年做过牙结石清理")));
+    }
+
+    @Test
+    void shouldArchiveCurrentPetAndRebuildCurrentPetContext() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String fallbackPetId = currentPetId(authorizationHeader);
+        String archivedPetId = createPet(authorizationHeader, "Dodo");
+
+        mockMvc.perform(patch("/api/v1/me/settings/current-pet")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "pet_id": "%s"
+                    }
+                    """.formatted(archivedPetId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.current_pet_id", is(archivedPetId)));
+
+        mockMvc.perform(patch("/api/v1/pets/%s/archive".formatted(archivedPetId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "archive_status": "memorial"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code", is("OK")));
+
+        mockMvc.perform(get("/api/v1/me")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.current_pet_id", is(fallbackPetId)))
+            .andExpect(jsonPath("$.data.current_pet.pet_name", is("Momo")));
+
+        mockMvc.perform(get("/api/v1/pets")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.pet_id == '%s')]".formatted(archivedPetId)).isEmpty());
+    }
+
+    @Test
+    void shouldDeleteLastPetAndReturnNoCurrentPetState() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+
+        mockMvc.perform(delete("/api/v1/pets/%s".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code", is("OK")));
+
+        mockMvc.perform(get("/api/v1/me")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.current_pet_id", nullValue()))
+            .andExpect(jsonPath("$.data.current_pet", nullValue()));
+
+        mockMvc.perform(get("/api/v1/pets")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void shouldRejectDeletePetForMemberRole() throws Exception {
+        String ownerAuthorizationHeader = authorizationHeader();
+        String memberAuthorizationHeader = authorizationHeader("13700000000");
+        String memberUserId = currentUserId(memberAuthorizationHeader);
+        String familyId = currentFamilyId(ownerAuthorizationHeader);
+        String petId = currentPetId(ownerAuthorizationHeader);
+
+        familyPersistenceMapper.insertFamilyMember(Long.valueOf(familyId), Long.valueOf(memberUserId), "member");
+
+        mockMvc.perform(delete("/api/v1/pets/%s".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, memberAuthorizationHeader))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code", is("PET_PERMISSION_DENIED")));
     }
 
     @Test
@@ -881,6 +1043,140 @@ class PhaseOneApiTests {
     }
 
     @Test
+    void shouldReturnWeeklyPetReport() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        OffsetDateTime now = OffsetDateTime.now().withSecond(0).withNano(0);
+
+        createReminderAt(
+            authorizationHeader,
+            petId,
+            "疫苗复查提醒",
+            now.minusDays(1).withHour(9).withMinute(0)
+        );
+        String completedReminderId = createReminderAt(
+            authorizationHeader,
+            petId,
+            "体内驱虫提醒",
+            now.minusDays(2).withHour(10).withMinute(0)
+        );
+        String skippedReminderId = createReminderAt(
+            authorizationHeader,
+            petId,
+            "复查观察提醒",
+            now.minusDays(3).withHour(11).withMinute(0)
+        );
+        createWeightHealthRecordAt(
+            authorizationHeader,
+            petId,
+            "本周体重记录",
+            now.minusDays(2).withHour(8).withMinute(30),
+            "4.5",
+            "称重时精神状态稳定"
+        );
+        createMedicationHealthRecordAt(
+            authorizationHeader,
+            petId,
+            "益生菌补充",
+            now.minusDays(1).withHour(20).withMinute(0),
+            "晚饭后补充"
+        );
+        createDailyLogWithTagsAt(
+            authorizationHeader,
+            petId,
+            "快捷记录：今天完成了一次喂食。",
+            List.of("快捷记录", "喂食"),
+            false,
+            now.minusDays(1).withHour(8).withMinute(0)
+        );
+        createDailyLogWithTagsAt(
+            authorizationHeader,
+            petId,
+            "快捷记录：今天补记了一次饮水。",
+            List.of("快捷记录", "饮水"),
+            false,
+            now.minusDays(1).withHour(14).withMinute(0)
+        );
+        createDailyLogWithTagsAt(
+            authorizationHeader,
+            petId,
+            "快捷记录：今天补记了一次排便观察。",
+            List.of("快捷记录", "排便"),
+            true,
+            now.minusDays(2).withHour(18).withMinute(0)
+        );
+
+        mockMvc.perform(patch("/api/v1/pets/%s/reminders/%s/complete".formatted(petId, completedReminderId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/v1/pets/%s/reminders/%s/skip".formatted(petId, skippedReminderId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/home/reports/weekly")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.report_type", is("weekly")))
+            .andExpect(jsonPath("$.data.pet.pet_id", is(petId)))
+            .andExpect(jsonPath("$.data.pending_reminder_count", is(1)))
+            .andExpect(jsonPath("$.data.completed_reminder_count", is(1)))
+            .andExpect(jsonPath("$.data.skipped_reminder_count", is(1)))
+            .andExpect(jsonPath("$.data.health_record_count", is(2)))
+            .andExpect(jsonPath("$.data.daily_log_count", is(3)))
+            .andExpect(jsonPath("$.data.community_sync_count", is(1)))
+            .andExpect(jsonPath("$.data.feed_count", is(1)))
+            .andExpect(jsonPath("$.data.water_count", is(1)))
+            .andExpect(jsonPath("$.data.toilet_count", is(1)))
+            .andExpect(jsonPath("$.data.weight_record_count", is(1)))
+            .andExpect(jsonPath("$.data.medication_record_count", is(1)))
+            .andExpect(jsonPath("$.data.highlights[0]").exists())
+            .andExpect(jsonPath("$.data.recent_reminders[0].reminder_id").exists())
+            .andExpect(jsonPath("$.data.recent_health_records[0].title", is("益生菌补充")))
+            .andExpect(jsonPath("$.data.recent_daily_logs[0].tags[0]", is("快捷记录")));
+    }
+
+    @Test
+    void shouldReturnMonthlyPetReport() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        OffsetDateTime now = OffsetDateTime.now().withSecond(0).withNano(0);
+
+        createReminderAt(
+            authorizationHeader,
+            petId,
+            "月度体检提醒",
+            now.minusDays(10).withHour(9).withMinute(0)
+        );
+        createWeightHealthRecordAt(
+            authorizationHeader,
+            petId,
+            "月度体重记录",
+            now.minusDays(12).withHour(8).withMinute(0),
+            "4.8",
+            "本月状态平稳"
+        );
+        createDailyLogWithTagsAt(
+            authorizationHeader,
+            petId,
+            "这个月第一次主动在门口等人回家。",
+            List.of("成长", "互动"),
+            false,
+            now.minusDays(9).withHour(19).withMinute(30)
+        );
+
+        mockMvc.perform(get("/api/v1/home/reports/monthly")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.report_type", is("monthly")))
+            .andExpect(jsonPath("$.data.pet.pet_id", is(petId)))
+            .andExpect(jsonPath("$.data.window_start").exists())
+            .andExpect(jsonPath("$.data.window_end").exists())
+            .andExpect(jsonPath("$.data.health_record_count", is(1)))
+            .andExpect(jsonPath("$.data.daily_log_count", is(1)))
+            .andExpect(jsonPath("$.data.recent_daily_logs[0].content", is("这个月第一次主动在门口等人回家。")));
+    }
+
+    @Test
     void shouldRejectProtectedApiWithoutAccessToken() throws Exception {
         mockMvc.perform(get("/api/v1/me"))
             .andExpect(status().isUnauthorized())
@@ -892,6 +1188,10 @@ class PhaseOneApiTests {
     }
 
     private String authorizationHeader(String mobile) throws Exception {
+        return loginTokens(mobile).authorizationHeader();
+    }
+
+    private LoginTokensFixture loginTokens(String mobile) throws Exception {
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login/sms")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -905,7 +1205,8 @@ class PhaseOneApiTests {
 
         String responseBody = loginResult.getResponse().getContentAsString();
         String accessToken = JsonPath.read(responseBody, "$.data.access_token");
-        return "Bearer " + accessToken;
+        String refreshToken = JsonPath.read(responseBody, "$.data.refresh_token");
+        return new LoginTokensFixture(accessToken, refreshToken);
     }
 
     private String currentUserId(String authorizationHeader) throws Exception {
@@ -978,17 +1279,31 @@ class PhaseOneApiTests {
     }
 
     private String createReminder(String authorizationHeader, String petId) throws Exception {
+        return createReminderAt(
+            authorizationHeader,
+            petId,
+            "体内驱虫提醒",
+            OffsetDateTime.parse("2026-04-18T09:00:00+08:00")
+        );
+    }
+
+    private String createReminderAt(
+        String authorizationHeader,
+        String petId,
+        String title,
+        OffsetDateTime dueAt
+    ) throws Exception {
         MvcResult createReminderResult = mockMvc.perform(post("/api/v1/pets/%s/reminders".formatted(petId))
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "reminder_type": "deworming",
-                      "title": "体内驱虫提醒",
-                      "due_at": "2026-04-18T09:00:00+08:00",
+                      "title": "%s",
+                      "due_at": "%s",
                       "notes": "饭后执行"
                     }
-                    """))
+                    """.formatted(title, dueAt)))
             .andExpect(status().isOk())
             .andReturn();
 
@@ -1037,22 +1352,121 @@ class PhaseOneApiTests {
         String content,
         boolean syncToCommunity
     ) throws Exception {
+        return createDailyLogWithTagsAt(
+            authorizationHeader,
+            petId,
+            content,
+            List.of("晒太阳", "成长"),
+            syncToCommunity,
+            OffsetDateTime.parse("2026-04-17T10:00:00+08:00")
+        );
+    }
+
+    private String createDailyLogWithTagsAt(
+        String authorizationHeader,
+        String petId,
+        String content,
+        List<String> tags,
+        boolean syncToCommunity,
+        OffsetDateTime happenedAt
+    ) throws Exception {
         MvcResult createDailyLogResult = mockMvc.perform(post("/api/v1/pets/%s/daily-logs".formatted(petId))
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "content": "%s",
-                      "tags": ["晒太阳", "成长"],
+                      "tags": %s,
                       "visibility": "public",
                       "sync_to_community": %s,
-                      "happened_at": "2026-04-17T10:00:00+08:00"
+                      "happened_at": "%s"
                     }
-                    """.formatted(content, syncToCommunity)))
+                    """.formatted(content, toJsonArray(tags), syncToCommunity, happenedAt)))
             .andExpect(status().isOk())
             .andReturn();
 
         return JsonPath.read(createDailyLogResult.getResponse().getContentAsString(), "$.data.daily_log_id");
+    }
+
+    private String createWeightHealthRecordAt(
+        String authorizationHeader,
+        String petId,
+        String title,
+        OffsetDateTime occurredAt,
+        String value,
+        String notes
+    ) throws Exception {
+        return createHealthRecordAt(
+            authorizationHeader,
+            petId,
+            "weight",
+            title,
+            occurredAt,
+            value,
+            "kg",
+            notes
+        );
+    }
+
+    private String createMedicationHealthRecordAt(
+        String authorizationHeader,
+        String petId,
+        String title,
+        OffsetDateTime occurredAt,
+        String notes
+    ) throws Exception {
+        return createHealthRecordAt(
+            authorizationHeader,
+            petId,
+            "medication",
+            title,
+            occurredAt,
+            null,
+            null,
+            notes
+        );
+    }
+
+    private String createHealthRecordAt(
+        String authorizationHeader,
+        String petId,
+        String recordType,
+        String title,
+        OffsetDateTime occurredAt,
+        String value,
+        String unit,
+        String notes
+    ) throws Exception {
+        MvcResult createHealthRecordResult = mockMvc.perform(post("/api/v1/pets/%s/health-records".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "record_type": "%s",
+                      "title": "%s",
+                      "value": %s,
+                      "unit": %s,
+                      "occurred_at": "%s",
+                      "notes": "%s"
+                    }
+                    """.formatted(
+                    recordType,
+                    title,
+                    value == null ? "null" : "\"%s\"".formatted(value),
+                    unit == null ? "null" : "\"%s\"".formatted(unit),
+                    occurredAt,
+                    notes
+                )))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        return JsonPath.read(createHealthRecordResult.getResponse().getContentAsString(), "$.data.health_record_id");
+    }
+
+    private String toJsonArray(List<String> values) {
+        return values.stream()
+            .map(value -> "\"%s\"".formatted(value))
+            .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
     }
 
     private String currentCommunityPostId(String authorizationHeader) throws Exception {
@@ -1125,5 +1539,14 @@ class PhaseOneApiTests {
         String reminderId,
         String dueAt
     ) {
+    }
+
+    private record LoginTokensFixture(
+        String accessToken,
+        String refreshToken
+    ) {
+        private String authorizationHeader() {
+            return "Bearer " + accessToken;
+        }
     }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/health/presentation/pages/health_record_detail_page.dart';
 import 'package:petlife_mobile_app/modules/health/presentation/pages/health_record_editor_page.dart';
@@ -101,15 +103,16 @@ class _HealthRecordListPageState extends State<HealthRecordListPage> {
     await _loadHealthRecords();
   }
 
-  Future<bool> _handleWillPop() async {
-    Navigator.of(context).pop(_hasChanges);
-    return false;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _handleWillPop,
+    return PopScope<bool>(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, bool? result) {
+        if (didPop) {
+          return;
+        }
+        Navigator.of(context).pop(_hasChanges);
+      },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('健康记录'),
@@ -118,34 +121,33 @@ class _HealthRecordListPageState extends State<HealthRecordListPage> {
             icon: const Icon(Icons.arrow_back),
           ),
         ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            PageSection(
-              title: widget.petName,
-              description: '健康记录先在宠物维度沉淀，后续提醒计划、时间轴和就医辅助都会以这里的数据为准。',
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '当前已记录 ${_healthRecords.length} 条健康事件',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-                  FilledButton(
-                    onPressed: _openCreateHealthRecordPage,
-                    child: const Text('新增记录'),
-                  ),
-                ],
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                Color(0xFFFFFBF7),
+                AppThemePalette.background,
+              ],
+            ),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _HealthHeroSection(
+                petName: widget.petName,
+                recordCount: _healthRecords.length,
+                onCreate: _openCreateHealthRecordPage,
               ),
-            ),
-            const SizedBox(height: 16),
-            PageSection(
-              title: '记录列表',
-              description: '当前按时间倒序展示，先保证用户能稳定回看和补录。',
-              child: _buildHealthRecordList(),
-            ),
-          ],
+              const SizedBox(height: 16),
+              PageSection(
+                title: '最近的健康变化',
+                description: '重要记录都整理在这里，回头看时会更容易想起当时发生了什么。',
+                child: _buildHealthRecordList(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -153,31 +155,28 @@ class _HealthRecordListPageState extends State<HealthRecordListPage> {
 
   Widget _buildHealthRecordList() {
     if (_isLoading && _healthRecords.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
     if (_errorMessage != null && _healthRecords.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _errorMessage!,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFFB91C1C)),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: _loadHealthRecords,
-            child: const Text('重新加载'),
-          ),
-        ],
+      return CompanionEmptyState(
+        title: '健康记录暂时没有加载出来',
+        description: _errorMessage!,
+        icon: Icons.cloud_off_outlined,
+        actionLabel: '重新加载',
+        onAction: _loadHealthRecords,
       );
     }
 
     if (_healthRecords.isEmpty) {
-      return const Text('还没有健康记录，先新增一条记录吧。');
+      return const CompanionEmptyState(
+        title: '还没有健康记录',
+        description: '第一次疫苗、体检或用药记录，也会成为以后回看时很重要的起点。',
+        icon: Icons.health_and_safety_outlined,
+      );
     }
 
     return Column(
@@ -192,6 +191,61 @@ class _HealthRecordListPageState extends State<HealthRecordListPage> {
             ),
           )
           .toList(),
+    );
+  }
+}
+
+class _HealthHeroSection extends StatelessWidget {
+  const _HealthHeroSection({
+    required this.petName,
+    required this.recordCount,
+    required this.onCreate,
+  });
+
+  final String petName;
+  final int recordCount;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFEADA),
+          Color(0xFFFFFAF3),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CompanionPill(
+            label: '健康档案',
+            icon: Icons.health_and_safety_outlined,
+            backgroundColor: Color(0xFFFFE0CD),
+            foregroundColor: AppThemePalette.primaryDeep,
+          ),
+          const SizedBox(height: 12),
+          Text(petName, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 10),
+          Text(
+            '把体检、疫苗、驱虫和异常观察慢慢整理好，照顾时会更安心。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          CompanionPill(
+            label: '已记录 $recordCount 条',
+            backgroundColor: AppThemePalette.surface,
+          ),
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: onCreate,
+            child: const Text('新增健康记录'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -211,12 +265,12 @@ class _HealthRecordCard extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(24),
       child: Ink(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(18),
+          color: AppThemePalette.surfaceRaised,
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,53 +280,31 @@ class _HealthRecordCard extends StatelessWidget {
                 Expanded(
                   child: Text(record.title, style: textTheme.titleMedium),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE0F2FE),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    _toLocalizedRecordType(record.recordType),
-                    style: textTheme.bodyMedium
-                        ?.copyWith(color: const Color(0xFF0F766E)),
-                  ),
+                CompanionPill(
+                  label: _toLocalizedRecordType(record.recordType),
+                  backgroundColor: AppThemePalette.sky.withValues(alpha: 0.22),
+                  foregroundColor: const Color(0xFF5D8794),
                 ),
                 const SizedBox(width: 8),
                 const Icon(
                   Icons.chevron_right,
                   size: 20,
-                  color: Color(0xFF94A3B8),
+                  color: AppThemePalette.muted,
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
               _buildDescription(record),
-              style: textTheme.bodyMedium
-                  ?.copyWith(color: const Color(0xFF64748B)),
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppThemePalette.muted,
+              ),
             ),
           ],
         ),
       ),
     );
   }
-}
-
-String _buildDescription(HealthRecordSnapshot record) {
-  final String month = record.occurredAt.month.toString().padLeft(2, '0');
-  final String day = record.occurredAt.day.toString().padLeft(2, '0');
-  final String hour = record.occurredAt.hour.toString().padLeft(2, '0');
-  final String minute = record.occurredAt.minute.toString().padLeft(2, '0');
-
-  final List<String> parts = <String>[
-    '${record.occurredAt.year}-$month-$day $hour:$minute',
-    if (record.value != null)
-      record.unit == null ? record.value! : '${record.value} ${record.unit}',
-    if (record.notes != null && record.notes!.trim().isNotEmpty) record.notes!,
-  ];
-  return parts.join(' · ');
 }
 
 String _toLocalizedRecordType(String recordType) {
@@ -287,7 +319,27 @@ String _toLocalizedRecordType(String recordType) {
       return '用药';
     case 'observation':
       return '异常观察';
+    case 'weight':
+      return '体重';
     default:
       return recordType;
   }
+}
+
+String _buildDescription(HealthRecordSnapshot record) {
+  final List<String> parts = <String>[
+    _formatDateTimeLabel(record.occurredAt),
+    if (record.value != null && record.unit != null)
+      '${record.value} ${record.unit}',
+    if (record.notes != null && record.notes!.trim().isNotEmpty) record.notes!,
+  ];
+  return parts.join(' · ');
+}
+
+String _formatDateTimeLabel(DateTime value) {
+  final String month = value.month.toString().padLeft(2, '0');
+  final String day = value.day.toString().padLeft(2, '0');
+  final String hour = value.hour.toString().padLeft(2, '0');
+  final String minute = value.minute.toString().padLeft(2, '0');
+  return '${value.year}-$month-$day $hour:$minute';
 }

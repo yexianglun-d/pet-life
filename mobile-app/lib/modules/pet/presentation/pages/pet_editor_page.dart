@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 
 /// 宠物表单页。
-///
-/// 创建与编辑共用同一页面，保证字段口径、校验规则和请求结构保持一致，
-/// 避免两套页面长期演化后出现行为分叉。
 class PetEditorPage extends StatefulWidget {
   const PetEditorPage.create({super.key}) : pet = null;
 
@@ -26,6 +25,9 @@ class _PetEditorPageState extends State<PetEditorPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _petNameController;
   late final TextEditingController _breedController;
+  late final TextEditingController _weightController;
+  late final TextEditingController _allergyNotesController;
+  late final TextEditingController _medicalHistoryController;
   late final TextEditingController _birthdayController;
   late final TextEditingController _adoptDateController;
   late String _petType;
@@ -41,6 +43,11 @@ class _PetEditorPageState extends State<PetEditorPage> {
     final PetDetailSnapshot? pet = widget.pet;
     _petNameController = TextEditingController(text: pet?.petName ?? '');
     _breedController = TextEditingController(text: pet?.breed ?? '');
+    _weightController = TextEditingController(text: pet?.weightKg ?? '');
+    _allergyNotesController =
+        TextEditingController(text: pet?.allergyNotes ?? '');
+    _medicalHistoryController =
+        TextEditingController(text: pet?.medicalHistory ?? '');
     _birthday = pet?.birthday;
     _adoptDate = pet?.adoptDate;
     _birthdayController =
@@ -58,6 +65,9 @@ class _PetEditorPageState extends State<PetEditorPage> {
   void dispose() {
     _petNameController.dispose();
     _breedController.dispose();
+    _weightController.dispose();
+    _allergyNotesController.dispose();
+    _medicalHistoryController.dispose();
     _birthdayController.dispose();
     _adoptDateController.dispose();
     super.dispose();
@@ -77,6 +87,16 @@ class _PetEditorPageState extends State<PetEditorPage> {
       return;
     }
 
+    final double? weightValue =
+        double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
+    if (_weightController.text.trim().isNotEmpty &&
+        (weightValue == null || weightValue <= 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('体重请填写大于 0 的数字')),
+      );
+      return;
+    }
+
     setState(() {
       _isSubmitting = true;
     });
@@ -90,6 +110,9 @@ class _PetEditorPageState extends State<PetEditorPage> {
         neuterStatus: _neuterStatus,
         birthday: _birthday,
         adoptDate: _adoptDate,
+        weightKg: _weightController.text.trim(),
+        allergyNotes: _allergyNotesController.text.trim(),
+        medicalHistory: _medicalHistoryController.text.trim(),
       );
       final repository = PetLifeAppScope.repositoryOf(context);
       if (widget.isEditMode) {
@@ -163,128 +186,197 @@ class _PetEditorPageState extends State<PetEditorPage> {
       appBar: AppBar(
         title: Text(widget.isEditMode ? '编辑宠物' : '新建宠物'),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _FormSection(
-              title: '基础信息',
-              description: '先补齐宠物主档的核心字段，保证首页、提醒和日常都能基于同一只宠物运转。',
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _petNameController,
-                    decoration: const InputDecoration(
-                      labelText: '宠物名称',
-                      hintText: '例如：Momo',
-                    ),
-                    validator: (String? value) {
-                      return value == null || value.trim().isEmpty
-                          ? '请输入宠物名称'
-                          : null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _petType,
-                    decoration: const InputDecoration(labelText: '宠物类型'),
-                    items: const [
-                      DropdownMenuItem(value: 'cat', child: Text('猫')),
-                      DropdownMenuItem(value: 'dog', child: Text('狗')),
-                      DropdownMenuItem(value: 'other', child: Text('其他')),
-                    ],
-                    onChanged: (String? value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _petType = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _breedController,
-                    decoration: const InputDecoration(
-                      labelText: '品种',
-                      hintText: '例如：British Shorthair',
-                    ),
-                    validator: (String? value) {
-                      return value == null || value.trim().isEmpty
-                          ? '请输入品种'
-                          : null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _gender,
-                    decoration: const InputDecoration(labelText: '性别'),
-                    items: const [
-                      DropdownMenuItem(value: 'female', child: Text('母')),
-                      DropdownMenuItem(value: 'male', child: Text('公')),
-                    ],
-                    onChanged: (String? value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _gender = value;
-                      });
-                    },
-                  ),
-                ],
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[
+              Color(0xFFFFFBF7),
+              AppThemePalette.background,
+            ],
+          ),
+        ),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _PetEditorHeroCard(isEditMode: widget.isEditMode),
+              const SizedBox(height: 16),
+              _ProfilePreviewCard(
+                petName: _petNameController.text.trim(),
+                petType: _petType,
+                breed: _breedController.text.trim(),
+                gender: _gender,
+                birthday: _birthday,
+                adoptDate: _adoptDate,
+                weightKg: _weightController.text.trim(),
               ),
-            ),
-            const SizedBox(height: 16),
-            _FormSection(
-              title: '补充信息',
-              description: '日期与绝育状态会影响宠物主页展示和后续提醒配置，先在主档层统一维护。',
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _birthdayController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: '生日',
-                      hintText: '请选择生日',
-                      suffixIcon: Icon(Icons.calendar_today_outlined),
+              const SizedBox(height: 16),
+              _FormSection(
+                title: '基础信息',
+                description: '先把名字、类型和品种写清楚，这份主档会成为以后所有记录的起点。',
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _petNameController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: '宠物名称',
+                        hintText: '例如：Momo',
+                      ),
+                      validator: (String? value) {
+                        return value == null || value.trim().isEmpty
+                            ? '请输入宠物名称'
+                            : null;
+                      },
                     ),
-                    onTap: _pickBirthday,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _adoptDateController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: '到家日期',
-                      hintText: '请选择到家日期',
-                      suffixIcon: Icon(Icons.calendar_today_outlined),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _petType,
+                      decoration: const InputDecoration(labelText: '宠物类型'),
+                      items: const [
+                        DropdownMenuItem(value: 'cat', child: Text('猫咪')),
+                        DropdownMenuItem(value: 'dog', child: Text('狗狗')),
+                        DropdownMenuItem(value: 'other', child: Text('其他')),
+                      ],
+                      onChanged: (String? value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _petType = value;
+                        });
+                      },
                     ),
-                    onTap: _pickAdoptDate,
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _neuterStatus,
-                    decoration: const InputDecoration(labelText: '绝育状态'),
-                    items: const [
-                      DropdownMenuItem(value: 'pending', child: Text('未完成')),
-                      DropdownMenuItem(value: 'completed', child: Text('已完成')),
-                      DropdownMenuItem(value: 'unknown', child: Text('暂不确定')),
-                    ],
-                    onChanged: (String? value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _neuterStatus = value;
-                      });
-                    },
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _breedController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: '品种',
+                        hintText: '例如：British Shorthair',
+                      ),
+                      validator: (String? value) {
+                        return value == null || value.trim().isEmpty
+                            ? '请输入品种'
+                            : null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _gender,
+                      decoration: const InputDecoration(labelText: '性别'),
+                      items: const [
+                        DropdownMenuItem(value: 'female', child: Text('母')),
+                        DropdownMenuItem(value: 'male', child: Text('公')),
+                      ],
+                      onChanged: (String? value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _gender = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              _FormSection(
+                title: '补充信息',
+                description: '把重要日期和照护状态慢慢补齐，后续提醒与展示会更贴近真实陪伴。',
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _birthdayController,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: '生日',
+                        hintText: '请选择生日',
+                        suffixIcon: Icon(Icons.calendar_today_outlined),
+                      ),
+                      onTap: _pickBirthday,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _adoptDateController,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: '到家日期',
+                        hintText: '请选择到家日期',
+                        suffixIcon: Icon(Icons.calendar_today_outlined),
+                      ),
+                      onTap: _pickAdoptDate,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _neuterStatus,
+                      decoration: const InputDecoration(labelText: '绝育状态'),
+                      items: const [
+                        DropdownMenuItem(value: 'pending', child: Text('未完成')),
+                        DropdownMenuItem(
+                            value: 'completed', child: Text('已完成')),
+                        DropdownMenuItem(value: 'unknown', child: Text('暂不确定')),
+                      ],
+                      onChanged: (String? value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _neuterStatus = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _FormSection(
+                title: '照护备注',
+                description: '补一点体重、过敏信息和病史，后面做提醒和服务推荐时会更贴近真实情况。',
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _weightController,
+                      onChanged: (_) => setState(() {}),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: '当前体重（kg）',
+                        hintText: '例如：4.6',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _allergyNotesController,
+                      onChanged: (_) => setState(() {}),
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: '过敏信息',
+                        hintText: '例如：对鸡肉和海鲜较敏感',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _medicalHistoryController,
+                      onChanged: (_) => setState(() {}),
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: const InputDecoration(
+                        labelText: '重要病史',
+                        hintText: '把需要长期记住的诊疗和病史写在这里',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: SafeArea(
@@ -292,10 +384,186 @@ class _PetEditorPageState extends State<PetEditorPage> {
         child: FilledButton(
           onPressed: _isSubmitting ? null : _submit,
           child: Text(
-              _isSubmitting ? '保存中...' : (widget.isEditMode ? '保存修改' : '创建宠物')),
+            _isSubmitting ? '保存中...' : (widget.isEditMode ? '保存修改' : '创建宠物'),
+          ),
         ),
       ),
     );
+  }
+}
+
+class _PetEditorHeroCard extends StatelessWidget {
+  const _PetEditorHeroCard({required this.isEditMode});
+
+  final bool isEditMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFECDD),
+          Color(0xFFFFFBF5),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CompanionPill(
+            label: '宠物主档编辑',
+            icon: Icons.edit_note_rounded,
+            backgroundColor: Color(0xFFFFE1CF),
+            foregroundColor: AppThemePalette.primaryDeep,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isEditMode ? '把这份档案补得更完整些' : '先建立毛孩子的第一份档案',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '名字、基础资料和重要日期整理清楚后，健康记录、提醒和成长时间轴都会更顺。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfilePreviewCard extends StatelessWidget {
+  const _ProfilePreviewCard({
+    required this.petName,
+    required this.petType,
+    required this.breed,
+    required this.gender,
+    required this.birthday,
+    required this.adoptDate,
+    required this.weightKg,
+  });
+
+  final String petName;
+  final String petType;
+  final String breed;
+  final String gender;
+  final DateTime? birthday;
+  final DateTime? adoptDate;
+  final String weightKg;
+
+  @override
+  Widget build(BuildContext context) {
+    final String displayName = petName.isEmpty ? '还没起名字的小可爱' : petName;
+    final String displayBreed = breed.isEmpty ? '品种待补充' : breed;
+
+    return CompanionCard(
+      padding: const EdgeInsets.all(18),
+      color: AppThemePalette.surfaceRaised,
+      radius: 24,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '档案预览',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '边填写边看看这份主档现在长什么样。',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppThemePalette.muted,
+                ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppThemePalette.surface,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(
+                  petType == 'dog'
+                      ? Icons.pets_rounded
+                      : Icons.cruelty_free_outlined,
+                  color: AppThemePalette.primaryDeep,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(displayName,
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_toLocalizedPetType(petType)} · $displayBreed · ${_toLocalizedGender(gender)}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppThemePalette.muted,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (birthday != null)
+                CompanionPill(
+                  label: '生日 ${_formatDateLabel(birthday)}',
+                  backgroundColor: AppThemePalette.surface,
+                ),
+              if (adoptDate != null)
+                CompanionPill(
+                  label: '到家 ${_formatDateLabel(adoptDate)}',
+                  backgroundColor: AppThemePalette.surface,
+                ),
+              if (weightKg.trim().isNotEmpty)
+                CompanionPill(
+                  label: '体重 ${weightKg.trim()} kg',
+                  backgroundColor: AppThemePalette.surface,
+                ),
+              if (birthday == null && adoptDate == null)
+                const CompanionPill(
+                  label: '重要日期待补充',
+                  backgroundColor: AppThemePalette.surface,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _toLocalizedPetType(String petType) {
+  switch (petType) {
+    case 'cat':
+      return '猫咪';
+    case 'dog':
+      return '狗狗';
+    default:
+      return '其他';
+  }
+}
+
+String _toLocalizedGender(String gender) {
+  switch (gender) {
+    case 'male':
+      return '公';
+    case 'female':
+      return '母';
+    default:
+      return gender;
   }
 }
 
@@ -312,13 +580,10 @@ class _FormSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return CompanionCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
+      radius: 24,
+      color: AppThemePalette.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -326,10 +591,9 @@ class _FormSection extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             description,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFF64748B)),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppThemePalette.muted,
+                ),
           ),
           const SizedBox(height: 16),
           child,

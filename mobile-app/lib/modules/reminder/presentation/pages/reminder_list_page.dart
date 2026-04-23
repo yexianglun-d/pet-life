@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/reminder/presentation/pages/reminder_editor_page.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
@@ -10,10 +12,26 @@ class ReminderListPage extends StatefulWidget {
     super.key,
     required this.petId,
     required this.petName,
+    this.pageTitle = '提醒计划',
+    this.heroLabel = '提醒计划',
+    this.heroDescription = '把接下来要记住的时间点都排好，就不会总担心忘记。',
+    this.sectionTitle = '接下来要记住的事',
+    this.sectionDescription = '驱虫、体检、用药和复查提醒都会整理在这里，不容易漏掉。',
+    this.emptyTitle = '还没有提醒计划',
+    this.emptyDescription = '把重要的时间点先排好，之后照顾起来会更从容。',
+    this.createButtonLabel = '新增提醒',
   });
 
   final String petId;
   final String petName;
+  final String pageTitle;
+  final String heroLabel;
+  final String heroDescription;
+  final String sectionTitle;
+  final String sectionDescription;
+  final String emptyTitle;
+  final String emptyDescription;
+  final String createButtonLabel;
 
   @override
   State<ReminderListPage> createState() => _ReminderListPageState();
@@ -154,51 +172,54 @@ class _ReminderListPageState extends State<ReminderListPage> {
     }
   }
 
-  Future<bool> _handleWillPop() async {
-    Navigator.of(context).pop(_hasChanges);
-    return false;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _handleWillPop,
+    return PopScope<bool>(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, bool? result) {
+        if (didPop) {
+          return;
+        }
+        Navigator.of(context).pop(_hasChanges);
+      },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('提醒计划'),
+          title: Text(widget.pageTitle),
           leading: IconButton(
             onPressed: () => Navigator.of(context).pop(_hasChanges),
             icon: const Icon(Icons.arrow_back),
           ),
         ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            PageSection(
-              title: widget.petName,
-              description: '提醒计划优先服务日常照护闭环，完成动作会直接影响首页待办和宠物页摘要。',
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '当前已配置 ${_reminders.length} 条提醒',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-                  FilledButton(
-                    onPressed: _openCreateReminderPage,
-                    child: const Text('新增提醒'),
-                  ),
-                ],
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                Color(0xFFFFFBF7),
+                AppThemePalette.background,
+              ],
+            ),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _ReminderHeroSection(
+                petName: widget.petName,
+                reminderCount: _reminders.length,
+                onCreate: _openCreateReminderPage,
+                heroLabel: widget.heroLabel,
+                heroDescription: widget.heroDescription,
+                createButtonLabel: widget.createButtonLabel,
               ),
-            ),
-            const SizedBox(height: 16),
-            PageSection(
-              title: '提醒列表',
-              description: '当前已支持新建、完成和跳过，周期能力后续继续展开。',
-              child: _buildReminderList(),
-            ),
-          ],
+              const SizedBox(height: 16),
+              PageSection(
+                title: widget.sectionTitle,
+                description: widget.sectionDescription,
+                child: _buildReminderList(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -206,31 +227,28 @@ class _ReminderListPageState extends State<ReminderListPage> {
 
   Widget _buildReminderList() {
     if (_isLoading && _reminders.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
     if (_errorMessage != null && _reminders.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _errorMessage!,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: const Color(0xFFB91C1C)),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: _loadReminders,
-            child: const Text('重新加载'),
-          ),
-        ],
+      return CompanionEmptyState(
+        title: '提醒计划暂时没有加载出来',
+        description: _errorMessage!,
+        icon: Icons.cloud_off_outlined,
+        actionLabel: '重新加载',
+        onAction: _loadReminders,
       );
     }
 
     if (_reminders.isEmpty) {
-      return const Text('当前还没有提醒计划，先新增一条吧。');
+      return CompanionEmptyState(
+        title: widget.emptyTitle,
+        description: widget.emptyDescription,
+        icon: Icons.schedule_rounded,
+      );
     }
 
     return Column(
@@ -255,6 +273,67 @@ class _ReminderListPageState extends State<ReminderListPage> {
   }
 }
 
+class _ReminderHeroSection extends StatelessWidget {
+  const _ReminderHeroSection({
+    required this.petName,
+    required this.reminderCount,
+    required this.onCreate,
+    required this.heroLabel,
+    required this.heroDescription,
+    required this.createButtonLabel,
+  });
+
+  final String petName;
+  final int reminderCount;
+  final VoidCallback onCreate;
+  final String heroLabel;
+  final String heroDescription;
+  final String createButtonLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(22),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color(0xFFFFEADB),
+          Color(0xFFFFF9F4),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CompanionPill(
+            label: heroLabel,
+            icon: Icons.alarm_rounded,
+            backgroundColor: Color(0xFFFFE0CE),
+            foregroundColor: AppThemePalette.primaryDeep,
+          ),
+          const SizedBox(height: 12),
+          Text(petName, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 10),
+          Text(
+            heroDescription,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          CompanionPill(
+            label: '当前共 $reminderCount 条',
+            backgroundColor: AppThemePalette.surface,
+          ),
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: onCreate,
+            child: Text(createButtonLabel),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ReminderCard extends StatelessWidget {
   const _ReminderCard({
     required this.reminder,
@@ -272,12 +351,10 @@ class _ReminderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
-    return Container(
+    return CompanionCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-      ),
+      color: AppThemePalette.surfaceRaised,
+      radius: 24,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -292,8 +369,9 @@ class _ReminderCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       _buildReminderDescription(reminder),
-                      style: textTheme.bodyMedium
-                          ?.copyWith(color: const Color(0xFF64748B)),
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: AppThemePalette.muted,
+                      ),
                     ),
                   ],
                 ),
@@ -305,31 +383,23 @@ class _ReminderCard extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  _toLocalizedReminderType(reminder.reminderType),
-                  style: textTheme.bodyMedium,
-                ),
+              CompanionPill(
+                label: _toLocalizedReminderType(reminder.reminderType),
+                backgroundColor: AppThemePalette.surface,
               ),
               const Spacer(),
-              if (onSkip != null) ...[
+              if (onSkip != null)
                 OutlinedButton(
                   onPressed: isSubmitting ? null : onSkip,
-                  child: Text(isSubmitting ? '处理中...' : '跳过'),
+                  child: const Text('跳过'),
                 ),
+              if (onComplete != null) ...[
                 const SizedBox(width: 8),
-              ],
-              if (onComplete != null)
                 FilledButton.tonal(
                   onPressed: isSubmitting ? null : onComplete,
-                  child: Text(isSubmitting ? '处理中...' : '完成提醒'),
+                  child: Text(isSubmitting ? '处理中...' : '完成'),
                 ),
+              ],
             ],
           ),
         ],
@@ -345,63 +415,40 @@ class _ReminderStatusTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isCompleted = status == 'completed';
-    final bool isSkipped = status == 'skipped';
-    final Color backgroundColor = isCompleted
-        ? const Color(0xFFDCFCE7)
-        : isSkipped
-            ? const Color(0xFFE0F2FE)
-            : const Color(0xFFFEF3C7);
-    final Color foregroundColor = isCompleted
-        ? const Color(0xFF166534)
-        : isSkipped
-            ? const Color(0xFF0F766E)
-            : const Color(0xFF92400E);
-    final String label = isCompleted
-        ? '已完成'
-        : isSkipped
-            ? '已跳过'
-            : '待处理';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: foregroundColor,
-            ),
-      ),
-    );
+    switch (status) {
+      case 'completed':
+        return const CompanionPill(
+          label: '已完成',
+          backgroundColor: Color(0xFFE8F3E7),
+          foregroundColor: Color(0xFF65846D),
+        );
+      case 'skipped':
+        return const CompanionPill(
+          label: '已跳过',
+          backgroundColor: Color(0xFFF8E3DF),
+          foregroundColor: Color(0xFFB96C62),
+        );
+      default:
+        return const CompanionPill(
+          label: '待处理',
+          backgroundColor: Color(0xFFE4EEF1),
+          foregroundColor: Color(0xFF61808A),
+        );
+    }
   }
 }
 
 String _buildReminderDescription(ReminderSnapshot reminder) {
-  final String month = reminder.dueAt.month.toString().padLeft(2, '0');
-  final String day = reminder.dueAt.day.toString().padLeft(2, '0');
-  final String hour = reminder.dueAt.hour.toString().padLeft(2, '0');
-  final String minute = reminder.dueAt.minute.toString().padLeft(2, '0');
-
+  final String dueAtLabel = _formatDueAtLabel(reminder.dueAt);
   final List<String> parts = <String>[
-    '${reminder.dueAt.year}-$month-$day $hour:$minute',
-    if (reminder.reminderMode == 'cycle') _buildReminderCycleLabel(reminder),
+    dueAtLabel,
+    reminder.reminderMode == 'cycle'
+        ? '每 ${reminder.cycleValue}${_toLocalizedCycleUnit(reminder.cycleUnit)}'
+        : '单次提醒',
     if (reminder.notes != null && reminder.notes!.trim().isNotEmpty)
       reminder.notes!,
   ];
   return parts.join(' · ');
-}
-
-String _buildReminderCycleLabel(ReminderSnapshot reminder) {
-  final int? cycleValue = reminder.cycleValue;
-  final String? cycleUnit = reminder.cycleUnit;
-  if (cycleValue == null || cycleUnit == null) {
-    return '周期提醒';
-  }
-
-  return '每$cycleValue${_toLocalizedCycleUnit(cycleUnit)}';
 }
 
 String _toLocalizedReminderType(String reminderType) {
@@ -421,15 +468,23 @@ String _toLocalizedReminderType(String reminderType) {
   }
 }
 
-String _toLocalizedCycleUnit(String cycleUnit) {
+String _toLocalizedCycleUnit(String? cycleUnit) {
   switch (cycleUnit) {
     case 'day':
       return '天';
     case 'week':
       return '周';
     case 'month':
-      return '月';
+      return '个月';
     default:
-      return cycleUnit;
+      return cycleUnit ?? '';
   }
+}
+
+String _formatDueAtLabel(DateTime dueAt) {
+  final String month = dueAt.month.toString().padLeft(2, '0');
+  final String day = dueAt.day.toString().padLeft(2, '0');
+  final String hour = dueAt.hour.toString().padLeft(2, '0');
+  final String minute = dueAt.minute.toString().padLeft(2, '0');
+  return '${dueAt.year}-$month-$day $hour:$minute';
 }
