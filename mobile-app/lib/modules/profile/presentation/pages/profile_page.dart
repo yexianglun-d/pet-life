@@ -4,6 +4,8 @@ import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/family/presentation/pages/family_join_page.dart';
 import 'package:petlife_mobile_app/modules/family/presentation/pages/family_management_page.dart';
+import 'package:petlife_mobile_app/modules/notification/presentation/pages/message_center_page.dart';
+import 'package:petlife_mobile_app/modules/profile/presentation/pages/settings_page.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.dart';
 
@@ -44,6 +46,25 @@ class _ProfilePageState extends State<ProfilePage> {
     if (joined == true) {
       widget.onCurrentUserChanged();
     }
+  }
+
+  Future<void> _openSettingsPage() async {
+    final bool? changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => const SettingsPage(),
+      ),
+    );
+    if (changed == true) {
+      widget.onCurrentUserChanged();
+    }
+  }
+
+  Future<void> _openMessageCenter() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const MessageCenterPage(),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -105,6 +126,22 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: OutlinedButton(
                   onPressed: _openFamilyJoinPage,
                   child: const Text('通过邀请码加入家庭'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _openSettingsPage,
+                  child: const Text('进入设置'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _openMessageCenter,
+                  child: const Text('消息中心'),
                 ),
               ),
             ],
@@ -228,6 +265,18 @@ class _AccountSummary extends StatelessWidget {
           label: '账号编号',
           value: currentUser.userId,
           icon: Icons.perm_identity_outlined,
+        ),
+        const SizedBox(height: 12),
+        _SummaryCard(
+          label: '手机号',
+          value: currentUser.mobile,
+          icon: Icons.phone_outlined,
+        ),
+        const SizedBox(height: 12),
+        _SummaryCard(
+          label: '当前城市',
+          value: currentUser.cityName ?? '暂未选择',
+          icon: Icons.location_city_outlined,
         ),
       ],
     );

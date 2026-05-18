@@ -2,8 +2,14 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import { ADMIN_ACCESS_TOKEN_KEY } from '@/shared/constants/adminSession';
 import LoginView from '@/views/auth/LoginView.vue';
+import DailyLogContentView from '@/views/content/DailyLogContentView.vue';
+import HealthRecordReviewView from '@/views/content/HealthRecordReviewView.vue';
+import TimelineEventDebugView from '@/views/content/TimelineEventDebugView.vue';
 import DashboardView from '@/views/dashboard/DashboardView.vue';
 import ModerationView from '@/views/moderation/ModerationView.vue';
+import FamilyManagementView from '@/views/operation/FamilyManagementView.vue';
+import PetArchiveQueryView from '@/views/operation/PetArchiveQueryView.vue';
+import UserManagementView from '@/views/operation/UserManagementView.vue';
 import ServiceProviderView from '@/views/service/ServiceProviderView.vue';
 import SystemConfigView from '@/views/system/SystemConfigView.vue';
 
@@ -30,6 +36,36 @@ const routes: RouteRecordRaw[] = [
         path: 'moderation',
         name: 'moderation',
         component: ModerationView
+      },
+      {
+        path: 'users',
+        name: 'users',
+        component: UserManagementView
+      },
+      {
+        path: 'families',
+        name: 'families',
+        component: FamilyManagementView
+      },
+      {
+        path: 'pets',
+        name: 'pets',
+        component: PetArchiveQueryView
+      },
+      {
+        path: 'health-records',
+        name: 'healthRecords',
+        component: HealthRecordReviewView
+      },
+      {
+        path: 'daily-logs',
+        name: 'dailyLogs',
+        component: DailyLogContentView
+      },
+      {
+        path: 'timeline-events',
+        name: 'timelineEvents',
+        component: TimelineEventDebugView
       },
       {
         path: 'service-providers',

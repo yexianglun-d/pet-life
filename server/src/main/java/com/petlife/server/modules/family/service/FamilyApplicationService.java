@@ -3,13 +3,17 @@ package com.petlife.server.modules.family.service;
 import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
 import com.petlife.server.modules.auth.security.CurrentUserContext;
+import com.petlife.server.modules.family.converter.AdminFamilyConverter;
 import com.petlife.server.modules.family.converter.FamilyEntityConverter;
+import com.petlife.server.modules.family.domain.entity.AdminFamilyEntity;
+import com.petlife.server.modules.family.domain.entity.AdminFamilyPetEntity;
 import com.petlife.server.modules.family.domain.entity.FamilyInvitationEntity;
 import com.petlife.server.modules.family.domain.entity.FamilyMemberEntity;
 import com.petlife.server.modules.family.domain.entity.FamilyProfileEntity;
 import com.petlife.server.modules.family.dto.request.CreateFamilyInvitationRequest;
 import com.petlife.server.modules.family.dto.request.CreateFamilyRequest;
 import com.petlife.server.modules.family.dto.request.UpdateFamilyMemberRoleRequest;
+import com.petlife.server.modules.family.dto.response.AdminFamilyResponse;
 import com.petlife.server.modules.family.dto.response.FamilyDetailResponse;
 import com.petlife.server.modules.family.dto.response.FamilyInvitationResponse;
 import com.petlife.server.modules.family.dto.response.FamilyInvitationPreviewResponse;
@@ -18,6 +22,7 @@ import com.petlife.server.modules.family.dto.response.FamilySharedPetResponse;
 import com.petlife.server.modules.family.persistence.FamilyPersistenceMapper;
 import com.petlife.server.modules.family.persistence.command.CreateFamilyCommand;
 import com.petlife.server.modules.family.persistence.command.CreateFamilyInvitationCommand;
+import com.petlife.server.modules.family.persistence.dataobject.AdminFamilyDataObject;
 import com.petlife.server.modules.pet.converter.PetEntityConverter;
 import com.petlife.server.modules.pet.dto.response.PetDetailResponse;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
@@ -49,6 +54,7 @@ public class FamilyApplicationService {
     private final PetEntityConverter petEntityConverter;
     private final UserPersistenceMapper userPersistenceMapper;
     private final UserEntityConverter userEntityConverter;
+    private final AdminFamilyConverter adminFamilyConverter;
     private final FamilyEntityConverter familyEntityConverter;
     private final UserBootstrapApplicationService userBootstrapApplicationService;
 
@@ -58,6 +64,7 @@ public class FamilyApplicationService {
         PetEntityConverter petEntityConverter,
         UserPersistenceMapper userPersistenceMapper,
         UserEntityConverter userEntityConverter,
+        AdminFamilyConverter adminFamilyConverter,
         FamilyEntityConverter familyEntityConverter,
         UserBootstrapApplicationService userBootstrapApplicationService
     ) {
@@ -66,6 +73,7 @@ public class FamilyApplicationService {
         this.petEntityConverter = petEntityConverter;
         this.userPersistenceMapper = userPersistenceMapper;
         this.userEntityConverter = userEntityConverter;
+        this.adminFamilyConverter = adminFamilyConverter;
         this.familyEntityConverter = familyEntityConverter;
         this.userBootstrapApplicationService = userBootstrapApplicationService;
     }
@@ -89,6 +97,42 @@ public class FamilyApplicationService {
             inviterUser == null ? "宠物家长" : inviterUser.getNickname(),
             listSharedPetResponses(invitation.getFamilyId(), invitation.getSharedPetIds())
         );
+    }
+
+    public List<AdminFamilyResponse> listAdminFamilies(
+        String keyword,
+        String familyName,
+        String memberMobile,
+        String memberRole,
+        Integer status
+    ) {
+        String normalizedKeyword = normalizeOptionalText(keyword, 100, "搜索关键词长度不能超过 100 个字符");
+        String normalizedFamilyName = normalizeOptionalText(familyName, 100, "家庭名称长度不能超过 100 个字符");
+        String normalizedMemberMobile = normalizeOptionalText(memberMobile, 20, "成员手机号长度不能超过 20 个字符");
+        String normalizedMemberRole = normalizeAdminMemberRole(memberRole);
+        Integer normalizedStatus = normalizeFamilyStatus(status);
+
+        // 后台家庭查询需要跨家庭查看真实关系，不复用用户端当前家庭权限视角。
+        return familyPersistenceMapper
+            .listAdminFamilies(
+                normalizedKeyword,
+                normalizedFamilyName,
+                normalizedMemberMobile,
+                normalizedMemberRole,
+                normalizedStatus
+            )
+            .stream()
+            .map(this::assembleAdminFamily)
+            .map(adminFamilyConverter::toResponse)
+            .toList();
+    }
+
+    public AdminFamilyResponse getAdminFamily(Long familyId) {
+        AdminFamilyEntity adminFamily = assembleAdminFamily(familyPersistenceMapper.findAdminFamilyById(familyId));
+        if (adminFamily == null) {
+            throw new BusinessException(ResponseCode.FAMILY_NOT_FOUND);
+        }
+        return adminFamilyConverter.toResponse(adminFamily);
     }
 
     @Transactional
@@ -254,6 +298,23 @@ public class FamilyApplicationService {
             : List.of();
 
         return familyEntityConverter.toDetailResponse(familyProfile, members, sharedPets, pendingInvitations);
+    }
+
+    private AdminFamilyEntity assembleAdminFamily(AdminFamilyDataObject dataObject) {
+        if (dataObject == null) {
+            return null;
+        }
+        List<FamilyMemberEntity> members = familyPersistenceMapper
+            .listAdminFamilyMembersByFamilyId(dataObject.familyId())
+            .stream()
+            .map(familyEntityConverter::toEntity)
+            .toList();
+        List<AdminFamilyPetEntity> pets = familyPersistenceMapper
+            .listAdminFamilyPetsByFamilyId(dataObject.familyId())
+            .stream()
+            .map(adminFamilyConverter::toPetEntity)
+            .toList();
+        return adminFamilyConverter.toEntity(dataObject, members, pets);
     }
 
     private List<PetDetailResponse> listAllFamilyPets(Long familyId) {
@@ -456,6 +517,38 @@ public class FamilyApplicationService {
             throw new BusinessException(ResponseCode.BAD_REQUEST, "家庭角色仅支持 admin 或 member");
         }
         return normalizedRole;
+    }
+
+    private String normalizeAdminMemberRole(String role) {
+        String normalizedRole = normalizeOptionalText(role, 20, "家庭角色长度不能超过 20 个字符");
+        if (normalizedRole == null) {
+            return null;
+        }
+        if (!"owner".equals(normalizedRole) && !"admin".equals(normalizedRole) && !"member".equals(normalizedRole)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "家庭角色仅支持 owner、admin 或 member");
+        }
+        return normalizedRole;
+    }
+
+    private Integer normalizeFamilyStatus(Integer status) {
+        if (status == null) {
+            return null;
+        }
+        if (status != 1 && status != 2) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "家庭状态仅支持 1 或 2");
+        }
+        return status;
+    }
+
+    private String normalizeOptionalText(String value, int maxLength, String errorMessage) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        String normalizedValue = value.trim();
+        if (normalizedValue.length() > maxLength) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, errorMessage);
+        }
+        return normalizedValue;
     }
 
     private String normalizeInviteCode(String inviteCode) {

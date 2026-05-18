@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
@@ -36,6 +37,7 @@ class _PetEditorPageState extends State<PetEditorPage> {
   DateTime? _birthday;
   DateTime? _adoptDate;
   bool _isSubmitting = false;
+  String? _formNoticeMessage;
 
   @override
   void initState() {
@@ -74,31 +76,24 @@ class _PetEditorPageState extends State<PetEditorPage> {
   }
 
   Future<void> _submit() async {
-    if (_isSubmitting || !_formKey.currentState!.validate()) {
+    if (_isSubmitting) {
+      return;
+    }
+    if (!_formKey.currentState!.validate()) {
+      _showFormNotice('还有宠物档案信息没有填完整，请先看标红的输入框。');
       return;
     }
 
     if (_birthday != null &&
         _adoptDate != null &&
         _adoptDate!.isBefore(_birthday!)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('到家日期不能早于生日')),
-      );
-      return;
-    }
-
-    final double? weightValue =
-        double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
-    if (_weightController.text.trim().isNotEmpty &&
-        (weightValue == null || weightValue <= 0)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('体重请填写大于 0 的数字')),
-      );
+      _showFormNotice('到家日期不能早于生日，请重新确认这两个日期。');
       return;
     }
 
     setState(() {
       _isSubmitting = true;
+      _formNoticeMessage = null;
     });
 
     try {
@@ -127,14 +122,16 @@ class _PetEditorPageState extends State<PetEditorPage> {
       if (!mounted) {
         return;
       }
+      showCompanionSuccessFeedback(
+        context,
+        widget.isEditMode ? '宠物档案已更新' : '宠物档案已创建',
+      );
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -142,6 +139,25 @@ class _PetEditorPageState extends State<PetEditorPage> {
         });
       }
     }
+  }
+
+  void _showFormNotice(String message) {
+    setState(() {
+      _formNoticeMessage = message;
+    });
+  }
+
+  String? _validateWeight(String? value) {
+    final String weightText = value?.trim() ?? '';
+    if (weightText.isEmpty) {
+      return null;
+    }
+    final double? weightValue =
+        double.tryParse(weightText.replaceAll(',', '.'));
+    if (weightValue == null || weightValue <= 0) {
+      return '体重请填写大于 0 的数字';
+    }
+    return null;
   }
 
   Future<void> _pickBirthday() async {
@@ -199,10 +215,15 @@ class _PetEditorPageState extends State<PetEditorPage> {
         ),
         child: Form(
           key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               _PetEditorHeroCard(isEditMode: widget.isEditMode),
+              if (_formNoticeMessage != null) ...[
+                const SizedBox(height: 12),
+                CompanionFormNotice(message: _formNoticeMessage!),
+              ],
               const SizedBox(height: 16),
               _ProfilePreviewCard(
                 petName: _petNameController.text.trim(),
@@ -349,6 +370,7 @@ class _PetEditorPageState extends State<PetEditorPage> {
                         labelText: '当前体重（kg）',
                         hintText: '例如：4.6',
                       ),
+                      validator: _validateWeight,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(

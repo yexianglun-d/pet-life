@@ -15,6 +15,7 @@ public class CreateReminderCommand {
     private Integer cycleValue;
     private String cycleUnit;
     private LocalDateTime dueAt;
+    private Long sourceRecordId;
 
     public Long getId() {
         return id;
@@ -78,5 +79,13 @@ public class CreateReminderCommand {
 
     public void setDueAt(LocalDateTime dueAt) {
         this.dueAt = dueAt;
+    }
+
+    public Long getSourceRecordId() {
+        return sourceRecordId;
+    }
+
+    public void setSourceRecordId(Long sourceRecordId) {
+        this.sourceRecordId = sourceRecordId;
     }
 }

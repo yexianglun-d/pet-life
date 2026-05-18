@@ -9,6 +9,7 @@ import com.petlife.server.common.time.DateTimeConverters;
 import com.petlife.server.modules.dailylog.domain.entity.DailyLogEntity;
 import com.petlife.server.modules.dailylog.dto.response.DailyLogResponse;
 import com.petlife.server.modules.dailylog.persistence.dataobject.DailyLogDataObject;
+import com.petlife.server.modules.media.dto.response.MediaAssetResponse;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -37,6 +38,7 @@ public class DailyLogEntityConverter {
             dailyLogDataObject.petId(),
             dailyLogDataObject.authorUserId(),
             dailyLogDataObject.content(),
+            fromJson(dailyLogDataObject.mediaListJson(), "pet_daily_logs.media_list"),
             fromJson(dailyLogDataObject.tagsJson()),
             dailyLogDataObject.visibility(),
             Boolean.TRUE.equals(dailyLogDataObject.syncToCommunity()),
@@ -47,10 +49,16 @@ public class DailyLogEntityConverter {
     }
 
     public DailyLogResponse toResponse(DailyLogEntity dailyLog) {
+        return toResponse(dailyLog, List.of());
+    }
+
+    public DailyLogResponse toResponse(DailyLogEntity dailyLog, List<MediaAssetResponse> mediaAssets) {
         return new DailyLogResponse(
             String.valueOf(dailyLog.getDailyLogId()),
             String.valueOf(dailyLog.getPetId()),
             dailyLog.getContent(),
+            dailyLog.getMediaAssetIds(),
+            mediaAssets == null ? List.of() : mediaAssets,
             dailyLog.getTags(),
             dailyLog.getVisibility(),
             dailyLog.isSyncToCommunity(),
@@ -64,14 +72,26 @@ public class DailyLogEntityConverter {
      * 标签以 JSON 数组落库，保证数据库与前端之间只有一处序列化规则。
      */
     public String toTagsJson(List<String> tags) {
+        return toStringListJson(tags, "萌宠日常标签格式不合法");
+    }
+
+    public String toMediaAssetIdsJson(List<String> mediaAssetIds) {
+        return toStringListJson(mediaAssetIds, "萌宠日常媒体信息不合法");
+    }
+
+    private String toStringListJson(List<String> values, String errorMessage) {
         try {
-            return objectMapper.writeValueAsString(tags == null ? List.of() : tags);
+            return objectMapper.writeValueAsString(values == null ? List.of() : values);
         } catch (JsonProcessingException ex) {
-            throw new BusinessException(ResponseCode.BAD_REQUEST, "萌宠日常标签格式不合法");
+            throw new BusinessException(ResponseCode.BAD_REQUEST, errorMessage);
         }
     }
 
     private List<String> fromJson(String tagsJson) {
+        return fromJson(tagsJson, "pet_daily_logs.scene_tags");
+    }
+
+    private List<String> fromJson(String tagsJson, String columnName) {
         if (tagsJson == null || tagsJson.isBlank()) {
             return List.of();
         }
@@ -79,7 +99,7 @@ public class DailyLogEntityConverter {
         try {
             return List.copyOf(objectMapper.readValue(tagsJson, STRING_LIST_TYPE));
         } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("pet_daily_logs.scene_tags 数据格式不合法", ex);
+            throw new IllegalStateException(columnName + " 数据格式不合法", ex);
         }
     }
 }

@@ -13,6 +13,7 @@ import com.petlife.server.modules.auth.dto.response.AuthPetSummaryResponse;
 import com.petlife.server.modules.auth.dto.response.AuthSmsSendResponse;
 import com.petlife.server.modules.auth.token.AccessTokenRepository;
 import com.petlife.server.modules.auth.token.IssuedLoginTokens;
+import com.petlife.server.modules.notification.service.NotificationApplicationService;
 import com.petlife.server.modules.pet.converter.PetEntityConverter;
 import com.petlife.server.modules.pet.domain.entity.PetProfileEntity;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
@@ -48,6 +49,7 @@ public class AuthApplicationService {
     private final PetEntityConverter petEntityConverter;
     private final AuthResponseConverter authResponseConverter;
     private final UserBootstrapApplicationService userBootstrapApplicationService;
+    private final NotificationApplicationService notificationApplicationService;
 
     public AuthApplicationService(
         AccessTokenRepository accessTokenRepository,
@@ -56,7 +58,8 @@ public class AuthApplicationService {
         UserEntityConverter userEntityConverter,
         PetEntityConverter petEntityConverter,
         AuthResponseConverter authResponseConverter,
-        UserBootstrapApplicationService userBootstrapApplicationService
+        UserBootstrapApplicationService userBootstrapApplicationService,
+        NotificationApplicationService notificationApplicationService
     ) {
         this.accessTokenRepository = accessTokenRepository;
         this.userPersistenceMapper = userPersistenceMapper;
@@ -65,6 +68,7 @@ public class AuthApplicationService {
         this.petEntityConverter = petEntityConverter;
         this.authResponseConverter = authResponseConverter;
         this.userBootstrapApplicationService = userBootstrapApplicationService;
+        this.notificationApplicationService = notificationApplicationService;
     }
 
     public AuthSmsSendResponse sendSmsCode(AuthSmsSendRequest request) {
@@ -87,6 +91,7 @@ public class AuthApplicationService {
         // 登录成功后必须保证用户已经拥有可访问家庭和可用当前宠物，避免后续 `/me` 读取出现脏引用。
         FamilySummaryEntity familySummary =
             userBootstrapApplicationService.ensurePrimaryFamilyAndCurrentPet(userProfile.getUserId());
+        notificationApplicationService.createWelcomeNotificationIfAbsent(userProfile.getUserId());
         userProfile = userEntityConverter.toEntity(userPersistenceMapper.findUserProfileById(userProfile.getUserId()));
 
         List<AuthPetSummaryResponse> pets = petPersistenceMapper.listPetsByUserId(userProfile.getUserId()).stream()

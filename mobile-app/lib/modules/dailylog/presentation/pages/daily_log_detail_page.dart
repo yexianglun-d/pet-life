@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/dailylog/presentation/pages/daily_log_editor_page.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
@@ -103,26 +104,14 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
       return;
     }
 
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('删除萌宠日常'),
-          content: const Text('删除后这条日常会从宠物记录里移除，确认继续吗？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('确认删除'),
-            ),
-          ],
-        );
-      },
+    final bool confirmed = await showCompanionConfirmSheet(
+      context,
+      title: '删除萌宠日常',
+      description: '删除后这条日常会从宠物记录里移除，确认继续吗？',
+      confirmLabel: '确认删除',
+      confirmColor: AppThemePalette.danger,
     );
-    if (confirmed != true || !mounted) {
+    if (!confirmed || !mounted) {
       return;
     }
 
@@ -140,15 +129,14 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
         return;
       }
 
+      showCompanionSuccessFeedback(context, '萌宠日常已删除');
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {

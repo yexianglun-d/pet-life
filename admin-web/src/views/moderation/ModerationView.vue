@@ -132,14 +132,14 @@
                 type="danger"
                 size="small"
                 :disabled="row.status !== 'pending' || processingReportId === row.report_id"
-                @click="handleProcess(row, 'confirm_violation')"
+                @click="openProcessDialog(row, 'confirm_violation')"
               >
                 确认违规
               </el-button>
               <el-button
                 size="small"
                 :disabled="row.status !== 'pending' || processingReportId === row.report_id"
-                @click="handleProcess(row, 'dismiss_report')"
+                @click="openProcessDialog(row, 'dismiss_report')"
               >
                 驳回举报
               </el-button>
@@ -148,6 +148,44 @@
         </el-table-column>
       </el-table>
     </article>
+
+    <el-dialog v-model="processDialogVisible" :title="processDialogTitle" width="560px">
+      <div v-if="activeProcessReport" class="moderation-dialog-context">
+        <div class="moderation-dialog-context__title">
+          #{{ activeProcessReport.report_id }} · {{ reasonLabel(activeProcessReport.reason_code) }}
+        </div>
+        <div class="moderation-dialog-context__meta">
+          {{ activeProcessReport.post_title || '目标帖子不存在' }}
+        </div>
+      </div>
+      <el-form label-position="top" class="moderation-form">
+        <el-form-item label="处理动作">
+          <el-tag :type="processForm.action === 'confirm_violation' ? 'danger' : 'info'">
+            {{ processActionLabel(processForm.action) }}
+          </el-tag>
+        </el-form-item>
+        <el-form-item label="处理备注">
+          <el-input
+            v-model="processForm.adminNotes"
+            type="textarea"
+            :rows="4"
+            maxlength="200"
+            show-word-limit
+            placeholder="说明本次判断依据，便于后续审计排查"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="processDialogVisible = false">取消</el-button>
+        <el-button
+          :type="processForm.action === 'confirm_violation' ? 'danger' : 'primary'"
+          :loading="Boolean(processingReportId)"
+          @click="submitProcessForm"
+        >
+          {{ processActionLabel(processForm.action) }}
+        </el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -160,14 +198,23 @@ import {
   type ModerationReportSnapshot,
   type ModerationReportStatus
 } from '@/shared/api/moderationApi';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { computed, onMounted, ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 const reports = ref<ModerationReportSnapshot[]>([]);
 const isLoading = ref(false);
 const processingReportId = ref<string | null>(null);
 const errorMessage = ref('');
 const statusFilter = ref<ModerationReportListFilter>('pending');
+const processDialogVisible = ref(false);
+const activeProcessReport = ref<ModerationReportSnapshot | null>(null);
+const processForm = reactive<{
+  action: ModerationProcessAction;
+  adminNotes: string;
+}>({
+  action: 'dismiss_report',
+  adminNotes: ''
+});
 
 const visibleReports = computed(() => {
   if (statusFilter.value === 'all') {
@@ -180,6 +227,7 @@ const pendingCount = computed(() => reports.value.filter((report) => report.stat
 const processedCount = computed(() => reports.value.filter((report) => report.status === 'processed').length);
 const rejectedCount = computed(() => reports.value.filter((report) => report.status === 'rejected').length);
 const resolvedCount = computed(() => processedCount.value + rejectedCount.value);
+const processDialogTitle = computed(() => `${processActionLabel(processForm.action)}举报`);
 
 onMounted(() => {
   void loadReports();
@@ -198,34 +246,49 @@ async function loadReports() {
   }
 }
 
-async function handleProcess(report: ModerationReportSnapshot, action: ModerationProcessAction) {
-  const actionLabel = action === 'confirm_violation' ? '确认违规' : '驳回举报';
-  try {
-    await ElMessageBox.confirm(
-      `确认要执行“${actionLabel}”吗？`,
-      '处理举报',
-      {
-        type: action === 'confirm_violation' ? 'warning' : 'info',
-        confirmButtonText: actionLabel,
-        cancelButtonText: '取消'
-      }
-    );
-  } catch {
+function openProcessDialog(report: ModerationReportSnapshot, action: ModerationProcessAction) {
+  activeProcessReport.value = report;
+  processForm.action = action;
+  processForm.adminNotes = '';
+  processDialogVisible.value = true;
+}
+
+async function submitProcessForm() {
+  if (!activeProcessReport.value) {
     return;
   }
 
-  processingReportId.value = report.report_id;
+  const actionLabel = processActionLabel(processForm.action);
+  processingReportId.value = activeProcessReport.value.report_id;
   try {
-    const updatedReport = await processModerationReport(report.report_id, action);
+    const updatedReport = await processModerationReport(
+      activeProcessReport.value.report_id,
+      processForm.action,
+      normalizeNullableText(processForm.adminNotes)
+    );
     reports.value = reports.value.map((item) =>
       item.report_id === updatedReport.report_id ? updatedReport : item
     );
+    processDialogVisible.value = false;
     ElMessage.success(`${actionLabel}已完成`);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '举报处理失败');
   } finally {
     processingReportId.value = null;
   }
+}
+
+function processActionLabel(action: ModerationProcessAction) {
+  const actionLabelMap: Record<ModerationProcessAction, string> = {
+    confirm_violation: '确认违规',
+    dismiss_report: '驳回举报'
+  };
+  return actionLabelMap[action];
+}
+
+function normalizeNullableText(value: string) {
+  const normalizedValue = value.trim();
+  return normalizedValue.length > 0 ? normalizedValue : null;
 }
 
 function reasonLabel(reasonCode: string) {
@@ -367,6 +430,27 @@ function formatDateTime(value: string) {
   gap: 8px;
 }
 
+.moderation-dialog-context {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--pet-admin-line);
+  border-radius: 16px;
+  background: var(--pet-admin-surface-soft);
+}
+
+.moderation-dialog-context__title {
+  color: var(--pet-admin-title);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.moderation-dialog-context__meta {
+  margin-top: 6px;
+  color: var(--pet-admin-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 :deep(.el-table) {
   --el-table-border-color: var(--pet-admin-line);
   --el-table-header-bg-color: #fff8f2;
@@ -382,6 +466,16 @@ function formatDateTime(value: string) {
 
 :deep(.el-button) {
   border-radius: 14px;
+}
+
+:deep(.el-dialog),
+:deep(.el-textarea__inner) {
+  border-radius: 18px;
+}
+
+:deep(.el-dialog__title) {
+  color: var(--pet-admin-title);
+  font-weight: 700;
 }
 
 @media (max-width: 960px) {

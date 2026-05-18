@@ -2,6 +2,8 @@ package com.petlife.server.modules.moderation.service;
 
 import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
+import com.petlife.server.modules.admin.domain.entity.AdminOperationContext;
+import com.petlife.server.modules.admin.service.AuditLogApplicationService;
 import com.petlife.server.modules.moderation.converter.ModerationReportConverter;
 import com.petlife.server.modules.moderation.domain.entity.ModerationReportEntity;
 import com.petlife.server.modules.moderation.dto.request.ProcessModerationReportRequest;
@@ -9,7 +11,9 @@ import com.petlife.server.modules.moderation.dto.response.ModerationReportRespon
 import com.petlife.server.modules.moderation.persistence.ModerationPersistenceMapper;
 import com.petlife.server.modules.moderation.persistence.command.ProcessModerationReportCommand;
 import com.petlife.server.modules.moderation.persistence.command.UpdateModerationTargetPostReviewStatusCommand;
+import com.petlife.server.modules.notification.service.NotificationApplicationService;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +32,7 @@ public class ModerationApplicationService {
     private static final String ACTION_DISMISS_REPORT = "dismiss_report";
     private static final String REVIEW_STATUS_REJECTED = "rejected";
     private static final String TARGET_TYPE_POST = "post";
+    private static final String AUDIT_TARGET_TYPE_MODERATION_REPORT = "moderation_report";
     private static final String DEFAULT_OPERATOR = "admin-console";
     private static final Set<String> SUPPORTED_STATUS_FILTERS = Set.of(
         STATUS_ALL,
@@ -42,13 +47,19 @@ public class ModerationApplicationService {
 
     private final ModerationPersistenceMapper moderationPersistenceMapper;
     private final ModerationReportConverter moderationReportConverter;
+    private final NotificationApplicationService notificationApplicationService;
+    private final AuditLogApplicationService auditLogApplicationService;
 
     public ModerationApplicationService(
         ModerationPersistenceMapper moderationPersistenceMapper,
-        ModerationReportConverter moderationReportConverter
+        ModerationReportConverter moderationReportConverter,
+        NotificationApplicationService notificationApplicationService,
+        AuditLogApplicationService auditLogApplicationService
     ) {
         this.moderationPersistenceMapper = moderationPersistenceMapper;
         this.moderationReportConverter = moderationReportConverter;
+        this.notificationApplicationService = notificationApplicationService;
+        this.auditLogApplicationService = auditLogApplicationService;
     }
 
     public List<ModerationReportResponse> listReports(String status) {
@@ -63,7 +74,7 @@ public class ModerationApplicationService {
     @Transactional
     public ModerationReportResponse processReport(
         Long reportId,
-        String operatorName,
+        AdminOperationContext operationContext,
         ProcessModerationReportRequest request
     ) {
         ModerationReportEntity moderationReport = requireReport(reportId);
@@ -79,7 +90,8 @@ public class ModerationApplicationService {
         ProcessModerationReportCommand processCommand = new ProcessModerationReportCommand();
         processCommand.setReportId(reportId);
         processCommand.setStatus(processedStatus);
-        processCommand.setProcessedBy(normalizeOperatorName(operatorName));
+        processCommand.setProcessedBy(normalizeOperatorName(operationContext == null ? null : operationContext.operatorId()));
+        processCommand.setAdminNotes(normalizeAdminNotes(request.adminNotes()));
         int updatedRows = moderationPersistenceMapper.processReport(processCommand);
         if (updatedRows <= 0) {
             throw new BusinessException(ResponseCode.BAD_REQUEST, "举报处理失败，请刷新后重试");
@@ -100,6 +112,12 @@ public class ModerationApplicationService {
             moderationPersistenceMapper.updateTargetPostReviewStatus(updateCommand);
         }
 
+        notificationApplicationService.createModerationResultNotification(
+            moderationReport.getReporterUserId(),
+            reportId,
+            normalizedAction
+        );
+        recordAuditLog(operationContext, moderationReport, normalizedAction, processedStatus, processCommand.getAdminNotes());
         return moderationReportConverter.toResponse(requireReport(reportId));
     }
 
@@ -141,5 +159,48 @@ public class ModerationApplicationService {
             throw new BusinessException(ResponseCode.BAD_REQUEST, "处理人标识不能超过 64 字");
         }
         return normalizedOperatorName;
+    }
+
+    private String normalizeAdminNotes(String adminNotes) {
+        if (adminNotes == null) {
+            return null;
+        }
+        String normalizedAdminNotes = adminNotes.trim();
+        if (normalizedAdminNotes.isEmpty()) {
+            return null;
+        }
+        if (normalizedAdminNotes.length() > 500) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "管理员备注不能超过 500 字");
+        }
+        return normalizedAdminNotes;
+    }
+
+    /**
+     * 审核日志记录的是举报处理决策本身，目标统一落到 moderation_report。
+     * 帖子审核状态是派生结果，放入 detail_json，便于后续按举报维度追溯完整处理过程。
+     */
+    private void recordAuditLog(
+        AdminOperationContext operationContext,
+        ModerationReportEntity moderationReport,
+        String action,
+        String processedStatus,
+        String adminNotes
+    ) {
+        auditLogApplicationService.recordAdminOperation(
+            operationContext,
+            AUDIT_TARGET_TYPE_MODERATION_REPORT,
+            String.valueOf(moderationReport.getReportId()),
+            "moderation_report_" + action,
+            Map.of(
+                "action", action,
+                "status_before", moderationReport.getStatus(),
+                "status_after", processedStatus,
+                "target_type", moderationReport.getTargetType(),
+                "target_id", String.valueOf(moderationReport.getTargetId()),
+                "post_id", moderationReport.getPostId() == null ? "" : String.valueOf(moderationReport.getPostId()),
+                "post_review_status_before", moderationReport.getPostReviewStatus() == null ? "" : moderationReport.getPostReviewStatus(),
+                "admin_notes", adminNotes == null ? "" : adminNotes
+            )
+        );
     }
 }

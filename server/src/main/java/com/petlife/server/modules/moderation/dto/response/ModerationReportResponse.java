@@ -12,6 +12,7 @@ import java.time.OffsetDateTime;
  * @param reasonDetail 举报补充说明
  * @param status 举报状态
  * @param processedBy 处理人标识
+ * @param adminNotes 管理员处理备注
  * @param processedAt 处理时间
  * @param createdAt 创建时间
  * @param reporterUserId 举报人用户 ID
@@ -34,6 +35,7 @@ public record ModerationReportResponse(
     String reasonDetail,
     String status,
     String processedBy,
+    String adminNotes,
     OffsetDateTime processedAt,
     OffsetDateTime createdAt,
     String reporterUserId,

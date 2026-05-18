@@ -38,11 +38,16 @@ export function listModerationReports(status: ModerationReportListFilter = 'all'
   );
 }
 
-export function processModerationReport(reportId: string, action: ModerationProcessAction) {
+export function processModerationReport(
+  reportId: string,
+  action: ModerationProcessAction,
+  adminNotes: string | null
+) {
   return adminRequest<ModerationReportSnapshot>(`/api/v1/admin/moderation/reports/${reportId}`, {
     method: 'PATCH',
     body: JSON.stringify({
-      action
+      action,
+      admin_notes: adminNotes
     })
   });
 }

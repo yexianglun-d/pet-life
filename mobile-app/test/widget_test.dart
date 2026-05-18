@@ -11,11 +11,15 @@ import 'package:petlife_mobile_app/shared/domain/models/family_invitation_draft.
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_preview_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/health_record_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/home_pet_report_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/media_asset_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_profile_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/timeline_event_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/user_settings_snapshot.dart';
 import 'package:petlife_mobile_app/shared/repository/petlife_repository.dart';
 
 void main() {
@@ -62,8 +66,11 @@ class _FakePetLifeRepository implements PetLifeRepository {
   Future<CurrentUserSnapshot> getCurrentUser() async {
     return const CurrentUserSnapshot(
       userId: '10001',
+      mobile: '13800000000',
       nickname: 'Momo',
       familyName: 'Momo Family',
+      cityCode: '310000',
+      cityName: '上海',
       currentPetId: '10001',
       currentPet: PetProfileSnapshot(
         petId: '10001',
@@ -72,6 +79,20 @@ class _FakePetLifeRepository implements PetLifeRepository {
         breed: 'British Shorthair',
         gender: 'female',
       ),
+    );
+  }
+
+  @override
+  Future<UserSettingsSnapshot> getUserSettings() async {
+    return const UserSettingsSnapshot(
+      userId: '10001',
+      mobile: '13800000000',
+      nickname: 'Momo',
+      cityCode: '310000',
+      cityName: '上海',
+      currentPetId: '10001',
+      notificationEnabled: true,
+      privacyLevel: 'normal',
     );
   }
 
@@ -154,8 +175,11 @@ class _FakePetLifeRepository implements PetLifeRepository {
   Future<CurrentUserSnapshot> updateCurrentPet(String petId) async {
     return const CurrentUserSnapshot(
       userId: '10001',
+      mobile: '13800000000',
       nickname: 'Momo',
       familyName: 'Momo Family',
+      cityCode: '310000',
+      cityName: '上海',
       currentPetId: '10001',
       currentPet: PetProfileSnapshot(
         petId: '10001',
@@ -164,6 +188,176 @@ class _FakePetLifeRepository implements PetLifeRepository {
         breed: 'British Shorthair',
         gender: 'female',
       ),
+    );
+  }
+
+  @override
+  Future<UserSettingsSnapshot> updateUserProfile({
+    required String nickname,
+  }) async {
+    return UserSettingsSnapshot(
+      userId: '10001',
+      mobile: '13800000000',
+      nickname: nickname,
+      cityCode: '310000',
+      cityName: '上海',
+      currentPetId: '10001',
+      notificationEnabled: true,
+      privacyLevel: 'normal',
+    );
+  }
+
+  @override
+  Future<UserSettingsSnapshot> updateUserCity({
+    required String cityCode,
+    required String cityName,
+  }) async {
+    return UserSettingsSnapshot(
+      userId: '10001',
+      mobile: '13800000000',
+      nickname: 'Momo',
+      cityCode: cityCode,
+      cityName: cityName,
+      currentPetId: '10001',
+      notificationEnabled: true,
+      privacyLevel: 'normal',
+    );
+  }
+
+  @override
+  Future<UserSettingsSnapshot> updateNotificationSettings({
+    required bool notificationEnabled,
+    required String privacyLevel,
+  }) async {
+    return UserSettingsSnapshot(
+      userId: '10001',
+      mobile: '13800000000',
+      nickname: 'Momo',
+      cityCode: '310000',
+      cityName: '上海',
+      currentPetId: '10001',
+      notificationEnabled: notificationEnabled,
+      privacyLevel: privacyLevel,
+    );
+  }
+
+  @override
+  Future<NotificationInboxSnapshot> listNotifications({
+    String notifyType = 'all',
+    String readStatus = 'all',
+  }) async {
+    final List<NotificationMessageSnapshot> messages =
+        <NotificationMessageSnapshot>[
+      NotificationMessageSnapshot(
+        notificationId: '90001',
+        notifyType: 'system',
+        bizType: 'user_welcome',
+        bizId: '10001',
+        title: '欢迎来到宠物生活管家',
+        content: '我们会把宠物档案、提醒、日常和重要消息整理在这里。',
+        read: false,
+        sentAt: DateTime(2026, 4, 24, 9),
+      ),
+      NotificationMessageSnapshot(
+        notificationId: '90002',
+        notifyType: 'reminder',
+        bizType: 'reminder_completed',
+        bizId: '40001',
+        title: '提醒已完成',
+        content: 'Momo 的「体内驱虫提醒」已完成。',
+        read: true,
+        sentAt: DateTime(2026, 4, 24, 10),
+        readAt: DateTime(2026, 4, 24, 10, 5),
+      ),
+    ];
+    final List<NotificationMessageSnapshot> filteredMessages = messages
+        .where((NotificationMessageSnapshot message) =>
+            notifyType == 'all' || message.notifyType == notifyType)
+        .where((NotificationMessageSnapshot message) {
+      if (readStatus == 'unread') {
+        return !message.read;
+      }
+      if (readStatus == 'read') {
+        return message.read;
+      }
+      return true;
+    }).toList();
+    return NotificationInboxSnapshot(
+      items: filteredMessages,
+      unreadCount: messages
+          .where((NotificationMessageSnapshot message) => !message.read)
+          .length,
+      systemUnreadCount: messages
+          .where((NotificationMessageSnapshot message) =>
+              message.notifyType == 'system' && !message.read)
+          .length,
+      reminderUnreadCount: messages
+          .where((NotificationMessageSnapshot message) =>
+              message.notifyType == 'reminder' && !message.read)
+          .length,
+    );
+  }
+
+  @override
+  Future<NotificationMessageSnapshot> markNotificationRead(
+      String notificationId) async {
+    return NotificationMessageSnapshot(
+      notificationId: notificationId,
+      notifyType: 'system',
+      bizType: 'user_welcome',
+      bizId: '10001',
+      title: '欢迎来到宠物生活管家',
+      content: '我们会把宠物档案、提醒、日常和重要消息整理在这里。',
+      read: true,
+      sentAt: DateTime(2026, 4, 24, 9),
+      readAt: DateTime(2026, 4, 24, 9, 10),
+    );
+  }
+
+  @override
+  Future<NotificationInboxSnapshot> markNotificationsRead({
+    String notifyType = 'all',
+  }) async {
+    return const NotificationInboxSnapshot(
+      items: <NotificationMessageSnapshot>[],
+      unreadCount: 0,
+      systemUnreadCount: 0,
+      reminderUnreadCount: 0,
+    );
+  }
+
+  @override
+  Future<MediaAssetSnapshot> uploadMediaAsset({
+    required String bizType,
+    required String filePath,
+  }) async {
+    return MediaAssetSnapshot(
+      assetId: '70001',
+      bizType: bizType,
+      mediaType: 'image',
+      fileName: 'momo.jpg',
+      fileSize: 1024,
+      uploadStatus: 'uploaded',
+      reviewStatus: 'pending_review',
+      accessUrl: '/api/v1/media-assets/70001/content',
+      createdAt: DateTime(2026, 4, 30, 10),
+      completedAt: DateTime(2026, 4, 30, 10),
+    );
+  }
+
+  @override
+  Future<MediaAssetSnapshot> getMediaAsset(String assetId) async {
+    return MediaAssetSnapshot(
+      assetId: assetId,
+      bizType: 'daily_log',
+      mediaType: 'image',
+      fileName: 'momo.jpg',
+      fileSize: 1024,
+      uploadStatus: 'uploaded',
+      reviewStatus: 'pending_review',
+      accessUrl: '/api/v1/media-assets/$assetId/content',
+      createdAt: DateTime(2026, 4, 30, 10),
+      completedAt: DateTime(2026, 4, 30, 10),
     );
   }
 
@@ -516,6 +710,220 @@ class _FakePetLifeRepository implements PetLifeRepository {
       reasonDetail: draft.reasonDetail,
       status: 'pending',
       createdAt: DateTime(2026, 4, 22, 14, 0),
+    );
+  }
+
+  @override
+  Future<ServiceHomeSnapshot> getServiceHome({
+    String? petId,
+    String? cityCode,
+  }) async {
+    return ServiceHomeSnapshot(
+      cityCode: cityCode ?? '310000',
+      cityName: '上海',
+      opened: true,
+      commercePlaceholder: '商城当前保持预留，不进入服务预约链路',
+      categories: const <ServiceCategorySnapshot>[
+        ServiceCategorySnapshot(
+          providerType: 'hospital',
+          title: '宠物医院',
+          description: '体检、疫苗、复诊和异常就医预约。',
+          providerCount: 1,
+          available: true,
+        ),
+      ],
+      featuredProviders: await listServiceProviders(providerType: 'hospital'),
+      upcomingAppointments: const <ServiceAppointmentSnapshot>[],
+    );
+  }
+
+  @override
+  Future<List<ServiceProviderSnapshot>> listServiceProviders({
+    String? providerType,
+    String? cityCode,
+  }) async {
+    return <ServiceProviderSnapshot>[
+      ServiceProviderSnapshot(
+        providerId: '80001',
+        providerType: providerType ?? 'hospital',
+        providerName: '安心宠物医院',
+        cityCode: cityCode ?? '310000',
+        address: '上海市徐汇区宠物友好路 88 号',
+        contactPhone: '021-12345678',
+        businessHours: '09:00-20:00',
+        ratingAvg: '4.8',
+        reviewCount: 16,
+        status: 'online',
+        bookable: true,
+        serviceItems: const <ProviderServiceItemSnapshot>[
+          ProviderServiceItemSnapshot(
+            serviceItemId: '81001',
+            serviceCode: 'basic',
+            serviceName: '基础问诊',
+            status: 'active',
+            priceMin: '99.00',
+            priceMax: '199.00',
+          ),
+        ],
+        availableSlots: <ProviderScheduleSlotSnapshot>[
+          ProviderScheduleSlotSnapshot(
+            slotId: '82001',
+            providerId: '80001',
+            appointmentType: providerType ?? 'hospital',
+            slotDate: DateTime(2026, 4, 28),
+            startTime: '10:00',
+            endTime: '11:00',
+            quota: 2,
+            bookedCount: 0,
+            availableQuota: 2,
+            status: 'open',
+            bookable: true,
+          ),
+        ],
+      ),
+    ];
+  }
+
+  @override
+  Future<ServiceProviderSnapshot> getServiceProvider(String providerId) async {
+    return (await listServiceProviders(providerType: 'hospital')).first;
+  }
+
+  @override
+  Future<List<ProviderScheduleSlotSnapshot>> listProviderSlots({
+    required String providerId,
+    required String appointmentType,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    return <ProviderScheduleSlotSnapshot>[
+      ProviderScheduleSlotSnapshot(
+        slotId: '82001',
+        providerId: providerId,
+        appointmentType: appointmentType,
+        slotDate: startDate,
+        startTime: '10:00',
+        endTime: '11:00',
+        quota: 2,
+        bookedCount: 0,
+        availableQuota: 2,
+        status: 'open',
+        bookable: true,
+      ),
+    ];
+  }
+
+  @override
+  Future<List<ProviderReviewSnapshot>> listProviderReviews({
+    required String providerId,
+  }) async {
+    return <ProviderReviewSnapshot>[
+      ProviderReviewSnapshot(
+        reviewId: '84001',
+        providerId: providerId,
+        providerName: '安心宠物医院',
+        providerType: 'hospital',
+        appointmentId: '83001',
+        userId: '10001',
+        reviewerNickname: 'Momo家长',
+        petId: '10001',
+        petName: 'Momo',
+        rating: 5,
+        content: '医生沟通很细心，复查建议也清楚。',
+        status: 'visible',
+        createdAt: DateTime(2026, 4, 28),
+        updatedAt: DateTime(2026, 4, 28),
+      ),
+    ];
+  }
+
+  @override
+  Future<ServiceAppointmentSnapshot> createServiceAppointment(
+      ServiceAppointmentDraft draft) async {
+    return ServiceAppointmentSnapshot(
+      appointmentId: '83001',
+      petId: draft.petId,
+      petName: 'Momo',
+      providerId: draft.providerId,
+      providerName: '安心宠物医院',
+      providerType: draft.appointmentType,
+      appointmentType: draft.appointmentType,
+      appointmentDate: draft.appointmentDate,
+      appointmentSlot: draft.appointmentSlot,
+      demandDesc: draft.demandDesc,
+      contactName: draft.contactName,
+      contactMobile: draft.contactMobile,
+      status: 'pending_confirm',
+      reviewed: false,
+    );
+  }
+
+  @override
+  Future<List<ServiceAppointmentSnapshot>> listServiceAppointments({
+    String status = 'all',
+  }) async {
+    return <ServiceAppointmentSnapshot>[
+      ServiceAppointmentSnapshot(
+        appointmentId: '83001',
+        petId: '10001',
+        petName: 'Momo',
+        providerId: '80001',
+        providerName: '安心宠物医院',
+        providerType: 'hospital',
+        appointmentType: 'hospital',
+        appointmentDate: DateTime(2026, 4, 28),
+        appointmentSlot: '10:00-11:00',
+        contactName: 'Momo家长',
+        contactMobile: '13800000000',
+        status: 'pending_confirm',
+        reviewed: false,
+      ),
+    ];
+  }
+
+  @override
+  Future<ServiceAppointmentSnapshot> cancelServiceAppointment({
+    required String appointmentId,
+    String? cancelReason,
+  }) async {
+    return ServiceAppointmentSnapshot(
+      appointmentId: appointmentId,
+      petId: '10001',
+      petName: 'Momo',
+      providerId: '80001',
+      providerName: '安心宠物医院',
+      providerType: 'hospital',
+      appointmentType: 'hospital',
+      appointmentDate: DateTime(2026, 4, 28),
+      appointmentSlot: '10:00-11:00',
+      contactName: 'Momo家长',
+      contactMobile: '13800000000',
+      status: 'canceled',
+      reviewed: false,
+      remark: cancelReason,
+    );
+  }
+
+  @override
+  Future<ProviderReviewSnapshot> createProviderReview({
+    required String appointmentId,
+    required ServiceReviewDraft draft,
+  }) async {
+    return ProviderReviewSnapshot(
+      reviewId: '84001',
+      providerId: '80001',
+      providerName: '安心宠物医院',
+      providerType: 'hospital',
+      appointmentId: appointmentId,
+      userId: '10001',
+      reviewerNickname: 'Momo家长',
+      petId: '10001',
+      petName: 'Momo',
+      rating: draft.rating,
+      content: draft.content,
+      status: 'visible',
+      createdAt: DateTime(2026, 4, 28),
+      updatedAt: DateTime(2026, 4, 28),
     );
   }
 

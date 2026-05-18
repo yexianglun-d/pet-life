@@ -1,9 +1,14 @@
 package com.petlife.server.modules.health.converter;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petlife.server.common.time.DateTimeConverters;
 import com.petlife.server.modules.health.domain.entity.HealthRecordEntity;
 import com.petlife.server.modules.health.dto.response.HealthRecordResponse;
 import com.petlife.server.modules.health.persistence.dataobject.HealthRecordDataObject;
+import com.petlife.server.modules.media.dto.response.MediaAssetResponse;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
@@ -11,6 +16,15 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class HealthRecordEntityConverter {
+
+    private static final TypeReference<List<String>> STRING_LIST_TYPE_REFERENCE = new TypeReference<>() {
+    };
+
+    private final ObjectMapper objectMapper;
+
+    public HealthRecordEntityConverter(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     public HealthRecordEntity toEntity(HealthRecordDataObject healthRecordDataObject) {
         if (healthRecordDataObject == null) {
@@ -24,13 +38,27 @@ public class HealthRecordEntityConverter {
             healthRecordDataObject.recordType(),
             healthRecordDataObject.title(),
             healthRecordDataObject.occurredAt(),
+            healthRecordDataObject.hospitalName(),
+            healthRecordDataObject.doctorName(),
+            healthRecordDataObject.severityLevel(),
             healthRecordDataObject.resultSummary(),
+            parseAttachmentAssetIds(healthRecordDataObject.attachments()),
+            healthRecordDataObject.nextReminderId(),
+            healthRecordDataObject.nextReminderAt(),
+            healthRecordDataObject.nextReminderStatus(),
             healthRecordDataObject.notes(),
             healthRecordDataObject.createdAt()
         );
     }
 
     public HealthRecordResponse toResponse(HealthRecordEntity healthRecord) {
+        return toResponse(healthRecord, List.of());
+    }
+
+    public HealthRecordResponse toResponse(
+        HealthRecordEntity healthRecord,
+        List<MediaAssetResponse> attachmentAssets
+    ) {
         ResultSummaryParts resultSummaryParts = splitResultSummary(healthRecord.getResultSummary());
         return new HealthRecordResponse(
             String.valueOf(healthRecord.getHealthRecordId()),
@@ -39,10 +67,30 @@ public class HealthRecordEntityConverter {
             healthRecord.getTitle(),
             resultSummaryParts.value(),
             resultSummaryParts.unit(),
+            healthRecord.getHospitalName(),
+            healthRecord.getDoctorName(),
+            healthRecord.getSeverityLevel(),
+            healthRecord.getResultSummary(),
+            healthRecord.getAttachmentAssetIds(),
+            attachmentAssets == null ? List.of() : attachmentAssets,
+            healthRecord.getNextReminderId() == null ? null : String.valueOf(healthRecord.getNextReminderId()),
+            DateTimeConverters.toOffsetDateTime(healthRecord.getNextReminderAt()),
+            healthRecord.getNextReminderStatus(),
             DateTimeConverters.toOffsetDateTime(healthRecord.getOccurredAt()),
             healthRecord.getNotes(),
             DateTimeConverters.toOffsetDateTime(healthRecord.getCreatedAt())
         );
+    }
+
+    private List<String> parseAttachmentAssetIds(String attachments) {
+        if (attachments == null || attachments.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(attachments, STRING_LIST_TYPE_REFERENCE);
+        } catch (JsonProcessingException exception) {
+            return List.of();
+        }
     }
 
     /**
@@ -57,6 +105,10 @@ public class HealthRecordEntityConverter {
         }
 
         String normalizedSummary = resultSummary.trim();
+        if (!normalizedSummary.matches("^-?\\d+(\\.\\d+)?(\\s+.+)?$")) {
+            return new ResultSummaryParts(null, null);
+        }
+
         int separatorIndex = normalizedSummary.indexOf(' ');
         if (separatorIndex < 0) {
             return new ResultSummaryParts(normalizedSummary, null);

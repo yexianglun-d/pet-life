@@ -12,11 +12,14 @@ import com.petlife.server.modules.family.persistence.FamilyPersistenceMapper;
 import com.petlife.server.modules.health.converter.HealthRecordEntityConverter;
 import com.petlife.server.modules.health.domain.entity.HealthRecordEntity;
 import com.petlife.server.modules.health.persistence.HealthRecordPersistenceMapper;
+import com.petlife.server.modules.pet.converter.AdminPetConverter;
 import com.petlife.server.modules.pet.converter.PetEntityConverter;
+import com.petlife.server.modules.pet.domain.entity.AdminPetEntity;
 import com.petlife.server.modules.pet.domain.entity.PetProfileEntity;
 import com.petlife.server.modules.pet.dto.request.ArchivePetRequest;
 import com.petlife.server.modules.pet.dto.request.CreatePetRequest;
 import com.petlife.server.modules.pet.dto.request.UpdatePetRequest;
+import com.petlife.server.modules.pet.dto.response.AdminPetResponse;
 import com.petlife.server.modules.pet.dto.response.PetDetailResponse;
 import com.petlife.server.modules.pet.dto.response.PetSummaryResponse;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
@@ -53,6 +56,7 @@ public class PetApplicationService {
     private final DailyLogPersistenceMapper dailyLogPersistenceMapper;
     private final UserEntityConverter userEntityConverter;
     private final FamilyEntityConverter familyEntityConverter;
+    private final AdminPetConverter adminPetConverter;
     private final PetEntityConverter petEntityConverter;
     private final HealthRecordEntityConverter healthRecordEntityConverter;
     private final ReminderEntityConverter reminderEntityConverter;
@@ -68,6 +72,7 @@ public class PetApplicationService {
         DailyLogPersistenceMapper dailyLogPersistenceMapper,
         UserEntityConverter userEntityConverter,
         FamilyEntityConverter familyEntityConverter,
+        AdminPetConverter adminPetConverter,
         PetEntityConverter petEntityConverter,
         HealthRecordEntityConverter healthRecordEntityConverter,
         ReminderEntityConverter reminderEntityConverter,
@@ -82,6 +87,7 @@ public class PetApplicationService {
         this.dailyLogPersistenceMapper = dailyLogPersistenceMapper;
         this.userEntityConverter = userEntityConverter;
         this.familyEntityConverter = familyEntityConverter;
+        this.adminPetConverter = adminPetConverter;
         this.petEntityConverter = petEntityConverter;
         this.healthRecordEntityConverter = healthRecordEntityConverter;
         this.reminderEntityConverter = reminderEntityConverter;
@@ -95,6 +101,44 @@ public class PetApplicationService {
             .map(petEntityConverter::toEntity)
             .map(petEntityConverter::toPetDetailResponse)
             .toList();
+    }
+
+    public List<AdminPetResponse> listAdminPets(
+        String keyword,
+        String petName,
+        String petType,
+        String status,
+        String ownerMobile,
+        Long familyId
+    ) {
+        String normalizedKeyword = normalizeOptionalText(keyword, 100, "搜索关键词长度不能超过 100 个字符");
+        String normalizedPetName = normalizeOptionalText(petName, 50, "宠物名称长度不能超过 50 个字符");
+        String normalizedPetType = normalizeOptionalPetType(petType);
+        String normalizedStatus = normalizeOptionalPetStatus(status);
+        String normalizedOwnerMobile = normalizeOptionalText(ownerMobile, 20, "主人手机号长度不能超过 20 个字符");
+
+        // 后台宠物查询按存量主档读取，包含已归档但未软删的宠物，便于运营核查归属关系。
+        return petPersistenceMapper
+            .listAdminPets(
+                normalizedKeyword,
+                normalizedPetName,
+                normalizedPetType,
+                normalizedStatus,
+                normalizedOwnerMobile,
+                familyId
+            )
+            .stream()
+            .map(adminPetConverter::toEntity)
+            .map(adminPetConverter::toResponse)
+            .toList();
+    }
+
+    public AdminPetResponse getAdminPet(Long petId) {
+        AdminPetEntity adminPet = adminPetConverter.toEntity(petPersistenceMapper.findAdminPetById(petId));
+        if (adminPet == null) {
+            throw new BusinessException(ResponseCode.PET_NOT_FOUND);
+        }
+        return adminPetConverter.toResponse(adminPet);
     }
 
     @Transactional
@@ -240,6 +284,39 @@ public class PetApplicationService {
             return normalizedArchiveStatus;
         }
         throw new BusinessException(ResponseCode.BAD_REQUEST, "宠物归档状态仅支持 memorial 或 rehomed");
+    }
+
+    private String normalizeOptionalPetType(String petType) {
+        String normalizedPetType = normalizeOptionalText(petType, 20, "宠物类型长度不能超过 20 个字符");
+        if (normalizedPetType == null) {
+            return null;
+        }
+        if (!"cat".equals(normalizedPetType) && !"dog".equals(normalizedPetType) && !"other".equals(normalizedPetType)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "宠物类型仅支持 cat、dog 或 other");
+        }
+        return normalizedPetType;
+    }
+
+    private String normalizeOptionalPetStatus(String status) {
+        String normalizedStatus = normalizeOptionalText(status, 20, "宠物状态长度不能超过 20 个字符");
+        if (normalizedStatus == null) {
+            return null;
+        }
+        if (!"active".equals(normalizedStatus) && !"memorial".equals(normalizedStatus) && !"rehomed".equals(normalizedStatus)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "宠物状态仅支持 active、memorial 或 rehomed");
+        }
+        return normalizedStatus;
+    }
+
+    private String normalizeOptionalText(String value, int maxLength, String errorMessage) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        String normalizedValue = value.trim();
+        if (normalizedValue.length() > maxLength) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, errorMessage);
+        }
+        return normalizedValue;
     }
 
     private String normalizeNullableText(String value) {

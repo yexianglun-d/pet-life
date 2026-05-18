@@ -2,6 +2,7 @@
 class DailyLogDraft {
   const DailyLogDraft({
     required this.content,
+    this.mediaAssetIds = const <String>[],
     required this.tags,
     required this.visibility,
     required this.syncToCommunity,
@@ -9,6 +10,7 @@ class DailyLogDraft {
   });
 
   final String content;
+  final List<String> mediaAssetIds;
   final List<String> tags;
   final String visibility;
   final bool syncToCommunity;

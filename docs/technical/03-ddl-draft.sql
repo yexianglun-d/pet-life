@@ -389,6 +389,7 @@ CREATE TABLE IF NOT EXISTS `community_reports` (
   `reason_detail` VARCHAR(500) DEFAULT NULL COMMENT '举报补充说明',
   `status` VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '状态：pending/processed/rejected',
   `processed_by` VARCHAR(64) DEFAULT NULL COMMENT '处理人标识',
+  `admin_notes` VARCHAR(500) DEFAULT NULL COMMENT '管理员处理备注',
   `processed_at` DATETIME DEFAULT NULL COMMENT '处理时间',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -415,6 +416,21 @@ CREATE TABLE IF NOT EXISTS `user_follows` (
 -- ====================================================================
 -- 服务、医院、预约
 -- ====================================================================
+
+CREATE TABLE IF NOT EXISTS `service_city_configs` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+  `city_code` VARCHAR(32) NOT NULL COMMENT '城市编码',
+  `city_name` VARCHAR(50) NOT NULL COMMENT '城市名称',
+  `opened` TINYINT NOT NULL DEFAULT 0 COMMENT '是否开通：0-否 1-是',
+  `unavailable_reason` VARCHAR(255) DEFAULT NULL COMMENT '未开通原因',
+  `sort_order` INT NOT NULL DEFAULT 0 COMMENT '展示排序',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` DATETIME DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_service_city_configs_code` (`city_code`),
+  KEY `idx_service_city_configs_opened_sort` (`opened`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='服务城市开通配置表';
 
 CREATE TABLE IF NOT EXISTS `service_providers` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',

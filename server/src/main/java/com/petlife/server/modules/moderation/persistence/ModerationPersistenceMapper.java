@@ -24,6 +24,7 @@ public interface ModerationPersistenceMapper {
           cr.reason_detail AS reasonDetail,
           cr.status AS status,
           cr.processed_by AS processedBy,
+          cr.admin_notes AS adminNotes,
           cr.processed_at AS processedAt,
           cr.created_at AS createdAt,
           reporter.id AS reporterUserId,
@@ -60,6 +61,7 @@ public interface ModerationPersistenceMapper {
           cr.reason_detail AS reasonDetail,
           cr.status AS status,
           cr.processed_by AS processedBy,
+          cr.admin_notes AS adminNotes,
           cr.processed_at AS processedAt,
           cr.created_at AS createdAt,
           reporter.id AS reporterUserId,
@@ -88,6 +90,7 @@ public interface ModerationPersistenceMapper {
         UPDATE community_reports
         SET status = #{status},
             processed_by = #{processedBy},
+            admin_notes = #{adminNotes},
             processed_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = #{reportId}

@@ -27,6 +27,12 @@ public enum ResponseCode {
     DAILY_LOG_NOT_FOUND("DAILY_LOG_NOT_FOUND", "daily log does not exist"),
     COMMUNITY_POST_NOT_FOUND("COMMUNITY_POST_NOT_FOUND", "community post does not exist"),
     MODERATION_REPORT_NOT_FOUND("MODERATION_REPORT_NOT_FOUND", "moderation report does not exist"),
+    NOTIFICATION_NOT_FOUND("NOTIFICATION_NOT_FOUND", "notification does not exist"),
+    MEDIA_ASSET_NOT_FOUND("MEDIA_ASSET_NOT_FOUND", "media asset does not exist"),
+    SERVICE_PROVIDER_NOT_FOUND("SERVICE_PROVIDER_NOT_FOUND", "service provider does not exist"),
+    SERVICE_APPOINTMENT_NOT_FOUND("SERVICE_APPOINTMENT_NOT_FOUND", "service appointment does not exist"),
+    SERVICE_REVIEW_NOT_FOUND("SERVICE_REVIEW_NOT_FOUND", "service review does not exist"),
+    APPOINTMENT_SLOT_INVALID("APPOINTMENT_SLOT_INVALID", "appointment slot is invalid"),
     INTERNAL_SERVER_ERROR("INTERNAL_SERVER_ERROR", "internal server error");
 
     private final String code;

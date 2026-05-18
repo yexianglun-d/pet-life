@@ -70,8 +70,12 @@ users
 └─< orders
     └─< order_items >─ product_skus
 
-service_providers
-└─< service_appointments
+service_city_configs
+└─< service_providers
+    ├─< provider_service_items
+    ├─< provider_schedule_slots
+    ├─< service_appointments
+    └─< provider_reviews
 
 community_topics
 └─< community_posts
@@ -239,7 +243,17 @@ notifications
 
 ## 4.5 服务域
 
-### 4.5.1 `service_providers`
+### 4.5.1 `service_city_configs`
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| city_code | varchar(32) | 是 | 城市编码 |
+| city_name | varchar(50) | 是 | 城市名称 |
+| opened | tinyint | 是 | 是否对用户端开通 |
+| unavailable_reason | varchar(255) | 否 | 未开通时展示原因 |
+| sort_order | int | 是 | 后台展示排序 |
+
+### 4.5.2 `service_providers`
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---:|---|
@@ -256,7 +270,7 @@ notifications
 | status | varchar(20) | 是 | 营业中、休息中、下线 |
 | ext_json | json | 否 | 扩展字段，如医院科室、洗护价格带 |
 
-### 4.5.2 `service_appointments`
+### 4.5.3 `service_appointments`
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---:|---|
@@ -271,6 +285,19 @@ notifications
 | contact_mobile | varchar(20) | 是 | 联系电话 |
 | status | varchar(20) | 是 | 待确认、已确认、已取消、已完成 |
 | remark | varchar(500) | 否 | 备注 |
+
+### 4.5.4 `provider_reviews`
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| provider_id | bigint | 是 | 服务商 |
+| appointment_id | bigint | 否 | 关联预约 |
+| user_id | bigint | 是 | 评价用户 |
+| pet_id | bigint | 否 | 关联宠物 |
+| rating | tinyint | 是 | 1-5 分 |
+| content | varchar(1000) | 否 | 评价内容 |
+| images | json | 否 | 评价图片列表 |
+| status | varchar(20) | 是 | visible、hidden |
 
 ## 4.6 商城域
 

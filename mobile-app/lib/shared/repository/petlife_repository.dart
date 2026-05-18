@@ -9,10 +9,14 @@ import 'package:petlife_mobile_app/shared/domain/models/family_invitation_draft.
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_preview_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/health_record_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/home_pet_report_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/media_asset_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/timeline_event_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/user_settings_snapshot.dart';
 
 /// 用户端仓储抽象。
 abstract interface class PetLifeRepository {
@@ -30,6 +34,8 @@ abstract interface class PetLifeRepository {
   Future<void> logout();
 
   Future<CurrentUserSnapshot> getCurrentUser();
+
+  Future<UserSettingsSnapshot> getUserSettings();
 
   Future<List<PetDetailSnapshot>> listPets();
 
@@ -50,6 +56,39 @@ abstract interface class PetLifeRepository {
   Future<void> deletePet(String petId);
 
   Future<CurrentUserSnapshot> updateCurrentPet(String petId);
+
+  Future<UserSettingsSnapshot> updateUserProfile({
+    required String nickname,
+  });
+
+  Future<UserSettingsSnapshot> updateUserCity({
+    required String cityCode,
+    required String cityName,
+  });
+
+  Future<UserSettingsSnapshot> updateNotificationSettings({
+    required bool notificationEnabled,
+    required String privacyLevel,
+  });
+
+  Future<NotificationInboxSnapshot> listNotifications({
+    String notifyType = 'all',
+    String readStatus = 'all',
+  });
+
+  Future<NotificationMessageSnapshot> markNotificationRead(
+      String notificationId);
+
+  Future<NotificationInboxSnapshot> markNotificationsRead({
+    String notifyType = 'all',
+  });
+
+  Future<MediaAssetSnapshot> uploadMediaAsset({
+    required String bizType,
+    required String filePath,
+  });
+
+  Future<MediaAssetSnapshot> getMediaAsset(String assetId);
 
   Future<List<HealthRecordSnapshot>> listHealthRecords(String petId);
 
@@ -138,6 +177,46 @@ abstract interface class PetLifeRepository {
   Future<CommunityReportSnapshot> reportCommunityPost({
     required String postId,
     required CommunityReportDraft draft,
+  });
+
+  Future<ServiceHomeSnapshot> getServiceHome({
+    String? petId,
+    String? cityCode,
+  });
+
+  Future<List<ServiceProviderSnapshot>> listServiceProviders({
+    String? providerType,
+    String? cityCode,
+  });
+
+  Future<ServiceProviderSnapshot> getServiceProvider(String providerId);
+
+  Future<List<ProviderScheduleSlotSnapshot>> listProviderSlots({
+    required String providerId,
+    required String appointmentType,
+    required DateTime startDate,
+    required DateTime endDate,
+  });
+
+  Future<List<ProviderReviewSnapshot>> listProviderReviews({
+    required String providerId,
+  });
+
+  Future<ServiceAppointmentSnapshot> createServiceAppointment(
+      ServiceAppointmentDraft draft);
+
+  Future<List<ServiceAppointmentSnapshot>> listServiceAppointments({
+    String status = 'all',
+  });
+
+  Future<ServiceAppointmentSnapshot> cancelServiceAppointment({
+    required String appointmentId,
+    String? cancelReason,
+  });
+
+  Future<ProviderReviewSnapshot> createProviderReview({
+    required String appointmentId,
+    required ServiceReviewDraft draft,
   });
 
   Future<List<TimelineEventSnapshot>> listTimelineEvents({

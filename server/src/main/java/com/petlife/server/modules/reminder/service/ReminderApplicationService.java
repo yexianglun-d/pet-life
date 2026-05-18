@@ -4,15 +4,20 @@ import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
 import com.petlife.server.common.time.DateTimeConverters;
 import com.petlife.server.modules.auth.security.CurrentUserContext;
+import com.petlife.server.modules.notification.service.NotificationApplicationService;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
+import com.petlife.server.modules.reminder.converter.AdminReminderConverter;
 import com.petlife.server.modules.reminder.converter.ReminderEntityConverter;
+import com.petlife.server.modules.reminder.domain.entity.AdminReminderEntity;
 import com.petlife.server.modules.reminder.domain.entity.ReminderEntity;
 import com.petlife.server.modules.reminder.dto.request.CreateReminderRequest;
+import com.petlife.server.modules.reminder.dto.response.AdminReminderResponse;
 import com.petlife.server.modules.reminder.dto.response.ReminderResponse;
 import com.petlife.server.modules.reminder.persistence.ReminderPersistenceMapper;
 import com.petlife.server.modules.reminder.persistence.command.CreateReminderCommand;
 import com.petlife.server.modules.reminder.persistence.command.HandleReminderCommand;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,16 +33,22 @@ public class ReminderApplicationService {
 
     private final ReminderPersistenceMapper reminderPersistenceMapper;
     private final PetPersistenceMapper petPersistenceMapper;
+    private final AdminReminderConverter adminReminderConverter;
     private final ReminderEntityConverter reminderEntityConverter;
+    private final NotificationApplicationService notificationApplicationService;
 
     public ReminderApplicationService(
         ReminderPersistenceMapper reminderPersistenceMapper,
         PetPersistenceMapper petPersistenceMapper,
-        ReminderEntityConverter reminderEntityConverter
+        AdminReminderConverter adminReminderConverter,
+        ReminderEntityConverter reminderEntityConverter,
+        NotificationApplicationService notificationApplicationService
     ) {
         this.reminderPersistenceMapper = reminderPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
+        this.adminReminderConverter = adminReminderConverter;
         this.reminderEntityConverter = reminderEntityConverter;
+        this.notificationApplicationService = notificationApplicationService;
     }
 
     public List<ReminderResponse> listReminders(Long petId) {
@@ -46,6 +57,58 @@ public class ReminderApplicationService {
             .map(reminderEntityConverter::toEntity)
             .map(reminderEntityConverter::toResponse)
             .toList();
+    }
+
+    public List<AdminReminderResponse> listAdminReminders(
+        String keyword,
+        String status,
+        String reminderType,
+        String reminderMode,
+        Long petId,
+        Long familyId,
+        Long ownerUserId,
+        Long handlerUserId,
+        Long sourceRecordId,
+        OffsetDateTime dueFrom,
+        OffsetDateTime dueTo
+    ) {
+        String normalizedKeyword = normalizeOptionalText(keyword, 100, "搜索关键词长度不能超过 100 个字符");
+        String normalizedStatus = normalizeAdminStatus(status);
+        String normalizedReminderType = normalizeOptionalText(reminderType, 30, "提醒类型长度不能超过 30 个字符");
+        String normalizedReminderMode = normalizeOptionalReminderMode(reminderMode);
+        LocalDateTime normalizedDueFrom = DateTimeConverters.toLocalDateTime(dueFrom, null);
+        LocalDateTime normalizedDueTo = DateTimeConverters.toLocalDateTime(dueTo, null);
+        validateDueRange(normalizedDueFrom, normalizedDueTo);
+
+        // 后台提醒查询用于跨家庭排查提醒和来源记录，不复用用户端宠物访问权限。
+        return reminderPersistenceMapper
+            .listAdminReminders(
+                normalizedKeyword,
+                normalizedStatus,
+                normalizedReminderType,
+                normalizedReminderMode,
+                petId,
+                familyId,
+                ownerUserId,
+                handlerUserId,
+                sourceRecordId,
+                normalizedDueFrom,
+                normalizedDueTo
+            )
+            .stream()
+            .map(adminReminderConverter::toEntity)
+            .map(adminReminderConverter::toResponse)
+            .toList();
+    }
+
+    public AdminReminderResponse getAdminReminder(Long reminderId) {
+        AdminReminderEntity reminder = adminReminderConverter.toEntity(
+            reminderPersistenceMapper.findAdminReminderById(reminderId)
+        );
+        if (reminder == null) {
+            throw new BusinessException(ResponseCode.REMINDER_NOT_FOUND);
+        }
+        return adminReminderConverter.toResponse(reminder);
     }
 
     @Transactional
@@ -78,6 +141,7 @@ public class ReminderApplicationService {
         if (updatedRows == 0) {
             throw new BusinessException(ResponseCode.BAD_REQUEST, "当前提醒已处理，不能重复完成");
         }
+        notificationApplicationService.createReminderHandledNotification(currentUserId, petId, reminder, "completed");
         createNextReminderIfCycle(reminder);
         return reminderEntityConverter.toResponse(requireReminder(petId, reminderId));
     }
@@ -95,6 +159,7 @@ public class ReminderApplicationService {
         if (updatedRows == 0) {
             throw new BusinessException(ResponseCode.BAD_REQUEST, "当前提醒已处理，不能重复跳过");
         }
+        notificationApplicationService.createReminderHandledNotification(currentUserId, petId, reminder, "skipped");
         createNextReminderIfCycle(reminder);
         return reminderEntityConverter.toResponse(requireReminder(petId, reminderId));
     }
@@ -209,6 +274,48 @@ public class ReminderApplicationService {
             return dueAt.plusWeeks(cycleValue);
         }
         return dueAt.plusMonths(cycleValue);
+    }
+
+    private String normalizeAdminStatus(String status) {
+        String normalizedStatus = normalizeOptionalText(status, 20, "提醒状态长度不能超过 20 个字符");
+        if (normalizedStatus == null) {
+            return null;
+        }
+        if ("completed".equals(normalizedStatus) || "done".equals(normalizedStatus)) {
+            return "done";
+        }
+        if ("pending".equals(normalizedStatus) || "skipped".equals(normalizedStatus)) {
+            return normalizedStatus;
+        }
+        throw new BusinessException(ResponseCode.BAD_REQUEST, "提醒状态仅支持 pending、completed 或 skipped");
+    }
+
+    private String normalizeOptionalReminderMode(String reminderMode) {
+        String normalizedReminderMode = normalizeOptionalText(reminderMode, 20, "提醒模式长度不能超过 20 个字符");
+        if (normalizedReminderMode == null) {
+            return null;
+        }
+        if ("single".equals(normalizedReminderMode) || "cycle".equals(normalizedReminderMode)) {
+            return normalizedReminderMode;
+        }
+        throw new BusinessException(ResponseCode.BAD_REQUEST, "提醒模式仅支持 single 或 cycle");
+    }
+
+    private String normalizeOptionalText(String value, int maxLength, String errorMessage) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        String normalizedValue = value.trim();
+        if (normalizedValue.length() > maxLength) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, errorMessage);
+        }
+        return normalizedValue;
+    }
+
+    private void validateDueRange(LocalDateTime dueFrom, LocalDateTime dueTo) {
+        if (dueFrom != null && dueTo != null && dueFrom.isAfter(dueTo)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "提醒时间范围不合法");
+        }
     }
 
 }

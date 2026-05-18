@@ -11,6 +11,10 @@ spring:
   sql:
     init:
       mode: never
+  servlet:
+    multipart:
+      max-file-size: ${PETLIFE_MEDIA_MAX_FILE_SIZE:20MB}
+      max-request-size: ${PETLIFE_MEDIA_MAX_REQUEST_SIZE:25MB}
 # 当前阶段未正式接入 Redis，配置保持可选态，避免测试或本地启动因缺少环境变量直接失败。
   data:
     redis:
@@ -39,3 +43,14 @@ logging:
 mybatis:
   configuration:
     map-underscore-to-camel-case: true
+
+petlife:
+  media:
+    storage:
+      provider: ${PETLIFE_MEDIA_STORAGE_PROVIDER:local}
+      root-path: ${PETLIFE_MEDIA_ROOT_PATH:/tmp/petlife-media}
+      bucket-name: ${PETLIFE_MEDIA_BUCKET_NAME:petlife-local}
+      public-base-url: ${PETLIFE_MEDIA_PUBLIC_BASE_URL:}
+      endpoint: ${PETLIFE_MEDIA_STORAGE_ENDPOINT:}
+      region: ${PETLIFE_MEDIA_STORAGE_REGION:}
+      max-file-size-bytes: ${PETLIFE_MEDIA_MAX_FILE_SIZE_BYTES:20971520}

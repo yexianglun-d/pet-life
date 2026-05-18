@@ -11,6 +11,7 @@ public class CreateDailyLogCommand {
     private Long petId;
     private Long authorUserId;
     private String content;
+    private String mediaListJson;
     private String tagsJson;
     private String visibility;
     private Boolean syncToCommunity;
@@ -46,6 +47,14 @@ public class CreateDailyLogCommand {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public String getMediaListJson() {
+        return mediaListJson;
+    }
+
+    public void setMediaListJson(String mediaListJson) {
+        this.mediaListJson = mediaListJson;
     }
 
     public String getTagsJson() {

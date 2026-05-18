@@ -51,6 +51,14 @@ class HealthRecordSnapshot {
     required this.occurredAt,
     this.value,
     this.unit,
+    this.hospitalName,
+    this.doctorName,
+    this.severityLevel,
+    this.resultSummary,
+    this.attachmentAssetIds = const <String>[],
+    this.nextReminderId,
+    this.nextReminderAt,
+    this.nextReminderStatus,
     this.notes,
     this.createdAt,
   });
@@ -61,6 +69,14 @@ class HealthRecordSnapshot {
   final DateTime occurredAt;
   final String? value;
   final String? unit;
+  final String? hospitalName;
+  final String? doctorName;
+  final String? severityLevel;
+  final String? resultSummary;
+  final List<String> attachmentAssetIds;
+  final String? nextReminderId;
+  final DateTime? nextReminderAt;
+  final String? nextReminderStatus;
   final String? notes;
   final DateTime? createdAt;
 }
@@ -70,6 +86,7 @@ class DailyLogSnapshot {
   const DailyLogSnapshot({
     required this.dailyLogId,
     required this.content,
+    this.mediaAssetIds = const <String>[],
     required this.tags,
     required this.visibility,
     required this.syncToCommunity,
@@ -80,6 +97,7 @@ class DailyLogSnapshot {
 
   final String dailyLogId;
   final String content;
+  final List<String> mediaAssetIds;
   final List<String> tags;
   final String visibility;
   final bool syncToCommunity;

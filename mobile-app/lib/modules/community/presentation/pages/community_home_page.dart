@@ -23,10 +23,11 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
   ];
 
   bool _didLoad = false;
-  bool _isLoading = false;
   String _selectedTab = 'recommended';
-  String? _errorMessage;
-  List<CommunityPostSnapshot> _posts = const <CommunityPostSnapshot>[];
+  final Set<String> _loadingTabs = <String>{};
+  final Map<String, List<CommunityPostSnapshot>> _postsByTab =
+      <String, List<CommunityPostSnapshot>>{};
+  final Map<String, String> _errorMessagesByTab = <String, String>{};
 
   @override
   void didChangeDependencies() {
@@ -38,37 +39,38 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
     _loadFeed();
   }
 
-  Future<void> _loadFeed() async {
-    if (_selectedTab != 'recommended') {
+  Future<void> _loadFeed({bool forceRefresh = false}) async {
+    final String tab = _selectedTab;
+    if (!forceRefresh && _postsByTab.containsKey(tab)) {
       return;
     }
-
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      _loadingTabs.add(tab);
+      _errorMessagesByTab.remove(tab);
     });
 
     try {
       final repository = PetLifeAppScope.repositoryOf(context);
       final List<CommunityPostSnapshot> posts =
-          await repository.listCommunityFeed();
+          await repository.listCommunityFeed(tab: tab);
       if (!mounted) {
         return;
       }
       setState(() {
-        _posts = posts;
+        _postsByTab[tab] = posts;
+        _errorMessagesByTab.remove(tab);
       });
     } catch (error) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessagesByTab[tab] = error.toString();
       });
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _loadingTabs.remove(tab);
         });
       }
     }
@@ -80,11 +82,8 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
     }
     setState(() {
       _selectedTab = tab;
-      _errorMessage = null;
     });
-    if (tab == 'recommended') {
-      _loadFeed();
-    }
+    _loadFeed();
   }
 
   Future<void> _openPostDetail(CommunityPostSnapshot post) async {
@@ -97,14 +96,19 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final List<CommunityPostSnapshot> currentPosts =
+        _postsByTab[_selectedTab] ?? const <CommunityPostSnapshot>[];
+    final String? currentError = _errorMessagesByTab[_selectedTab];
+    final bool isCurrentTabLoading = _loadingTabs.contains(_selectedTab);
+
     return RefreshIndicator(
-      onRefresh: _loadFeed,
+      onRefresh: () => _loadFeed(forceRefresh: true),
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _CommunityHeroSection(
             selectedTab: _selectedTab,
-            postCount: _posts.length,
+            postCount: currentPosts.length,
           ),
           const SizedBox(height: 16),
           PageSection(
@@ -126,26 +130,25 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
           ),
           const SizedBox(height: 16),
           PageSection(
-            title:
-                _selectedTab == 'recommended' ? '推荐内容' : _labelOf(_selectedTab),
-            description: _selectedTab == 'recommended'
-                ? '这些内容按发布时间整理，适合慢慢翻、慢慢看。'
-                : '先在推荐里认识更多毛孩子，其他内容入口也会陆续变得热闹。',
-            child: _selectedTab == 'recommended'
-                ? _buildRecommendedFeed(context)
-                : CompanionEmptyState(
-                    title: '${_labelOf(_selectedTab)}正在慢慢热闹起来',
-                    description: '先去推荐里看看公开的萌宠日常，也许会遇到和你一样认真生活的人。',
-                    icon: _iconOf(_selectedTab),
-                  ),
+            title: _labelOf(_selectedTab),
+            description: _descriptionOf(_selectedTab),
+            child: _buildFeed(
+              posts: currentPosts,
+              errorMessage: currentError,
+              isLoading: isCurrentTabLoading,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildRecommendedFeed(BuildContext context) {
-    if (_isLoading && _posts.isEmpty) {
+  Widget _buildFeed({
+    required List<CommunityPostSnapshot> posts,
+    required String? errorMessage,
+    required bool isLoading,
+  }) {
+    if (isLoading && posts.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 20),
@@ -154,26 +157,26 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
       );
     }
 
-    if (_errorMessage != null && _posts.isEmpty) {
+    if (errorMessage != null && posts.isEmpty) {
       return CompanionEmptyState(
-        title: '社区暂时没有加载出来',
-        description: _errorMessage!,
+        title: '${_labelOf(_selectedTab)}暂时没有加载出来',
+        description: errorMessage,
         icon: Icons.cloud_off_outlined,
         actionLabel: '重新加载',
-        onAction: _loadFeed,
+        onAction: () => _loadFeed(forceRefresh: true),
       );
     }
 
-    if (_posts.isEmpty) {
-      return const CompanionEmptyState(
-        title: '还没有公开的社区内容',
-        description: '等第一条同步到社区的萌宠日常出现，这里就会慢慢热闹起来。',
-        icon: Icons.forum_outlined,
+    if (posts.isEmpty) {
+      return CompanionEmptyState(
+        title: _emptyTitleOf(_selectedTab),
+        description: _emptyDescriptionOf(_selectedTab),
+        icon: _iconOf(_selectedTab),
       );
     }
 
     return Column(
-      children: _posts
+      children: posts
           .map(
             (CommunityPostSnapshot post) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -426,14 +429,56 @@ String _formatFeedTime(DateTime? value) {
 String _labelOf(String tabKey) {
   switch (tabKey) {
     case 'following':
-      return '关注';
+      return '关注内容';
     case 'city':
-      return '同城';
+      return '同城内容';
     case 'qa':
-      return '问答';
+      return '问答内容';
     case 'recommended':
     default:
-      return '推荐';
+      return '推荐内容';
+  }
+}
+
+String _descriptionOf(String tabKey) {
+  switch (tabKey) {
+    case 'following':
+      return '这里会整理你关注对象的公开动态，适合稳定追踪熟悉的毛孩子。';
+    case 'city':
+      return '同城内容方便发现附近家长的经验、服务体验和日常分享。';
+    case 'qa':
+      return '问答内容更适合集中查看照护疑问、经验建议和评论讨论。';
+    case 'recommended':
+    default:
+      return '这些内容按发布时间整理，适合慢慢翻、慢慢看。';
+  }
+}
+
+String _emptyTitleOf(String tabKey) {
+  switch (tabKey) {
+    case 'following':
+      return '关注内容还不多';
+    case 'city':
+      return '同城还没有新的分享';
+    case 'qa':
+      return '问答还在慢慢积累';
+    case 'recommended':
+    default:
+      return '还没有公开的社区内容';
+  }
+}
+
+String _emptyDescriptionOf(String tabKey) {
+  switch (tabKey) {
+    case 'following':
+      return '等关注对象有新的公开记录，这里会优先展示。';
+    case 'city':
+      return '等同城家长同步公开日常后，这里就会有更多附近经验。';
+    case 'qa':
+      return '后续同步到问答流的照护讨论，会集中出现在这里。';
+    case 'recommended':
+    default:
+      return '等第一条同步到社区的萌宠日常出现，这里就会慢慢热闹起来。';
   }
 }
 

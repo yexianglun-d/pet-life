@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/family/presentation/pages/family_invitation_page.dart';
@@ -105,33 +106,19 @@ class _FamilyManagementPageState extends State<FamilyManagementPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     }
   }
 
   Future<void> _removeMember(FamilyMemberSnapshot member) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('移出共养家庭'),
-          content: Text('确认将 ${member.nickname} 移出当前家庭吗？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('确认移出'),
-            ),
-          ],
-        );
-      },
+    final bool confirmed = await showCompanionConfirmSheet(
+      context,
+      title: '移出共养家庭',
+      description: '确认将 ${member.nickname} 移出当前家庭吗？',
+      confirmLabel: '确认移出',
+      confirmColor: AppThemePalette.danger,
     );
-    if (confirmed != true || !mounted) {
+    if (!confirmed || !mounted) {
       return;
     }
 
@@ -141,14 +128,13 @@ class _FamilyManagementPageState extends State<FamilyManagementPage> {
       if (!mounted) {
         return;
       }
+      showCompanionSuccessFeedback(context, '已移出共养家庭');
       await _loadFamilyDetail();
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     }
   }
 

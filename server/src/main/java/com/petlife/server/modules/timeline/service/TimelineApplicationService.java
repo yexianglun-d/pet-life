@@ -6,7 +6,10 @@ import com.petlife.server.modules.auth.security.CurrentUserContext;
 import com.petlife.server.modules.dailylog.domain.entity.DailyLogEntity;
 import com.petlife.server.modules.health.domain.entity.HealthRecordEntity;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
+import com.petlife.server.modules.timeline.converter.AdminTimelineEventConverter;
 import com.petlife.server.modules.timeline.converter.TimelineEventConverter;
+import com.petlife.server.modules.timeline.domain.entity.AdminTimelineEventEntity;
+import com.petlife.server.modules.timeline.dto.response.AdminTimelineEventResponse;
 import com.petlife.server.modules.timeline.dto.response.TimelineEventResponse;
 import com.petlife.server.modules.timeline.persistence.TimelinePersistenceMapper;
 import com.petlife.server.modules.timeline.persistence.command.DeleteTimelineEventCommand;
@@ -26,22 +29,27 @@ public class TimelineApplicationService {
 
     private static final String EVENT_TYPE_HEALTH = "health";
     private static final String EVENT_TYPE_DAILY_LOG = "daily_log";
+    private static final String EVENT_TYPE_SERVICE = "service";
     private static final String SOURCE_TYPE_HEALTH_RECORD = "health_record";
     private static final String SOURCE_TYPE_DAILY_LOG = "daily_log";
+    private static final String SOURCE_TYPE_SERVICE_APPOINTMENT = "service_appointment";
     private static final String VISIBILITY_FAMILY = "family";
 
     private final TimelinePersistenceMapper timelinePersistenceMapper;
     private final PetPersistenceMapper petPersistenceMapper;
     private final TimelineEventConverter timelineEventConverter;
+    private final AdminTimelineEventConverter adminTimelineEventConverter;
 
     public TimelineApplicationService(
         TimelinePersistenceMapper timelinePersistenceMapper,
         PetPersistenceMapper petPersistenceMapper,
-        TimelineEventConverter timelineEventConverter
+        TimelineEventConverter timelineEventConverter,
+        AdminTimelineEventConverter adminTimelineEventConverter
     ) {
         this.timelinePersistenceMapper = timelinePersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
         this.timelineEventConverter = timelineEventConverter;
+        this.adminTimelineEventConverter = adminTimelineEventConverter;
     }
 
     public List<TimelineEventResponse> listTimelineEvents(Long petId, String eventType) {
@@ -54,6 +62,34 @@ public class TimelineApplicationService {
             .map(timelineEventConverter::toEntity)
             .map(timelineEventConverter::toResponse)
             .toList();
+    }
+
+    public List<AdminTimelineEventResponse> listAdminTimelineEvents(
+        String eventType,
+        String sourceType,
+        Long petId,
+        Long sourceId
+    ) {
+        return timelinePersistenceMapper.listAdminTimelineEvents(
+                normalizeAdminEventType(eventType),
+                normalizeAdminSourceType(sourceType),
+                petId,
+                sourceId
+            )
+            .stream()
+            .map(adminTimelineEventConverter::toEntity)
+            .map(adminTimelineEventConverter::toResponse)
+            .toList();
+    }
+
+    public AdminTimelineEventResponse getAdminTimelineEvent(Long eventId) {
+        AdminTimelineEventEntity timelineEvent = adminTimelineEventConverter.toEntity(
+            timelinePersistenceMapper.findAdminTimelineEventById(eventId)
+        );
+        if (timelineEvent == null) {
+            throw new BusinessException(ResponseCode.RESOURCE_NOT_FOUND, "时间轴事件不存在");
+        }
+        return adminTimelineEventConverter.toResponse(timelineEvent);
     }
 
     @Transactional
@@ -104,6 +140,27 @@ public class TimelineApplicationService {
         timelinePersistenceMapper.deleteTimelineEvent(command);
     }
 
+    @Transactional
+    public void syncServiceAppointmentEvent(
+        Long petId,
+        Long appointmentId,
+        java.time.LocalDateTime eventTime,
+        String title,
+        String summary
+    ) {
+        UpsertTimelineEventCommand command = new UpsertTimelineEventCommand();
+        command.setPetId(petId);
+        command.setEventType(EVENT_TYPE_SERVICE);
+        command.setSourceType(SOURCE_TYPE_SERVICE_APPOINTMENT);
+        command.setSourceId(appointmentId);
+        command.setEventTime(eventTime);
+        command.setTitle(title);
+        command.setSummary(summary);
+        command.setCoverUrl(null);
+        command.setVisibility(VISIBILITY_FAMILY);
+        timelinePersistenceMapper.upsertTimelineEvent(command);
+    }
+
     private void requireAccessiblePet(Long petId) {
         Long currentUserId = CurrentUserContext.requireUserId();
         if (petPersistenceMapper.findAccessiblePetById(currentUserId, petId) == null) {
@@ -116,10 +173,30 @@ public class TimelineApplicationService {
             return "all";
         }
         String normalizedEventType = eventType.trim();
-        if (EVENT_TYPE_HEALTH.equals(normalizedEventType) || EVENT_TYPE_DAILY_LOG.equals(normalizedEventType)) {
+        if (EVENT_TYPE_HEALTH.equals(normalizedEventType)
+            || EVENT_TYPE_DAILY_LOG.equals(normalizedEventType)
+            || EVENT_TYPE_SERVICE.equals(normalizedEventType)) {
             return normalizedEventType;
         }
-        throw new BusinessException(ResponseCode.BAD_REQUEST, "时间轴事件类型仅支持 all、health 或 daily_log");
+        throw new BusinessException(ResponseCode.BAD_REQUEST, "时间轴事件类型仅支持 all、health、daily_log 或 service");
+    }
+
+    private String normalizeAdminEventType(String eventType) {
+        String normalizedEventType = normalizeEventType(eventType);
+        return "all".equals(normalizedEventType) ? null : normalizedEventType;
+    }
+
+    private String normalizeAdminSourceType(String sourceType) {
+        if (sourceType == null || sourceType.isBlank() || "all".equals(sourceType.trim())) {
+            return null;
+        }
+        String normalizedSourceType = sourceType.trim();
+        if (SOURCE_TYPE_HEALTH_RECORD.equals(normalizedSourceType)
+            || SOURCE_TYPE_DAILY_LOG.equals(normalizedSourceType)
+            || SOURCE_TYPE_SERVICE_APPOINTMENT.equals(normalizedSourceType)) {
+            return normalizedSourceType;
+        }
+        throw new BusinessException(ResponseCode.BAD_REQUEST, "时间轴来源类型仅支持 all、health_record、daily_log 或 service_appointment");
     }
 
     private String buildHealthSummary(HealthRecordEntity healthRecord) {

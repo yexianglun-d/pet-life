@@ -8,6 +8,7 @@ public class ProcessModerationReportCommand {
     private Long reportId;
     private String status;
     private String processedBy;
+    private String adminNotes;
 
     public Long getReportId() {
         return reportId;
@@ -31,5 +32,13 @@ public class ProcessModerationReportCommand {
 
     public void setProcessedBy(String processedBy) {
         this.processedBy = processedBy;
+    }
+
+    public String getAdminNotes() {
+        return adminNotes;
+    }
+
+    public void setAdminNotes(String adminNotes) {
+        this.adminNotes = adminNotes;
     }
 }

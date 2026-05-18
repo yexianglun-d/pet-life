@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/media_attachment_picker.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/daily_log_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
@@ -27,8 +29,12 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
   late final TextEditingController _happenedAtController;
   late String _visibility;
   late DateTime _happenedAt;
+  late List<String> _mediaAssetIds;
   late bool _syncToCommunity;
   bool _isSubmitting = false;
+  bool _isUploadingMedia = false;
+  bool _hasFailedMedia = false;
+  String? _formNoticeMessage;
 
   @override
   void initState() {
@@ -44,6 +50,8 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
     _syncToCommunity = initialDailyLog?.visibility == 'public' &&
         (initialDailyLog?.syncToCommunity ?? false);
     _happenedAt = initialDailyLog?.happenedAt ?? DateTime.now();
+    _mediaAssetIds =
+        List<String>.of(initialDailyLog?.mediaAssetIds ?? const <String>[]);
     _happenedAtController =
         TextEditingController(text: _formatDateTimeLabel(_happenedAt));
   }
@@ -92,18 +100,32 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
   }
 
   Future<void> _submit() async {
-    if (_isSubmitting || !_formKey.currentState!.validate()) {
+    if (_isSubmitting) {
+      return;
+    }
+    if (!_formKey.currentState!.validate()) {
+      _showFormNotice('还有日常内容没有填完整，请先看标红的输入框。');
+      return;
+    }
+    if (_isUploadingMedia) {
+      _showFormNotice('图片或视频还在上传中，请稍后再保存。');
+      return;
+    }
+    if (_hasFailedMedia) {
+      _showFormNotice('请先移除上传失败的图片或视频。');
       return;
     }
 
     setState(() {
       _isSubmitting = true;
+      _formNoticeMessage = null;
     });
 
     try {
       final repository = PetLifeAppScope.repositoryOf(context);
       final DailyLogDraft draft = DailyLogDraft(
         content: _contentController.text.trim(),
+        mediaAssetIds: _mediaAssetIds,
         tags: _parseTags(_tagsController.text),
         visibility: _visibility,
         syncToCommunity: _syncToCommunity,
@@ -125,15 +147,17 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
         return;
       }
 
+      showCompanionSuccessFeedback(
+        context,
+        widget.initialDailyLog == null ? '萌宠日常已保存' : '萌宠日常已更新',
+      );
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -141,6 +165,12 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
         });
       }
     }
+  }
+
+  void _showFormNotice(String message) {
+    setState(() {
+      _formNoticeMessage = message;
+    });
   }
 
   @override
@@ -164,10 +194,15 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
         ),
         child: Form(
           key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               _DailyLogEditorHeroCard(isEditMode: isEditMode),
+              if (_formNoticeMessage != null) ...[
+                const SizedBox(height: 12),
+                CompanionFormNotice(message: _formNoticeMessage!),
+              ],
               const SizedBox(height: 16),
               _DailyLogFormSection(
                 title: '记录内容',
@@ -236,6 +271,28 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
               ),
               const SizedBox(height: 16),
               _DailyLogFormSection(
+                title: '照片与视频',
+                description: '把这一刻的画面一起留下来，之后翻日常时会更完整。',
+                child: MediaAttachmentPicker(
+                  bizType: 'daily_log',
+                  initialAssetIds: _mediaAssetIds,
+                  allowedExtensions: const [
+                    'jpg',
+                    'jpeg',
+                    'png',
+                    'webp',
+                    'gif',
+                    'mp4',
+                    'mov',
+                  ],
+                  maxItems: 9,
+                  pickButtonLabel: '添加图片或视频',
+                  emptyDescription: '可以选择照片或短视频，上传成功后会随这条日常保存。',
+                  onSelectionChanged: _handleMediaSelectionChanged,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _DailyLogFormSection(
                 title: '社区同步',
                 description: '只有公开内容才能同步到社区。关闭后，这条日常仍然会留在宠物档案里。',
                 child: SwitchListTile(
@@ -263,17 +320,29 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         child: FilledButton(
-          onPressed: _isSubmitting ? null : _submit,
+          onPressed: _isSubmitting || _isUploadingMedia ? null : _submit,
           child: Text(
             _isSubmitting
                 ? '保存中...'
-                : isEditMode
-                    ? '保存修改'
-                    : '保存日常',
+                : _isUploadingMedia
+                    ? '媒体上传中...'
+                    : isEditMode
+                        ? '保存修改'
+                        : '保存日常',
           ),
         ),
       ),
     );
+  }
+
+  void _handleMediaSelectionChanged(
+    MediaAttachmentSelectionState selectionState,
+  ) {
+    setState(() {
+      _mediaAssetIds = selectionState.assetIds;
+      _isUploadingMedia = selectionState.isUploading;
+      _hasFailedMedia = selectionState.hasFailed;
+    });
   }
 }
 

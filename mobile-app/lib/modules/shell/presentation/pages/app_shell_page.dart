@@ -3,6 +3,7 @@ import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_home_page.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/home/presentation/pages/home_page.dart';
+import 'package:petlife_mobile_app/modules/notification/presentation/pages/message_center_page.dart';
 import 'package:petlife_mobile_app/modules/pet/presentation/pages/pet_index_page.dart';
 import 'package:petlife_mobile_app/modules/pet/presentation/pages/pet_management_page.dart';
 import 'package:petlife_mobile_app/modules/profile/presentation/pages/profile_page.dart';
@@ -60,6 +61,14 @@ class _AppShellPageState extends State<AppShellPage> {
     _reloadShellViewData();
   }
 
+  Future<void> _openMessageCenter() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const MessageCenterPage(),
+      ),
+    );
+  }
+
   void _reloadShellViewData() {
     setState(() {
       _shellViewDataFuture = _loadShellViewData();
@@ -86,6 +95,12 @@ class _AppShellPageState extends State<AppShellPage> {
           ],
         ),
         actions: [
+          IconButton.filledTonal(
+            tooltip: '消息中心',
+            onPressed: _openMessageCenter,
+            icon: const Icon(Icons.notifications_none_rounded),
+          ),
+          const SizedBox(width: 8),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: IconButton.filledTonal(

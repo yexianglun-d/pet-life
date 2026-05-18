@@ -15,6 +15,7 @@ public final class DailyLogEntity {
     private final Long petId;
     private final Long authorUserId;
     private final String content;
+    private final List<String> mediaAssetIds;
     private final List<String> tags;
     private final String visibility;
     private final boolean syncToCommunity;
@@ -27,6 +28,7 @@ public final class DailyLogEntity {
         Long petId,
         Long authorUserId,
         String content,
+        List<String> mediaAssetIds,
         List<String> tags,
         String visibility,
         boolean syncToCommunity,
@@ -38,6 +40,7 @@ public final class DailyLogEntity {
         this.petId = petId;
         this.authorUserId = authorUserId;
         this.content = content;
+        this.mediaAssetIds = mediaAssetIds == null ? List.of() : List.copyOf(mediaAssetIds);
         this.tags = tags == null ? List.of() : List.copyOf(tags);
         this.visibility = visibility;
         this.syncToCommunity = syncToCommunity;
@@ -60,6 +63,10 @@ public final class DailyLogEntity {
 
     public String getContent() {
         return content;
+    }
+
+    public List<String> getMediaAssetIds() {
+        return mediaAssetIds;
     }
 
     public List<String> getTags() {

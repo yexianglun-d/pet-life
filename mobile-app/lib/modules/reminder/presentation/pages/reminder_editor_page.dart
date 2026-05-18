@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
@@ -28,6 +29,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
   late String _cycleUnit;
   late DateTime _dueAt;
   bool _isSubmitting = false;
+  String? _formNoticeMessage;
 
   @override
   void initState() {
@@ -87,12 +89,17 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
   }
 
   Future<void> _submit() async {
-    if (_isSubmitting || !_formKey.currentState!.validate()) {
+    if (_isSubmitting) {
+      return;
+    }
+    if (!_formKey.currentState!.validate()) {
+      _showFormNotice('还有提醒信息没有填完整，请先看标红的输入框。');
       return;
     }
 
     setState(() {
       _isSubmitting = true;
+      _formNoticeMessage = null;
     });
 
     try {
@@ -115,15 +122,14 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         return;
       }
 
+      showCompanionSuccessFeedback(context, '提醒已保存');
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -131,6 +137,12 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         });
       }
     }
+  }
+
+  void _showFormNotice(String message) {
+    setState(() {
+      _formNoticeMessage = message;
+    });
   }
 
   @override
@@ -150,10 +162,15 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         ),
         child: Form(
           key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               _ReminderEditorHeroCard(reminderMode: _reminderMode),
+              if (_formNoticeMessage != null) ...[
+                const SizedBox(height: 12),
+                CompanionFormNotice(message: _formNoticeMessage!),
+              ],
               const SizedBox(height: 16),
               _ReminderFormSection(
                 title: '提醒类型',

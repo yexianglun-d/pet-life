@@ -1,4 +1,4 @@
 /**
- * 最小可用后台能力模块。
+ * 后台管理能力模块。
  */
 package com.petlife.server.modules.admin;

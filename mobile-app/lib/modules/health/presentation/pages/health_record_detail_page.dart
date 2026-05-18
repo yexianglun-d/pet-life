@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/health/presentation/pages/health_record_editor_page.dart';
@@ -103,26 +104,14 @@ class _HealthRecordDetailPageState extends State<HealthRecordDetailPage> {
       return;
     }
 
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('删除健康记录'),
-          content: const Text('删除后这条记录会从健康档案里移除，确认继续吗？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('确认删除'),
-            ),
-          ],
-        );
-      },
+    final bool confirmed = await showCompanionConfirmSheet(
+      context,
+      title: '删除健康记录',
+      description: '删除后这条记录会从健康档案里移除，确认继续吗？',
+      confirmLabel: '确认删除',
+      confirmColor: AppThemePalette.danger,
     );
-    if (confirmed != true || !mounted) {
+    if (!confirmed || !mounted) {
       return;
     }
 
@@ -139,14 +128,13 @@ class _HealthRecordDetailPageState extends State<HealthRecordDetailPage> {
       if (!mounted) {
         return;
       }
+      showCompanionSuccessFeedback(context, '健康记录已删除');
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -268,6 +256,32 @@ class _HealthRecordDetailPageState extends State<HealthRecordDetailPage> {
                   value: healthRecord.unit == null
                       ? healthRecord.value!
                       : '${healthRecord.value} ${healthRecord.unit}',
+                ),
+              ],
+              if (healthRecord.hospitalName != null) ...[
+                const SizedBox(height: 12),
+                _InfoRow(label: '医院', value: healthRecord.hospitalName!),
+              ],
+              if (healthRecord.doctorName != null) ...[
+                const SizedBox(height: 12),
+                _InfoRow(label: '医生', value: healthRecord.doctorName!),
+              ],
+              if (healthRecord.severityLevel != null) ...[
+                const SizedBox(height: 12),
+                _InfoRow(
+                  label: '严重程度',
+                  value: _toLocalizedSeverityLevel(healthRecord.severityLevel!),
+                ),
+              ],
+              if (healthRecord.resultSummary != null) ...[
+                const SizedBox(height: 12),
+                _InfoRow(label: '结果', value: healthRecord.resultSummary!),
+              ],
+              if (healthRecord.nextReminderAt != null) ...[
+                const SizedBox(height: 12),
+                _InfoRow(
+                  label: '下次提醒',
+                  value: _formatDateTimeLabel(healthRecord.nextReminderAt!),
                 ),
               ],
               if (healthRecord.createdAt != null) ...[
@@ -397,6 +411,19 @@ String _toLocalizedRecordType(String recordType) {
       return '体重';
     default:
       return recordType;
+  }
+}
+
+String _toLocalizedSeverityLevel(String severityLevel) {
+  switch (severityLevel) {
+    case 'mild':
+      return '轻微';
+    case 'medium':
+      return '中等';
+    case 'severe':
+      return '严重';
+    default:
+      return severityLevel;
   }
 }
 

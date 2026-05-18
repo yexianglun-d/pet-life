@@ -8,6 +8,12 @@
       <el-menu :default-active="activePath" router class="admin-layout__menu">
         <el-menu-item index="/dashboard">控制台</el-menu-item>
         <el-menu-item index="/moderation">审核中心</el-menu-item>
+        <el-menu-item index="/users">用户管理</el-menu-item>
+        <el-menu-item index="/families">家庭管理</el-menu-item>
+        <el-menu-item index="/pets">宠物档案</el-menu-item>
+        <el-menu-item index="/health-records">健康记录</el-menu-item>
+        <el-menu-item index="/daily-logs">萌宠日常</el-menu-item>
+        <el-menu-item index="/timeline-events">时间轴排查</el-menu-item>
         <el-menu-item index="/service-providers">服务商管理</el-menu-item>
         <el-menu-item index="/system-config">系统配置</el-menu-item>
       </el-menu>
@@ -19,7 +25,7 @@
       <el-header class="admin-layout__header">
         <div>
           <div class="admin-layout__header-title">运营与治理中心</div>
-          <div class="admin-layout__header-subtitle">社区审核 / 服务管理 / 系统配置</div>
+          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 社区审核 / 健康档案 / 萌宠日常 / 时间轴 / 服务管理</div>
         </div>
         <div class="admin-layout__header-actions">
           <div class="admin-layout__operator">{{ operatorName }}</div>

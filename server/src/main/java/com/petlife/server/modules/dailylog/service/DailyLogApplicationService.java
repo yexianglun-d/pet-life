@@ -5,22 +5,27 @@ import com.petlife.server.common.response.ResponseCode;
 import com.petlife.server.common.time.DateTimeConverters;
 import com.petlife.server.modules.auth.security.CurrentUserContext;
 import com.petlife.server.modules.community.service.CommunityApplicationService;
+import com.petlife.server.modules.dailylog.converter.AdminDailyLogConverter;
 import com.petlife.server.modules.dailylog.converter.DailyLogEntityConverter;
+import com.petlife.server.modules.dailylog.domain.entity.AdminDailyLogEntity;
 import com.petlife.server.modules.dailylog.domain.entity.DailyLogEntity;
 import com.petlife.server.modules.dailylog.dto.request.CreateDailyLogRequest;
 import com.petlife.server.modules.dailylog.dto.request.UpdateDailyLogRequest;
+import com.petlife.server.modules.dailylog.dto.response.AdminDailyLogResponse;
 import com.petlife.server.modules.dailylog.dto.response.DailyLogResponse;
 import com.petlife.server.modules.dailylog.persistence.DailyLogPersistenceMapper;
 import com.petlife.server.modules.dailylog.persistence.command.CreateDailyLogCommand;
 import com.petlife.server.modules.dailylog.persistence.command.DeleteDailyLogCommand;
 import com.petlife.server.modules.dailylog.persistence.command.UpdateDailyLogCommunityBindingCommand;
 import com.petlife.server.modules.dailylog.persistence.command.UpdateDailyLogCommand;
+import com.petlife.server.modules.media.service.MediaAssetApplicationService;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
 import com.petlife.server.modules.timeline.service.TimelineApplicationService;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,37 +38,77 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DailyLogApplicationService {
 
+    private static final Set<String> DAILY_LOG_MEDIA_TYPES = Set.of("image", "video");
+
     private final DailyLogPersistenceMapper dailyLogPersistenceMapper;
     private final PetPersistenceMapper petPersistenceMapper;
     private final DailyLogEntityConverter dailyLogEntityConverter;
+    private final AdminDailyLogConverter adminDailyLogConverter;
     private final TimelineApplicationService timelineApplicationService;
     private final CommunityApplicationService communityApplicationService;
+    private final MediaAssetApplicationService mediaAssetApplicationService;
 
     public DailyLogApplicationService(
         DailyLogPersistenceMapper dailyLogPersistenceMapper,
         PetPersistenceMapper petPersistenceMapper,
         DailyLogEntityConverter dailyLogEntityConverter,
+        AdminDailyLogConverter adminDailyLogConverter,
         TimelineApplicationService timelineApplicationService,
-        CommunityApplicationService communityApplicationService
+        CommunityApplicationService communityApplicationService,
+        MediaAssetApplicationService mediaAssetApplicationService
     ) {
         this.dailyLogPersistenceMapper = dailyLogPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
         this.dailyLogEntityConverter = dailyLogEntityConverter;
+        this.adminDailyLogConverter = adminDailyLogConverter;
         this.timelineApplicationService = timelineApplicationService;
         this.communityApplicationService = communityApplicationService;
+        this.mediaAssetApplicationService = mediaAssetApplicationService;
     }
 
     public List<DailyLogResponse> listDailyLogs(Long petId) {
+        Long currentUserId = CurrentUserContext.requireUserId();
         requireAccessiblePet(petId);
         return dailyLogPersistenceMapper.listDailyLogsByPetId(petId).stream()
             .map(dailyLogEntityConverter::toEntity)
-            .map(dailyLogEntityConverter::toResponse)
+            .map(dailyLog -> toResponse(currentUserId, dailyLog))
             .toList();
     }
 
     public DailyLogResponse getDailyLog(Long petId, Long dailyLogId) {
+        Long currentUserId = CurrentUserContext.requireUserId();
         requireAccessiblePet(petId);
-        return dailyLogEntityConverter.toResponse(requireDailyLog(petId, dailyLogId));
+        return toResponse(currentUserId, requireDailyLog(petId, dailyLogId));
+    }
+
+    public List<AdminDailyLogResponse> listAdminDailyLogs(
+        String visibility,
+        Boolean syncToCommunity,
+        Long petId,
+        Long authorUserId,
+        String keyword
+    ) {
+        return dailyLogPersistenceMapper.listAdminDailyLogs(
+                normalizeAdminVisibility(visibility),
+                syncToCommunity,
+                petId,
+                authorUserId,
+                normalizeAdminKeyword(keyword)
+            )
+            .stream()
+            .map(adminDailyLogConverter::toEntity)
+            .map(this::toAdminResponse)
+            .toList();
+    }
+
+    public AdminDailyLogResponse getAdminDailyLog(Long dailyLogId) {
+        AdminDailyLogEntity dailyLog = adminDailyLogConverter.toEntity(
+            dailyLogPersistenceMapper.findAdminDailyLogById(dailyLogId)
+        );
+        if (dailyLog == null) {
+            throw new BusinessException(ResponseCode.DAILY_LOG_NOT_FOUND);
+        }
+        return toAdminResponse(dailyLog);
     }
 
     @Transactional
@@ -74,11 +119,12 @@ public class DailyLogApplicationService {
         dailyLogPersistenceMapper.insertDailyLog(command);
         DailyLogEntity dailyLog = dailyLogEntityConverter.toEntity(dailyLogPersistenceMapper.findDailyLogById(command.getId()));
         dailyLog = syncDerivedModels(dailyLog);
-        return dailyLogEntityConverter.toResponse(dailyLog);
+        return toResponse(currentUserId, dailyLog);
     }
 
     @Transactional
     public DailyLogResponse updateDailyLog(Long petId, Long dailyLogId, UpdateDailyLogRequest request) {
+        Long currentUserId = CurrentUserContext.requireUserId();
         requireAccessiblePet(petId);
         requireDailyLog(petId, dailyLogId);
         UpdateDailyLogCommand command = buildUpdateDailyLogCommand(petId, dailyLogId, request);
@@ -88,7 +134,7 @@ public class DailyLogApplicationService {
         }
         DailyLogEntity dailyLog = requireDailyLog(petId, dailyLogId);
         dailyLog = syncDerivedModels(dailyLog);
-        return dailyLogEntityConverter.toResponse(dailyLog);
+        return toResponse(currentUserId, dailyLog);
     }
 
     @Transactional
@@ -152,6 +198,25 @@ public class DailyLogApplicationService {
         return dailyLog;
     }
 
+    private DailyLogResponse toResponse(Long currentUserId, DailyLogEntity dailyLog) {
+        return dailyLogEntityConverter.toResponse(
+            dailyLog,
+            mediaAssetApplicationService.listReadableMediaAssetResponses(
+                currentUserId,
+                dailyLog.getMediaAssetIds()
+            )
+        );
+    }
+
+    private AdminDailyLogResponse toAdminResponse(AdminDailyLogEntity dailyLog) {
+        return adminDailyLogConverter.toResponse(
+            dailyLog,
+            mediaAssetApplicationService.listUploadedMediaAssetResponses(
+                dailyLog.getDailyLog().getMediaAssetIds()
+            )
+        );
+    }
+
     private CreateDailyLogCommand buildCreateDailyLogCommand(
         Long petId,
         Long authorUserId,
@@ -161,6 +226,14 @@ public class DailyLogApplicationService {
         command.setPetId(petId);
         command.setAuthorUserId(authorUserId);
         command.setContent(normalizeContent(request.content()));
+        command.setMediaListJson(dailyLogEntityConverter.toMediaAssetIdsJson(
+            mediaAssetApplicationService.validateUsableAssetIds(
+                authorUserId,
+                request.mediaAssetIds(),
+                "daily_log",
+                DAILY_LOG_MEDIA_TYPES
+            )
+        ));
         command.setTagsJson(dailyLogEntityConverter.toTagsJson(normalizeTags(request.tags())));
         String visibility = normalizeVisibility(request.visibility());
         command.setVisibility(visibility);
@@ -175,9 +248,18 @@ public class DailyLogApplicationService {
         UpdateDailyLogRequest request
     ) {
         UpdateDailyLogCommand command = new UpdateDailyLogCommand();
+        Long currentUserId = CurrentUserContext.requireUserId();
         command.setPetId(petId);
         command.setDailyLogId(dailyLogId);
         command.setContent(normalizeContent(request.content()));
+        command.setMediaListJson(dailyLogEntityConverter.toMediaAssetIdsJson(
+            mediaAssetApplicationService.validateUsableAssetIds(
+                currentUserId,
+                request.mediaAssetIds(),
+                "daily_log",
+                DAILY_LOG_MEDIA_TYPES
+            )
+        ));
         command.setTagsJson(dailyLogEntityConverter.toTagsJson(normalizeTags(request.tags())));
         String visibility = normalizeVisibility(request.visibility());
         command.setVisibility(visibility);
@@ -221,6 +303,13 @@ public class DailyLogApplicationService {
         throw new BusinessException(ResponseCode.BAD_REQUEST, "可见范围仅支持 private、family 或 public");
     }
 
+    private String normalizeAdminVisibility(String visibility) {
+        if (visibility == null || visibility.isBlank() || "all".equals(visibility.trim())) {
+            return null;
+        }
+        return normalizeVisibility(visibility);
+    }
+
     /**
      * 当前阶段社区只承接公开内容，同步开关必须和可见范围一起校验，
      * 否则会出现“用户以为仅家庭可见，社区却仍然可见”的数据越权问题。
@@ -245,4 +334,19 @@ public class DailyLogApplicationService {
         dailyLogPersistenceMapper.updateCommunityBinding(command);
     }
 
+    private String normalizeNullableText(String text) {
+        if (text == null) {
+            return null;
+        }
+        String normalizedText = text.trim();
+        return normalizedText.isEmpty() ? null : normalizedText;
+    }
+
+    private String normalizeAdminKeyword(String keyword) {
+        String normalizedKeyword = normalizeNullableText(keyword);
+        if (normalizedKeyword == null) {
+            return null;
+        }
+        return normalizedKeyword.length() <= 100 ? normalizedKeyword : normalizedKeyword.substring(0, 100);
+    }
 }

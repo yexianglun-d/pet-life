@@ -9,11 +9,15 @@ import 'package:petlife_mobile_app/shared/domain/models/family_invitation_draft.
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_preview_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/health_record_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/home_pet_report_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/media_asset_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_profile_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/timeline_event_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/user_settings_snapshot.dart';
 import 'package:petlife_mobile_app/shared/network/api_client.dart';
 import 'package:petlife_mobile_app/shared/network/api_exception.dart';
 import 'package:petlife_mobile_app/shared/repository/petlife_repository.dart';
@@ -108,6 +112,15 @@ class NetworkPetLifeRepository implements PetLifeRepository {
   }
 
   @override
+  Future<UserSettingsSnapshot> getUserSettings() async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/me/settings'),
+      context: '用户设置数据',
+    );
+    return _toUserSettingsSnapshot(data);
+  }
+
+  @override
   Future<List<PetDetailSnapshot>> listPets() async {
     final List<Map<String, dynamic>> pets = _asMapList(
       await _apiClient.getData('/api/v1/pets'),
@@ -186,6 +199,133 @@ class NetworkPetLifeRepository implements PetLifeRepository {
   }
 
   @override
+  Future<UserSettingsSnapshot> updateUserProfile({
+    required String nickname,
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.patchData(
+        '/api/v1/me/profile',
+        body: <String, Object?>{
+          'nickname': nickname,
+        },
+      ),
+      context: '用户资料更新响应',
+    );
+    return _toUserSettingsSnapshot(data);
+  }
+
+  @override
+  Future<UserSettingsSnapshot> updateUserCity({
+    required String cityCode,
+    required String cityName,
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.patchData(
+        '/api/v1/me/settings/city',
+        body: <String, Object?>{
+          'city_code': cityCode,
+          'city_name': cityName,
+        },
+      ),
+      context: '城市设置更新响应',
+    );
+    return _toUserSettingsSnapshot(data);
+  }
+
+  @override
+  Future<UserSettingsSnapshot> updateNotificationSettings({
+    required bool notificationEnabled,
+    required String privacyLevel,
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.patchData(
+        '/api/v1/me/settings/notifications',
+        body: <String, Object?>{
+          'notification_enabled': notificationEnabled,
+          'privacy_level': privacyLevel,
+        },
+      ),
+      context: '通知设置更新响应',
+    );
+    return _toUserSettingsSnapshot(data);
+  }
+
+  @override
+  Future<NotificationInboxSnapshot> listNotifications({
+    String notifyType = 'all',
+    String readStatus = 'all',
+  }) async {
+    final Uri uri = Uri(
+      path: '/api/v1/notifications',
+      queryParameters: <String, String>{
+        'notify_type': notifyType,
+        'read_status': readStatus,
+      },
+    );
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData(uri.toString()),
+      context: '消息中心数据',
+    );
+    return _toNotificationInboxSnapshot(data);
+  }
+
+  @override
+  Future<NotificationMessageSnapshot> markNotificationRead(
+      String notificationId) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.patchData(
+        '/api/v1/notifications/$notificationId/read',
+        body: const <String, Object?>{},
+      ),
+      context: '通知已读响应',
+    );
+    return _toNotificationMessageSnapshot(data);
+  }
+
+  @override
+  Future<NotificationInboxSnapshot> markNotificationsRead({
+    String notifyType = 'all',
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.patchData(
+        '/api/v1/notifications/read',
+        body: <String, Object?>{
+          'notify_type': notifyType,
+        },
+      ),
+      context: '批量已读响应',
+    );
+    return _toNotificationInboxSnapshot(data);
+  }
+
+  @override
+  Future<MediaAssetSnapshot> uploadMediaAsset({
+    required String bizType,
+    required String filePath,
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.postMultipartData(
+        '/api/v1/media-assets',
+        fields: <String, String>{
+          'biz_type': bizType,
+        },
+        filePath: filePath,
+      ),
+      context: '媒体上传响应',
+    );
+    return _toMediaAssetSnapshot(data);
+  }
+
+  @override
+  Future<MediaAssetSnapshot> getMediaAsset(String assetId) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/media-assets/$assetId'),
+      context: '媒体资产响应',
+    );
+    return _toMediaAssetSnapshot(data);
+  }
+
+  @override
   Future<List<HealthRecordSnapshot>> listHealthRecords(String petId) async {
     final List<Map<String, dynamic>> healthRecords = _asMapList(
       await _apiClient.getData('/api/v1/pets/$petId/health-records'),
@@ -222,6 +362,13 @@ class NetworkPetLifeRepository implements PetLifeRepository {
           'title': draft.title,
           'value': draft.value,
           'unit': draft.unit,
+          'hospital_name': draft.hospitalName,
+          'doctor_name': draft.doctorName,
+          'severity_level': draft.severityLevel,
+          'result_summary': draft.resultSummary,
+          'attachment_asset_ids': draft.attachmentAssetIds,
+          'next_reminder_at': draft.nextReminderAt?.toUtc().toIso8601String(),
+          'next_reminder_title': draft.nextReminderTitle,
           'occurred_at': draft.occurredAt.toUtc().toIso8601String(),
           'notes': draft.notes,
         },
@@ -246,6 +393,13 @@ class NetworkPetLifeRepository implements PetLifeRepository {
           'title': draft.title,
           'value': draft.value,
           'unit': draft.unit,
+          'hospital_name': draft.hospitalName,
+          'doctor_name': draft.doctorName,
+          'severity_level': draft.severityLevel,
+          'result_summary': draft.resultSummary,
+          'attachment_asset_ids': draft.attachmentAssetIds,
+          'next_reminder_at': draft.nextReminderAt?.toUtc().toIso8601String(),
+          'next_reminder_title': draft.nextReminderTitle,
           'occurred_at': draft.occurredAt.toUtc().toIso8601String(),
           'notes': draft.notes,
         },
@@ -364,6 +518,7 @@ class NetworkPetLifeRepository implements PetLifeRepository {
         '/api/v1/pets/$petId/daily-logs',
         body: <String, Object?>{
           'content': draft.content,
+          'media_asset_ids': draft.mediaAssetIds,
           'tags': draft.tags,
           'visibility': draft.visibility,
           'sync_to_community': draft.syncToCommunity,
@@ -387,6 +542,7 @@ class NetworkPetLifeRepository implements PetLifeRepository {
         '/api/v1/pets/$petId/daily-logs/$dailyLogId',
         body: <String, Object?>{
           'content': draft.content,
+          'media_asset_ids': draft.mediaAssetIds,
           'tags': draft.tags,
           'visibility': draft.visibility,
           'sync_to_community': draft.syncToCommunity,
@@ -515,6 +671,158 @@ class NetworkPetLifeRepository implements PetLifeRepository {
   }
 
   @override
+  Future<ServiceHomeSnapshot> getServiceHome({
+    String? petId,
+    String? cityCode,
+  }) async {
+    final Uri uri = Uri(
+      path: '/api/v1/services/home',
+      queryParameters: <String, String>{
+        if (petId != null) 'pet_id': petId,
+        if (cityCode != null) 'city_code': cityCode,
+      },
+    );
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData(uri.toString()),
+      context: '服务中心首页',
+    );
+    return _toServiceHomeSnapshot(data);
+  }
+
+  @override
+  Future<List<ServiceProviderSnapshot>> listServiceProviders({
+    String? providerType,
+    String? cityCode,
+  }) async {
+    final Uri uri = Uri(
+      path: '/api/v1/providers',
+      queryParameters: <String, String>{
+        if (providerType != null) 'provider_type': providerType,
+        if (cityCode != null) 'city_code': cityCode,
+      },
+    );
+    final List<Map<String, dynamic>> providers = _asMapList(
+      await _apiClient.getData(uri.toString()),
+      context: '服务商列表',
+    );
+    return providers.map(_toServiceProviderSnapshot).toList();
+  }
+
+  @override
+  Future<ServiceProviderSnapshot> getServiceProvider(String providerId) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/providers/$providerId'),
+      context: '服务商详情',
+    );
+    return _toServiceProviderSnapshot(data);
+  }
+
+  @override
+  Future<List<ProviderScheduleSlotSnapshot>> listProviderSlots({
+    required String providerId,
+    required String appointmentType,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final Uri uri = Uri(
+      path: '/api/v1/providers/$providerId/slots',
+      queryParameters: <String, String>{
+        'appointment_type': appointmentType,
+        'start_date': _formatDate(startDate)!,
+        'end_date': _formatDate(endDate)!,
+      },
+    );
+    final List<Map<String, dynamic>> slots = _asMapList(
+      await _apiClient.getData(uri.toString()),
+      context: '服务商时段列表',
+    );
+    return slots.map(_toProviderScheduleSlotSnapshot).toList();
+  }
+
+  @override
+  Future<List<ProviderReviewSnapshot>> listProviderReviews({
+    required String providerId,
+  }) async {
+    final List<Map<String, dynamic>> reviews = _asMapList(
+      await _apiClient.getData('/api/v1/providers/$providerId/reviews'),
+      context: '服务商评价列表',
+    );
+    return reviews.map(_toProviderReviewSnapshot).toList();
+  }
+
+  @override
+  Future<ServiceAppointmentSnapshot> createServiceAppointment(
+      ServiceAppointmentDraft draft) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.postData(
+        '/api/v1/appointments',
+        body: <String, Object?>{
+          'pet_id': draft.petId,
+          'provider_id': draft.providerId,
+          'appointment_type': draft.appointmentType,
+          'appointment_date': _formatDate(draft.appointmentDate),
+          'appointment_slot': draft.appointmentSlot,
+          'demand_desc': draft.demandDesc,
+          'contact_name': draft.contactName,
+          'contact_mobile': draft.contactMobile,
+        },
+      ),
+      context: '创建服务预约响应',
+    );
+    return _toServiceAppointmentSnapshot(data);
+  }
+
+  @override
+  Future<List<ServiceAppointmentSnapshot>> listServiceAppointments({
+    String status = 'all',
+  }) async {
+    final Uri uri = Uri(
+      path: '/api/v1/appointments',
+      queryParameters: <String, String>{'status': status},
+    );
+    final List<Map<String, dynamic>> appointments = _asMapList(
+      await _apiClient.getData(uri.toString()),
+      context: '服务预约列表',
+    );
+    return appointments.map(_toServiceAppointmentSnapshot).toList();
+  }
+
+  @override
+  Future<ServiceAppointmentSnapshot> cancelServiceAppointment({
+    required String appointmentId,
+    String? cancelReason,
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.patchData(
+        '/api/v1/appointments/$appointmentId/cancel',
+        body: <String, Object?>{
+          'cancel_reason': cancelReason,
+        },
+      ),
+      context: '取消服务预约响应',
+    );
+    return _toServiceAppointmentSnapshot(data);
+  }
+
+  @override
+  Future<ProviderReviewSnapshot> createProviderReview({
+    required String appointmentId,
+    required ServiceReviewDraft draft,
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.postData(
+        '/api/v1/appointments/$appointmentId/review',
+        body: <String, Object?>{
+          'rating': draft.rating,
+          'content': draft.content,
+        },
+      ),
+      context: '创建服务评价响应',
+    );
+    return _toProviderReviewSnapshot(data);
+  }
+
+  @override
   Future<List<TimelineEventSnapshot>> listTimelineEvents({
     required String petId,
     String eventType = 'all',
@@ -624,14 +932,57 @@ class NetworkPetLifeRepository implements PetLifeRepository {
 
     return CurrentUserSnapshot(
       userId: _readString(user, 'user_id'),
+      mobile: _readString(user, 'mobile'),
       nickname: _readString(user, 'nickname'),
       familyName: _readString(familySummary, 'family_name'),
+      cityCode: _readNullableString(user, 'city_code'),
+      cityName: _readNullableString(user, 'city_name'),
       currentPetId: _readNullableString(data, 'current_pet_id'),
       currentPet: currentPetPayload == null
           ? null
           : _toPetProfileSnapshot(
               _asMap(currentPetPayload, context: '当前宠物信息'),
             ),
+    );
+  }
+
+  UserSettingsSnapshot _toUserSettingsSnapshot(Map<String, dynamic> payload) {
+    return UserSettingsSnapshot(
+      userId: _readString(payload, 'user_id'),
+      mobile: _readString(payload, 'mobile'),
+      nickname: _readString(payload, 'nickname'),
+      cityCode: _readNullableString(payload, 'city_code'),
+      cityName: _readNullableString(payload, 'city_name'),
+      currentPetId: _readNullableString(payload, 'current_pet_id'),
+      notificationEnabled: _readBool(payload, 'notification_enabled'),
+      privacyLevel: _readString(payload, 'privacy_level'),
+    );
+  }
+
+  NotificationInboxSnapshot _toNotificationInboxSnapshot(
+      Map<String, dynamic> payload) {
+    return NotificationInboxSnapshot(
+      items: _asMapList(payload['items'], context: '通知列表')
+          .map(_toNotificationMessageSnapshot)
+          .toList(),
+      unreadCount: _readInt(payload, 'unread_count'),
+      systemUnreadCount: _readInt(payload, 'system_unread_count'),
+      reminderUnreadCount: _readInt(payload, 'reminder_unread_count'),
+    );
+  }
+
+  NotificationMessageSnapshot _toNotificationMessageSnapshot(
+      Map<String, dynamic> payload) {
+    return NotificationMessageSnapshot(
+      notificationId: _readString(payload, 'notification_id'),
+      notifyType: _readString(payload, 'notify_type'),
+      bizType: _readNullableString(payload, 'biz_type'),
+      bizId: _readNullableString(payload, 'biz_id'),
+      title: _readString(payload, 'title'),
+      content: _readString(payload, 'content'),
+      read: _readBool(payload, 'read'),
+      sentAt: _readDateTime(payload, 'sent_at'),
+      readAt: _readNullableDateTime(payload, 'read_at'),
     );
   }
 
@@ -732,6 +1083,15 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       occurredAt: _readDateTime(payload, 'occurred_at'),
       value: _readNullableString(payload, 'value'),
       unit: _readNullableString(payload, 'unit'),
+      hospitalName: _readNullableString(payload, 'hospital_name'),
+      doctorName: _readNullableString(payload, 'doctor_name'),
+      severityLevel: _readNullableString(payload, 'severity_level'),
+      resultSummary: _readNullableString(payload, 'result_summary'),
+      attachmentAssetIds:
+          _asNullableStringList(payload['attachment_asset_ids']),
+      nextReminderId: _readNullableString(payload, 'next_reminder_id'),
+      nextReminderAt: _readNullableDateTime(payload, 'next_reminder_at'),
+      nextReminderStatus: _readNullableString(payload, 'next_reminder_status'),
       notes: _readNullableString(payload, 'notes'),
       createdAt: _readNullableDateTime(payload, 'created_at'),
     );
@@ -741,11 +1101,29 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     return DailyLogSnapshot(
       dailyLogId: _readString(payload, 'daily_log_id'),
       content: _readString(payload, 'content'),
+      mediaAssetIds: _asNullableStringList(payload['media_asset_ids']),
       tags: _asStringList(payload['tags'], context: '日常标签'),
       visibility: _readString(payload, 'visibility'),
       syncToCommunity: payload['sync_to_community'] == true,
       happenedAt: _readDateTime(payload, 'happened_at'),
       communityPostId: _readNullableString(payload, 'community_post_id'),
+      createdAt: _readNullableDateTime(payload, 'created_at'),
+    );
+  }
+
+  MediaAssetSnapshot _toMediaAssetSnapshot(Map<String, dynamic> payload) {
+    return MediaAssetSnapshot(
+      assetId: _readString(payload, 'asset_id'),
+      bizType: _readString(payload, 'biz_type'),
+      mediaType: _readString(payload, 'media_type'),
+      fileName: _readString(payload, 'file_name'),
+      contentType: _readNullableString(payload, 'content_type'),
+      fileSize: _readInt(payload, 'file_size'),
+      fileHash: _readNullableString(payload, 'file_hash'),
+      uploadStatus: _readString(payload, 'upload_status'),
+      reviewStatus: _readString(payload, 'review_status'),
+      accessUrl: _readString(payload, 'access_url'),
+      completedAt: _readNullableDateTime(payload, 'completed_at'),
       createdAt: _readNullableDateTime(payload, 'created_at'),
     );
   }
@@ -850,6 +1228,134 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       reasonDetail: _readNullableString(payload, 'reason_detail'),
       status: _readString(payload, 'status'),
       createdAt: _readDateTime(payload, 'created_at'),
+    );
+  }
+
+  ServiceHomeSnapshot _toServiceHomeSnapshot(Map<String, dynamic> payload) {
+    return ServiceHomeSnapshot(
+      cityCode: _readString(payload, 'city_code'),
+      cityName: _readString(payload, 'city_name'),
+      opened: _readBool(payload, 'opened'),
+      unavailableReason: _readNullableString(payload, 'unavailable_reason'),
+      categories: _asMapList(payload['categories'], context: '服务分类列表')
+          .map(_toServiceCategorySnapshot)
+          .toList(),
+      featuredProviders:
+          _asMapList(payload['featured_providers'], context: '推荐服务商列表')
+              .map(_toServiceProviderSnapshot)
+              .toList(),
+      upcomingAppointments:
+          _asMapList(payload['upcoming_appointments'], context: '近期预约列表')
+              .map(_toServiceAppointmentSnapshot)
+              .toList(),
+      commercePlaceholder: _readString(payload, 'commerce_placeholder'),
+    );
+  }
+
+  ServiceCategorySnapshot _toServiceCategorySnapshot(
+      Map<String, dynamic> payload) {
+    return ServiceCategorySnapshot(
+      providerType: _readString(payload, 'provider_type'),
+      title: _readString(payload, 'title'),
+      description: _readString(payload, 'description'),
+      providerCount: _readInt(payload, 'provider_count'),
+      available: _readBool(payload, 'available'),
+    );
+  }
+
+  ServiceProviderSnapshot _toServiceProviderSnapshot(
+      Map<String, dynamic> payload) {
+    return ServiceProviderSnapshot(
+      providerId: _readString(payload, 'provider_id'),
+      providerType: _readString(payload, 'provider_type'),
+      providerName: _readString(payload, 'provider_name'),
+      cityCode: _readString(payload, 'city_code'),
+      address: _readNullableString(payload, 'address'),
+      contactPhone: _readNullableString(payload, 'contact_phone'),
+      businessHours: _readNullableString(payload, 'business_hours'),
+      ratingAvg: _readNullableString(payload, 'rating_avg'),
+      reviewCount: _readNullableInt(payload, 'review_count') ?? 0,
+      status: _readString(payload, 'status'),
+      bookable: _readBool(payload, 'bookable'),
+      serviceItems: _asMapList(payload['service_items'], context: '服务项目列表')
+          .map(_toProviderServiceItemSnapshot)
+          .toList(),
+      availableSlots: _asMapList(payload['available_slots'], context: '可预约时段列表')
+          .map(_toProviderScheduleSlotSnapshot)
+          .toList(),
+    );
+  }
+
+  ProviderServiceItemSnapshot _toProviderServiceItemSnapshot(
+      Map<String, dynamic> payload) {
+    return ProviderServiceItemSnapshot(
+      serviceItemId: _readString(payload, 'service_item_id'),
+      serviceCode: _readString(payload, 'service_code'),
+      serviceName: _readString(payload, 'service_name'),
+      serviceDesc: _readNullableString(payload, 'service_desc'),
+      priceMin: _readNullableString(payload, 'price_min'),
+      priceMax: _readNullableString(payload, 'price_max'),
+      status: _readString(payload, 'status'),
+    );
+  }
+
+  ProviderScheduleSlotSnapshot _toProviderScheduleSlotSnapshot(
+      Map<String, dynamic> payload) {
+    return ProviderScheduleSlotSnapshot(
+      slotId: _readString(payload, 'slot_id'),
+      providerId: _readString(payload, 'provider_id'),
+      appointmentType: _readString(payload, 'appointment_type'),
+      slotDate: _readDateTime(payload, 'slot_date'),
+      startTime: _readTimeLabel(payload, 'start_time'),
+      endTime: _readTimeLabel(payload, 'end_time'),
+      quota: _readInt(payload, 'quota'),
+      bookedCount: _readInt(payload, 'booked_count'),
+      availableQuota: _readInt(payload, 'available_quota'),
+      status: _readString(payload, 'status'),
+      bookable: _readBool(payload, 'bookable'),
+    );
+  }
+
+  ServiceAppointmentSnapshot _toServiceAppointmentSnapshot(
+      Map<String, dynamic> payload) {
+    return ServiceAppointmentSnapshot(
+      appointmentId: _readString(payload, 'appointment_id'),
+      petId: _readString(payload, 'pet_id'),
+      petName: _readString(payload, 'pet_name'),
+      providerId: _readString(payload, 'provider_id'),
+      providerName: _readString(payload, 'provider_name'),
+      providerType: _readString(payload, 'provider_type'),
+      appointmentType: _readString(payload, 'appointment_type'),
+      appointmentDate: _readDateTime(payload, 'appointment_date'),
+      appointmentSlot: _readString(payload, 'appointment_slot'),
+      demandDesc: _readNullableString(payload, 'demand_desc'),
+      contactName: _readString(payload, 'contact_name'),
+      contactMobile: _readString(payload, 'contact_mobile'),
+      status: _readString(payload, 'status'),
+      reviewed: _readNullableBool(payload, 'reviewed') ?? false,
+      remark: _readNullableString(payload, 'remark'),
+      createdAt: _readNullableDateTime(payload, 'created_at'),
+      updatedAt: _readNullableDateTime(payload, 'updated_at'),
+    );
+  }
+
+  ProviderReviewSnapshot _toProviderReviewSnapshot(
+      Map<String, dynamic> payload) {
+    return ProviderReviewSnapshot(
+      reviewId: _readString(payload, 'review_id'),
+      providerId: _readString(payload, 'provider_id'),
+      providerName: _readString(payload, 'provider_name'),
+      providerType: _readString(payload, 'provider_type'),
+      appointmentId: _readNullableString(payload, 'appointment_id'),
+      userId: _readString(payload, 'user_id'),
+      reviewerNickname: _readString(payload, 'reviewer_nickname'),
+      petId: _readNullableString(payload, 'pet_id'),
+      petName: _readNullableString(payload, 'pet_name'),
+      rating: _readInt(payload, 'rating'),
+      content: _readNullableString(payload, 'content'),
+      status: _readString(payload, 'status'),
+      createdAt: _readDateTime(payload, 'created_at'),
+      updatedAt: _readDateTime(payload, 'updated_at'),
     );
   }
 
@@ -973,6 +1479,16 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     return value.map((Object? item) => item.toString()).toList();
   }
 
+  List<String> _asNullableStringList(Object? value) {
+    if (value == null) {
+      return const <String>[];
+    }
+    if (value is! List) {
+      return const <String>[];
+    }
+    return value.map((Object? item) => item.toString()).toList();
+  }
+
   String _readString(Map<String, dynamic> payload, String key) {
     final Object? value = payload[key];
     if (value == null) {
@@ -1040,6 +1556,27 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     throw ApiException('字段 $key 不是有效布尔值');
   }
 
+  bool? _readNullableBool(Map<String, dynamic> payload, String key) {
+    final Object? value = payload[key];
+    if (value == null) {
+      return null;
+    }
+    if (value is bool) {
+      return value;
+    }
+    if (value is int) {
+      return value != 0;
+    }
+    final String normalizedValue = value.toString().trim().toLowerCase();
+    if (normalizedValue == 'true' || normalizedValue == '1') {
+      return true;
+    }
+    if (normalizedValue == 'false' || normalizedValue == '0') {
+      return false;
+    }
+    return null;
+  }
+
   DateTime _readDateTime(Map<String, dynamic> payload, String key) {
     final String value = _readString(payload, key);
     final DateTime? parsedValue = DateTime.tryParse(value);
@@ -1076,6 +1613,11 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     }
 
     return parsedValue;
+  }
+
+  String _readTimeLabel(Map<String, dynamic> payload, String key) {
+    final String value = _readString(payload, key);
+    return value.length >= 5 ? value.substring(0, 5) : value;
   }
 
   Map<String, Object?> _toPetUpsertBody(PetUpsertDraft draft) {

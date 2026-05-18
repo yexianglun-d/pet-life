@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
  * @param petId 宠物 ID
  * @param authorUserId 作者用户 ID
  * @param content 内容
+ * @param mediaListJson 媒体资产 JSON
  * @param tagsJson 标签 JSON
  * @param visibility 可见范围
  * @param syncToCommunity 是否同步社区
@@ -21,6 +22,7 @@ public record DailyLogDataObject(
     Long petId,
     Long authorUserId,
     String content,
+    String mediaListJson,
     String tagsJson,
     String visibility,
     Boolean syncToCommunity,

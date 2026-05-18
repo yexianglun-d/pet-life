@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -21,6 +22,8 @@ class ApiClient {
   final AppSessionStore? _sessionStore;
   final http.Client _httpClient;
 
+  static const Duration _requestTimeout = Duration(seconds: 20);
+
   Future<bool>? _refreshSessionFuture;
 
   Future<dynamic> getData(String path) {
@@ -42,6 +45,32 @@ class ApiClient {
         headers: headers,
         body: jsonEncode(body),
       ),
+    );
+  }
+
+  Future<dynamic> postMultipartData(
+    String path, {
+    required Map<String, String> fields,
+    required String filePath,
+    String fileField = 'file',
+  }) {
+    return _sendRequest(
+      path: path,
+      requestFactory: (Map<String, String> headers) async {
+        final http.MultipartRequest request = http.MultipartRequest(
+          'POST',
+          _baseUri.resolve(path),
+        );
+        final Map<String, String> multipartHeaders =
+            Map<String, String>.from(headers)..remove('Content-Type');
+        request.headers.addAll(multipartHeaders);
+        request.fields.addAll(fields);
+        request.files.add(await http.MultipartFile.fromPath(
+          fileField,
+          filePath,
+        ));
+        return http.Response.fromStream(await _httpClient.send(request));
+      },
     );
   }
 
@@ -72,19 +101,50 @@ class ApiClient {
     required Future<http.Response> Function(Map<String, String> headers)
         requestFactory,
   }) async {
-    http.Response response = await requestFactory(await _buildHeaders());
+    http.Response response = await _performHttpRequest(
+      requestFactory,
+      await _buildHeaders(),
+    );
     if (_shouldRecoverSession(path: path, response: response)) {
       final bool recovered = await _tryRefreshSession();
       if (!recovered) {
-        throw const ApiException('登录状态已失效，请重新登录');
+        throw const ApiException(
+          '登录状态已失效，请重新登录',
+          kind: ApiExceptionKind.sessionExpired,
+        );
       }
-      response = await requestFactory(await _buildHeaders());
+      response = await _performHttpRequest(
+        requestFactory,
+        await _buildHeaders(),
+      );
       if (response.statusCode == 401) {
         await _sessionStore?.clear();
-        throw const ApiException('登录状态已失效，请重新登录');
+        throw const ApiException(
+          '登录状态已失效，请重新登录',
+          kind: ApiExceptionKind.sessionExpired,
+        );
       }
     }
-    return _extractData(response);
+    return _extractData(path: path, response: response);
+  }
+
+  Future<http.Response> _performHttpRequest(
+    Future<http.Response> Function(Map<String, String> headers) requestFactory,
+    Map<String, String> headers,
+  ) async {
+    try {
+      return await requestFactory(headers).timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const ApiException(
+        '网络请求超时，请稍后重试',
+        kind: ApiExceptionKind.timeout,
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        '网络连接不可用，请检查网络后重试',
+        kind: ApiExceptionKind.network,
+      );
+    }
   }
 
   bool _shouldRecoverSession({
@@ -127,51 +187,66 @@ class ApiClient {
       return false;
     }
 
-    try {
-      final http.Response response = await _httpClient.post(
+    final http.Response response = await _performHttpRequest(
+      (Map<String, String> headers) => _httpClient.post(
         _baseUri.resolve('/api/v1/auth/refresh'),
-        headers: await _buildHeaders(includeAuthorization: false),
+        headers: headers,
         body: jsonEncode(<String, Object?>{
           'refresh_token': refreshToken,
         }),
-      );
-      final Map<String, dynamic>? payload = _decodeEnvelope(response);
-      if (payload == null ||
-          response.statusCode < 200 ||
-          response.statusCode >= 300) {
-        await sessionStore.clear();
-        return false;
-      }
+      ),
+      await _buildHeaders(includeAuthorization: false),
+    );
 
-      final String code = payload['code']?.toString() ?? '';
-      if (code != 'OK') {
-        await sessionStore.clear();
-        return false;
-      }
-
-      final Object? data = payload['data'];
-      if (data is! Map<String, dynamic>) {
-        await sessionStore.clear();
-        return false;
-      }
-
-      final String accessToken = data['access_token']?.toString().trim() ?? '';
-      final String nextRefreshToken =
-          data['refresh_token']?.toString().trim() ?? '';
-      if (accessToken.isEmpty || nextRefreshToken.isEmpty) {
-        await sessionStore.clear();
-        return false;
-      }
-
-      await sessionStore.saveSession(
-        accessToken: accessToken,
-        refreshToken: nextRefreshToken,
-      );
-      return true;
-    } catch (_) {
+    if (response.statusCode == 401 || response.statusCode == 403) {
       await sessionStore.clear();
       return false;
     }
+
+    final Map<String, dynamic>? payload = _decodeEnvelope(response);
+    if (payload == null) {
+      throw const ApiException(
+        '登录状态暂时无法确认，请稍后重试',
+        kind: ApiExceptionKind.server,
+      );
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _readEnvelopeMessage(payload, fallback: '登录状态暂时无法刷新，请稍后重试'),
+        kind: ApiExceptionKind.server,
+      );
+    }
+
+    final String code = payload['code']?.toString() ?? '';
+    if (code != 'OK') {
+      await sessionStore.clear();
+      return false;
+    }
+
+    final Object? data = payload['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException(
+        '登录状态返回结构不合法',
+        kind: ApiExceptionKind.data,
+      );
+    }
+
+    final String accessToken = data['access_token']?.toString().trim() ?? '';
+    final String nextRefreshToken =
+        data['refresh_token']?.toString().trim() ?? '';
+    if (accessToken.isEmpty || nextRefreshToken.isEmpty) {
+      throw const ApiException(
+        '登录状态返回结构不完整',
+        kind: ApiExceptionKind.data,
+      );
+    }
+
+    await sessionStore.saveSession(
+      accessToken: accessToken,
+      refreshToken: nextRefreshToken,
+    );
+    return true;
   }
 
   Future<Map<String, String>> _buildHeaders({
@@ -194,14 +269,32 @@ class ApiClient {
     return headers;
   }
 
-  dynamic _extractData(http.Response response) {
+  dynamic _extractData({
+    required String path,
+    required http.Response response,
+  }) {
     final Map<String, dynamic>? payload = _decodeEnvelope(response);
     if (payload == null) {
-      throw const ApiException('接口返回结构不合法');
+      throw const ApiException(
+        '服务返回异常，请稍后重试',
+        kind: ApiExceptionKind.data,
+      );
+    }
+
+    if (response.statusCode == 401 && !_isAuthPath(path)) {
+      throw const ApiException(
+        '登录状态已失效，请重新登录',
+        kind: ApiExceptionKind.sessionExpired,
+      );
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(_readEnvelopeMessage(payload, fallback: '请求失败'));
+      throw ApiException(
+        _readEnvelopeMessage(payload, fallback: '请求失败'),
+        kind: response.statusCode >= 500
+            ? ApiExceptionKind.server
+            : ApiExceptionKind.business,
+      );
     }
 
     final String code = payload['code']?.toString() ?? '';
@@ -213,14 +306,18 @@ class ApiClient {
   }
 
   Map<String, dynamic>? _decodeEnvelope(http.Response response) {
-    final dynamic payload = jsonDecode(response.body);
-    if (payload is Map<String, dynamic>) {
-      return payload;
-    }
-    if (payload is Map) {
-      return payload.map(
-        (Object? key, Object? value) => MapEntry(key.toString(), value),
-      );
+    try {
+      final dynamic payload = jsonDecode(response.body);
+      if (payload is Map<String, dynamic>) {
+        return payload;
+      }
+      if (payload is Map) {
+        return payload.map(
+          (Object? key, Object? value) => MapEntry(key.toString(), value),
+        );
+      }
+    } on FormatException {
+      return null;
     }
     return null;
   }

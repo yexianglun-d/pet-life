@@ -17,6 +17,7 @@ public final class ModerationReportEntity {
     private final String reasonDetail;
     private final String status;
     private final String processedBy;
+    private final String adminNotes;
     private final LocalDateTime processedAt;
     private final LocalDateTime createdAt;
     private final Long reporterUserId;
@@ -39,6 +40,7 @@ public final class ModerationReportEntity {
         String reasonDetail,
         String status,
         String processedBy,
+        String adminNotes,
         LocalDateTime processedAt,
         LocalDateTime createdAt,
         Long reporterUserId,
@@ -60,6 +62,7 @@ public final class ModerationReportEntity {
         this.reasonDetail = reasonDetail;
         this.status = status;
         this.processedBy = processedBy;
+        this.adminNotes = adminNotes;
         this.processedAt = processedAt;
         this.createdAt = createdAt;
         this.reporterUserId = reporterUserId;
@@ -101,6 +104,10 @@ public final class ModerationReportEntity {
 
     public String getProcessedBy() {
         return processedBy;
+    }
+
+    public String getAdminNotes() {
+        return adminNotes;
     }
 
     public LocalDateTime getProcessedAt() {

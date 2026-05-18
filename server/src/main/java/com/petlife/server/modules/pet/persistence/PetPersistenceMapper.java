@@ -4,6 +4,7 @@ import com.petlife.server.modules.pet.persistence.command.ArchivePetCommand;
 import com.petlife.server.modules.pet.persistence.command.CreatePetCommand;
 import com.petlife.server.modules.pet.persistence.command.DeletePetCommand;
 import com.petlife.server.modules.pet.persistence.command.UpdatePetProfileCommand;
+import com.petlife.server.modules.pet.persistence.dataobject.AdminPetDataObject;
 import com.petlife.server.modules.pet.persistence.dataobject.PetProfileDataObject;
 import java.util.List;
 import org.apache.ibatis.annotations.Insert;
@@ -192,6 +193,110 @@ public interface PetPersistenceMapper {
         @Param("userId") Long userId,
         @Param("petId") Long petId
     );
+
+    @Select("""
+        SELECT
+          p.id AS petId,
+          p.family_id AS familyId,
+          p.owner_user_id AS ownerUserId,
+          p.pet_name AS petName,
+          p.pet_type AS petType,
+          p.breed AS breed,
+          p.gender AS gender,
+          p.birthday AS birthday,
+          p.adopt_date AS adoptDate,
+          p.neuter_status AS neuterStatus,
+          p.avatar_url AS avatarUrl,
+          p.weight_kg AS weightKg,
+          p.allergy_notes AS allergyNotes,
+          p.medical_history AS medicalHistory,
+          p.status AS status,
+          p.created_at AS createdAt,
+          p.updated_at AS updatedAt,
+          f.family_name AS familyName,
+          f.status AS familyStatus,
+          (
+            SELECT COUNT(1)
+            FROM family_members joined_member
+            WHERE joined_member.family_id = p.family_id
+              AND joined_member.invite_status = 'joined'
+          ) AS familyMemberCount,
+          owner.nickname AS ownerNickname,
+          owner.mobile AS ownerMobile
+        FROM pets p
+        LEFT JOIN families f
+          ON f.id = p.family_id
+         AND f.deleted_at IS NULL
+        LEFT JOIN users owner
+          ON owner.id = p.owner_user_id
+         AND owner.deleted_at IS NULL
+        WHERE p.deleted_at IS NULL
+          AND (
+            #{keyword} IS NULL
+            OR p.pet_name LIKE CONCAT('%', #{keyword}, '%')
+            OR p.breed LIKE CONCAT('%', #{keyword}, '%')
+            OR f.family_name LIKE CONCAT('%', #{keyword}, '%')
+            OR owner.nickname LIKE CONCAT('%', #{keyword}, '%')
+            OR owner.mobile LIKE CONCAT('%', #{keyword}, '%')
+          )
+          AND (#{petName} IS NULL OR p.pet_name LIKE CONCAT('%', #{petName}, '%'))
+          AND (#{petType} IS NULL OR p.pet_type = #{petType})
+          AND (#{status} IS NULL OR p.status = #{status})
+          AND (#{ownerMobile} IS NULL OR owner.mobile LIKE CONCAT('%', #{ownerMobile}, '%'))
+          AND (#{familyId} IS NULL OR p.family_id = #{familyId})
+        ORDER BY p.updated_at DESC, p.id DESC
+        LIMIT 200
+        """)
+    List<AdminPetDataObject> listAdminPets(
+        @Param("keyword") String keyword,
+        @Param("petName") String petName,
+        @Param("petType") String petType,
+        @Param("status") String status,
+        @Param("ownerMobile") String ownerMobile,
+        @Param("familyId") Long familyId
+    );
+
+    @Select("""
+        SELECT
+          p.id AS petId,
+          p.family_id AS familyId,
+          p.owner_user_id AS ownerUserId,
+          p.pet_name AS petName,
+          p.pet_type AS petType,
+          p.breed AS breed,
+          p.gender AS gender,
+          p.birthday AS birthday,
+          p.adopt_date AS adoptDate,
+          p.neuter_status AS neuterStatus,
+          p.avatar_url AS avatarUrl,
+          p.weight_kg AS weightKg,
+          p.allergy_notes AS allergyNotes,
+          p.medical_history AS medicalHistory,
+          p.status AS status,
+          p.created_at AS createdAt,
+          p.updated_at AS updatedAt,
+          f.family_name AS familyName,
+          f.status AS familyStatus,
+          (
+            SELECT COUNT(1)
+            FROM family_members joined_member
+            WHERE joined_member.family_id = p.family_id
+              AND joined_member.invite_status = 'joined'
+          ) AS familyMemberCount,
+          owner.nickname AS ownerNickname,
+          owner.mobile AS ownerMobile
+        FROM pets p
+        LEFT JOIN families f
+          ON f.id = p.family_id
+         AND f.deleted_at IS NULL
+        LEFT JOIN users owner
+          ON owner.id = p.owner_user_id
+         AND owner.deleted_at IS NULL
+        WHERE p.id = #{petId}
+          AND p.deleted_at IS NULL
+        LIMIT 1
+        """)
+    AdminPetDataObject findAdminPetById(@Param("petId") Long petId);
 
     @Insert("""
         INSERT INTO pets (

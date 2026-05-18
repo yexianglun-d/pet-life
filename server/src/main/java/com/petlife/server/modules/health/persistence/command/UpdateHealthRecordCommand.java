@@ -13,7 +13,11 @@ public class UpdateHealthRecordCommand {
     private String recordType;
     private String title;
     private LocalDateTime occurredAt;
+    private String hospitalName;
+    private String doctorName;
+    private String severityLevel;
     private String resultSummary;
+    private String attachmentsJson;
     private String notes;
 
     public Long getHealthRecordId() {
@@ -64,12 +68,44 @@ public class UpdateHealthRecordCommand {
         this.occurredAt = occurredAt;
     }
 
+    public String getHospitalName() {
+        return hospitalName;
+    }
+
+    public void setHospitalName(String hospitalName) {
+        this.hospitalName = hospitalName;
+    }
+
+    public String getDoctorName() {
+        return doctorName;
+    }
+
+    public void setDoctorName(String doctorName) {
+        this.doctorName = doctorName;
+    }
+
+    public String getSeverityLevel() {
+        return severityLevel;
+    }
+
+    public void setSeverityLevel(String severityLevel) {
+        this.severityLevel = severityLevel;
+    }
+
     public String getResultSummary() {
         return resultSummary;
     }
 
     public void setResultSummary(String resultSummary) {
         this.resultSummary = resultSummary;
+    }
+
+    public String getAttachmentsJson() {
+        return attachmentsJson;
+    }
+
+    public void setAttachmentsJson(String attachmentsJson) {
+        this.attachmentsJson = attachmentsJson;
     }
 
     public String getNotes() {

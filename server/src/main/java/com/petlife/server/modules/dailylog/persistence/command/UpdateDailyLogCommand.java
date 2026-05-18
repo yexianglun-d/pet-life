@@ -10,6 +10,7 @@ public class UpdateDailyLogCommand {
     private Long petId;
     private Long dailyLogId;
     private String content;
+    private String mediaListJson;
     private String tagsJson;
     private String visibility;
     private Boolean syncToCommunity;
@@ -37,6 +38,14 @@ public class UpdateDailyLogCommand {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public String getMediaListJson() {
+        return mediaListJson;
+    }
+
+    public void setMediaListJson(String mediaListJson) {
+        this.mediaListJson = mediaListJson;
     }
 
     public String getTagsJson() {

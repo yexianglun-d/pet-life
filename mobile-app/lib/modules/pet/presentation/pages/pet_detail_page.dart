@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/pet/presentation/pages/pet_editor_page.dart';
@@ -92,15 +93,15 @@ class _PetDetailPageState extends State<PetDetailPage> {
       return;
     }
 
-    final bool confirmed = await _showActionSheet(
-          title: archiveStatus == 'memorial' ? '纪念归档这只宠物吗' : '将这只宠物标记为送养吗',
-          description: archiveStatus == 'memorial'
-              ? '归档后，它会从当前宠物列表中移出，但这份成长记录仍然会被妥善保留。'
-              : '送养归档后，它会从当前宠物列表中移出，家庭成员的当前宠物也会自动重建。',
-          confirmLabel: archiveStatus == 'memorial' ? '确认纪念归档' : '确认送养归档',
-          confirmColor: AppThemePalette.primaryDeep,
-        ) ??
-        false;
+    final bool confirmed = await showCompanionConfirmSheet(
+      context,
+      title: archiveStatus == 'memorial' ? '纪念归档这只宠物吗' : '将这只宠物标记为送养吗',
+      description: archiveStatus == 'memorial'
+          ? '归档后，它会从当前宠物列表中移出，但这份成长记录仍然会被妥善保留。'
+          : '送养归档后，它会从当前宠物列表中移出，家庭成员的当前宠物也会自动重建。',
+      confirmLabel: archiveStatus == 'memorial' ? '确认纪念归档' : '确认送养归档',
+      confirmColor: AppThemePalette.primaryDeep,
+    );
     if (!confirmed) {
       return;
     }
@@ -122,19 +123,16 @@ class _PetDetailPageState extends State<PetDetailPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(archiveStatus == 'memorial' ? '已纪念归档' : '已标记为送养'),
-        ),
+      showCompanionSuccessFeedback(
+        context,
+        archiveStatus == 'memorial' ? '已纪念归档' : '已标记为送养',
       );
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -149,13 +147,13 @@ class _PetDetailPageState extends State<PetDetailPage> {
       return;
     }
 
-    final bool confirmed = await _showActionSheet(
-          title: '删除这只宠物吗',
-          description: '删除后会把它从当前列表中移出，家庭成员的当前宠物会自动重建。这个动作不可恢复，请再次确认。',
-          confirmLabel: '确认删除',
-          confirmColor: const Color(0xFFC75B56),
-        ) ??
-        false;
+    final bool confirmed = await showCompanionConfirmSheet(
+      context,
+      title: '删除这只宠物吗',
+      description: '删除后会把它从当前列表中移出，家庭成员的当前宠物会自动重建。这个动作不可恢复，请再次确认。',
+      confirmLabel: '确认删除',
+      confirmColor: const Color(0xFFC75B56),
+    );
     if (!confirmed) {
       return;
     }
@@ -174,17 +172,13 @@ class _PetDetailPageState extends State<PetDetailPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('宠物已删除')),
-      );
+      showCompanionSuccessFeedback(context, '宠物已删除');
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -192,60 +186,6 @@ class _PetDetailPageState extends State<PetDetailPage> {
         });
       }
     }
-  }
-
-  Future<bool?> _showActionSheet({
-    required String title,
-    required String description,
-    required String confirmLabel,
-    required Color confirmColor,
-  }) {
-    return showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: CompanionCard(
-              padding: const EdgeInsets.all(20),
-              radius: 28,
-              color: AppThemePalette.surface,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 10),
-                  Text(description,
-                      style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: confirmColor,
-                      ),
-                      onPressed: () => Navigator.of(context).pop(true),
-                      child: Text(confirmLabel),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text('先取消'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   @override

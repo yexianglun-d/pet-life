@@ -331,7 +331,10 @@ String _buildDescription(HealthRecordSnapshot record) {
     _formatDateTimeLabel(record.occurredAt),
     if (record.value != null && record.unit != null)
       '${record.value} ${record.unit}',
-    if (record.notes != null && record.notes!.trim().isNotEmpty) record.notes!,
+    if (record.resultSummary != null && record.resultSummary!.trim().isNotEmpty)
+      record.resultSummary!,
+    if (record.nextReminderAt != null)
+      '下次 ${_formatDateTimeLabel(record.nextReminderAt!)}',
   ];
   return parts.join(' · ');
 }

@@ -2,9 +2,12 @@ package com.petlife.server.modules.family.persistence;
 
 import com.petlife.server.modules.family.persistence.command.CreateFamilyCommand;
 import com.petlife.server.modules.family.persistence.command.CreateFamilyInvitationCommand;
+import com.petlife.server.modules.family.persistence.dataobject.AdminFamilyDataObject;
+import com.petlife.server.modules.family.persistence.dataobject.AdminFamilyPetDataObject;
 import com.petlife.server.modules.family.persistence.dataobject.FamilyInvitationDataObject;
 import com.petlife.server.modules.family.persistence.dataobject.FamilyMemberDataObject;
 import com.petlife.server.modules.family.persistence.dataobject.FamilyProfileDataObject;
+import java.util.List;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -12,7 +15,6 @@ import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
-import java.util.List;
 
 /**
  * 家庭共养持久化 Mapper。
@@ -73,6 +75,155 @@ public interface FamilyPersistenceMapper {
         LIMIT 1
         """)
     FamilyProfileDataObject findFamilyProfileById(@Param("familyId") Long familyId);
+
+    @Select("""
+        SELECT
+          f.id AS familyId,
+          f.family_name AS familyName,
+          f.owner_user_id AS ownerUserId,
+          owner.nickname AS ownerNickname,
+          owner.mobile AS ownerMobile,
+          f.status AS status,
+          f.created_at AS createdAt,
+          f.updated_at AS updatedAt,
+          (
+            SELECT COUNT(1)
+            FROM family_members joined_member
+            WHERE joined_member.family_id = f.id
+              AND joined_member.invite_status = 'joined'
+          ) AS memberCount,
+          (
+            SELECT COUNT(1)
+            FROM pets family_pet
+            WHERE family_pet.family_id = f.id
+              AND family_pet.deleted_at IS NULL
+          ) AS petCount
+        FROM families f
+        LEFT JOIN users owner ON owner.id = f.owner_user_id
+        WHERE f.deleted_at IS NULL
+          AND (
+            #{keyword} IS NULL
+            OR f.family_name LIKE CONCAT('%', #{keyword}, '%')
+            OR owner.nickname LIKE CONCAT('%', #{keyword}, '%')
+            OR owner.mobile LIKE CONCAT('%', #{keyword}, '%')
+            OR EXISTS (
+              SELECT 1
+              FROM family_members member_scope
+              LEFT JOIN users member_user ON member_user.id = member_scope.user_id
+              WHERE member_scope.family_id = f.id
+                AND member_scope.invite_status = 'joined'
+                AND (
+                  member_user.nickname LIKE CONCAT('%', #{keyword}, '%')
+                  OR member_user.mobile LIKE CONCAT('%', #{keyword}, '%')
+                )
+            )
+          )
+          AND (#{familyName} IS NULL OR f.family_name LIKE CONCAT('%', #{familyName}, '%'))
+          AND (
+            #{memberMobile} IS NULL
+            OR EXISTS (
+              SELECT 1
+              FROM family_members mobile_scope
+              JOIN users mobile_user ON mobile_user.id = mobile_scope.user_id
+              WHERE mobile_scope.family_id = f.id
+                AND mobile_scope.invite_status = 'joined'
+                AND mobile_user.mobile LIKE CONCAT('%', #{memberMobile}, '%')
+            )
+          )
+          AND (
+            #{memberRole} IS NULL
+            OR EXISTS (
+              SELECT 1
+              FROM family_members role_scope
+              WHERE role_scope.family_id = f.id
+                AND role_scope.invite_status = 'joined'
+                AND role_scope.role = #{memberRole}
+            )
+          )
+          AND (#{status} IS NULL OR f.status = #{status})
+        ORDER BY f.created_at DESC, f.id DESC
+        LIMIT 200
+        """)
+    List<AdminFamilyDataObject> listAdminFamilies(
+        @Param("keyword") String keyword,
+        @Param("familyName") String familyName,
+        @Param("memberMobile") String memberMobile,
+        @Param("memberRole") String memberRole,
+        @Param("status") Integer status
+    );
+
+    @Select("""
+        SELECT
+          f.id AS familyId,
+          f.family_name AS familyName,
+          f.owner_user_id AS ownerUserId,
+          owner.nickname AS ownerNickname,
+          owner.mobile AS ownerMobile,
+          f.status AS status,
+          f.created_at AS createdAt,
+          f.updated_at AS updatedAt,
+          (
+            SELECT COUNT(1)
+            FROM family_members joined_member
+            WHERE joined_member.family_id = f.id
+              AND joined_member.invite_status = 'joined'
+          ) AS memberCount,
+          (
+            SELECT COUNT(1)
+            FROM pets family_pet
+            WHERE family_pet.family_id = f.id
+              AND family_pet.deleted_at IS NULL
+          ) AS petCount
+        FROM families f
+        LEFT JOIN users owner ON owner.id = f.owner_user_id
+        WHERE f.id = #{familyId}
+          AND f.deleted_at IS NULL
+        LIMIT 1
+        """)
+    AdminFamilyDataObject findAdminFamilyById(@Param("familyId") Long familyId);
+
+    @Select("""
+        SELECT
+          fm.id AS memberId,
+          fm.family_id AS familyId,
+          fm.user_id AS userId,
+          u.nickname AS nickname,
+          u.mobile AS mobile,
+          fm.role AS role,
+          fm.invite_status AS inviteStatus,
+          fm.joined_at AS joinedAt
+        FROM family_members fm
+        LEFT JOIN users u
+          ON u.id = fm.user_id
+         AND u.deleted_at IS NULL
+        WHERE fm.family_id = #{familyId}
+          AND fm.invite_status = 'joined'
+        ORDER BY CASE fm.role
+          WHEN 'owner' THEN 1
+          WHEN 'admin' THEN 2
+          ELSE 3
+        END ASC, fm.id ASC
+        """)
+    List<FamilyMemberDataObject> listAdminFamilyMembersByFamilyId(@Param("familyId") Long familyId);
+
+    @Select("""
+        SELECT
+          p.id AS petId,
+          p.family_id AS familyId,
+          p.pet_name AS petName,
+          p.pet_type AS petType,
+          p.breed AS breed,
+          p.status AS status,
+          p.owner_user_id AS ownerUserId,
+          owner.nickname AS ownerNickname,
+          owner.mobile AS ownerMobile
+        FROM pets p
+        LEFT JOIN users owner ON owner.id = p.owner_user_id
+        WHERE p.family_id = #{familyId}
+          AND p.deleted_at IS NULL
+        ORDER BY p.id ASC
+        """)
+    List<AdminFamilyPetDataObject> listAdminFamilyPetsByFamilyId(@Param("familyId") Long familyId);
 
     @Insert("""
         INSERT INTO families (
