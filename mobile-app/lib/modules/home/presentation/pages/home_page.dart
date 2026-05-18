@@ -395,12 +395,9 @@ class _QuickRecordSection extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: submittingActionKey == action.key
-                            ? Padding(
-                                padding: const EdgeInsets.all(10),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: action.accentColor,
-                                ),
+                            ? Icon(
+                                Icons.hourglass_top_rounded,
+                                color: action.accentColor,
                               )
                             : Icon(action.icon, color: action.accentColor),
                       ),

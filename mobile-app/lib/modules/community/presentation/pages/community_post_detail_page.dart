@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
@@ -416,7 +417,12 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
 
     if (_isLoading && post == null) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: CompanionPageLoading(
+          title: '正在整理社区内容',
+          description: '帖子、评论和互动状态会按详情页结构准备好。',
+          icon: Icons.forum_outlined,
+          layout: CompanionLoadingLayout.detail,
+        ),
       );
     }
 

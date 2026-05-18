@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
@@ -99,7 +100,12 @@ class _MessageCenterPageState extends State<MessageCenterPage> {
           builder: (BuildContext context,
               AsyncSnapshot<NotificationInboxSnapshot> snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
+              return const CompanionPageLoading(
+                title: '正在整理消息中心',
+                description: '系统消息、提醒和预约通知会按当前筛选条件排好。',
+                icon: Icons.notifications_active_outlined,
+                layout: CompanionLoadingLayout.list,
+              );
             }
 
             if (snapshot.hasError || !snapshot.hasData) {

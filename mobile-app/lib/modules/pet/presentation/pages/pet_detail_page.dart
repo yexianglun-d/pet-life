@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/pet/presentation/pages/pet_editor_page.dart';
@@ -214,7 +215,12 @@ class _PetDetailPageState extends State<PetDetailPage> {
 
   Widget _buildBody(PetDetailSnapshot? pet) {
     if (_isLoading && pet == null) {
-      return const Center(child: CircularProgressIndicator());
+      return CompanionPageLoading(
+        title: '正在整理${widget.initialPetName}的档案',
+        description: '基础资料、照护备注和风险操作会保持详情页结构先铺好。',
+        icon: Icons.pets_rounded,
+        layout: CompanionLoadingLayout.detail,
+      );
     }
 
     if (_errorMessage != null && pet == null) {

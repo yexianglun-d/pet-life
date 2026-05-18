@@ -24,6 +24,7 @@ public enum ResponseCode {
     PET_PERMISSION_DENIED("PET_PERMISSION_DENIED", "no permission for current pet"),
     HEALTH_RECORD_NOT_FOUND("HEALTH_RECORD_NOT_FOUND", "health record does not exist"),
     REMINDER_NOT_FOUND("REMINDER_NOT_FOUND", "reminder does not exist"),
+    REMINDER_TEMPLATE_NOT_FOUND("REMINDER_TEMPLATE_NOT_FOUND", "reminder template does not exist"),
     DAILY_LOG_NOT_FOUND("DAILY_LOG_NOT_FOUND", "daily log does not exist"),
     COMMUNITY_POST_NOT_FOUND("COMMUNITY_POST_NOT_FOUND", "community post does not exist"),
     MODERATION_REPORT_NOT_FOUND("MODERATION_REPORT_NOT_FOUND", "moderation report does not exist"),

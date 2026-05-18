@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/pet/presentation/pages/pet_detail_page.dart';
@@ -222,9 +223,8 @@ class _PetManagementPageState extends State<PetManagementPage> {
 
   Widget _buildPetList() {
     if (_isLoading && _pets.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(child: CircularProgressIndicator()),
+      return const CompanionSkeletonList(
+        itemCount: 3,
       );
     }
 

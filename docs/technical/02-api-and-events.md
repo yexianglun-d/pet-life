@@ -1154,10 +1154,15 @@
 - 时间轴事件返回 `timeline_event`、`pet`、`source_status`，其中 `source_status` 支持 `active`、`deleted`、`missing`、`unsupported`，用于排查派生事件与源记录是否一致。
 - 当前内容查询接口为后台只读治理能力，不引入删除、恢复或修复写操作；后续如要做数据修复，需先定义问题类型、状态机与审计动作。
 
-当前已落地的后台提醒查询接口：
+当前已落地的后台提醒接口：
 
 - `GET /api/v1/admin/reminders?keyword=驱虫&status=completed&reminder_type=deworming&reminder_mode=single&pet_id=10001&family_id=30001&owner_user_id=20001&handler_user_id=20001&source_record_id=70001&due_from=2026-05-01T00:00:00+08:00&due_to=2026-05-31T23:59:59+08:00`
 - `GET /api/v1/admin/reminders/{reminder_id}`
+- `GET /api/v1/admin/reminder-templates?keyword=疫苗&reminder_type=vaccine&default_reminder_mode=cycle&applicable_pet_type=dog&enabled=true`
+- `GET /api/v1/admin/reminder-templates/{template_id}`
+- `POST /api/v1/admin/reminder-templates`
+- `PATCH /api/v1/admin/reminder-templates/{template_id}`
+- `PATCH /api/v1/admin/reminder-templates/{template_id}/status`
 
 响应约定：
 
@@ -1165,11 +1170,39 @@
 - `pet` 返回宠物、家庭和主人上下文，用于后台按归属排查。
 - `handler` 返回提醒完成或跳过时的处理人；未处理提醒返回 `null`。
 - `source_record` 返回健康记录派生提醒的来源记录上下文；手工创建提醒返回 `null`。
+- 提醒模板返回 `template_id`、`template_name`、`reminder_type`、`default_reminder_mode`、`default_advance_value`、`default_advance_unit`、`default_cycle_value`、`default_cycle_unit`、`applicable_pet_type`、`enabled`、`sort_order`、`created_at`、`updated_at`。
+
+`POST /api/v1/admin/reminder-templates` 与 `PATCH /api/v1/admin/reminder-templates/{template_id}` 请求关键字段：
+
+```json
+{
+  "template_name": "年度疫苗提醒",
+  "reminder_type": "vaccine",
+  "default_reminder_mode": "cycle",
+  "default_advance_value": 7,
+  "default_advance_unit": "day",
+  "default_cycle_value": 12,
+  "default_cycle_unit": "month",
+  "applicable_pet_type": "dog",
+  "enabled": true,
+  "sort_order": 10
+}
+```
+
+`PATCH /api/v1/admin/reminder-templates/{template_id}/status` 请求关键字段：
+
+```json
+{
+  "enabled": false
+}
+```
 
 说明：
 
-- 该接口为后台只读查询能力，不新增提醒模板写能力。
+- 系统提醒查询为后台只读能力；提醒模板管理为后台配置写能力，暂不接入用户端模板选择。
 - 后台查询跨家庭读取未软删提醒和未软删宠物，不复用用户端宠物访问权限视角。
+- `default_reminder_mode=single` 时不能传默认周期字段；`default_reminder_mode=cycle` 时必须传默认周期值和单位。
+- 提醒模板创建、更新和启停会写入后台审计日志，当前操作者仍通过 `X-Admin-Operator` 表达，不引入真实后台账号体系。
 
 当前已落地的后台服务中心接口：
 

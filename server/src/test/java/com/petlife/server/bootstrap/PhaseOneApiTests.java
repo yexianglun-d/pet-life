@@ -109,6 +109,27 @@ class PhaseOneApiTests {
               KEY idx_audit_logs_operator (operator_type, operator_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='审计日志表'
             """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS reminder_templates (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              template_name VARCHAR(100) NOT NULL COMMENT '模板名称',
+              reminder_type VARCHAR(30) NOT NULL COMMENT '提醒类型',
+              default_reminder_mode VARCHAR(20) NOT NULL COMMENT '默认提醒模式：single/cycle',
+              default_advance_value INT NOT NULL DEFAULT 0 COMMENT '默认提前量',
+              default_advance_unit VARCHAR(20) NOT NULL DEFAULT 'day' COMMENT '默认提前单位：day/week/month',
+              default_cycle_value INT DEFAULT NULL COMMENT '默认周期值',
+              default_cycle_unit VARCHAR(20) DEFAULT NULL COMMENT '默认周期单位：day/week/month',
+              applicable_pet_type VARCHAR(20) NOT NULL DEFAULT 'all' COMMENT '适用宠物类型：all/cat/dog/other',
+              enabled TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用：0-否 1-是',
+              sort_order INT NOT NULL DEFAULT 0 COMMENT '展示排序',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              deleted_at DATETIME DEFAULT NULL COMMENT '软删除时间',
+              PRIMARY KEY (id),
+              KEY idx_reminder_templates_type_enabled (reminder_type, enabled),
+              KEY idx_reminder_templates_pet_sort (applicable_pet_type, sort_order)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='提醒模板表'
+            """);
         ensureCommunityReportAdminNotesColumn();
     }
 
@@ -1164,6 +1185,141 @@ class PhaseOneApiTests {
     @Test
     void shouldRejectAdminReminderQueryWithoutAccessToken() throws Exception {
         mockMvc.perform(get("/api/v1/admin/reminders"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+    }
+
+    @Test
+    void shouldManageReminderTemplatesFromAdminEndpoints() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String templateName = "后台提醒模板-" + System.nanoTime();
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/admin/reminder-templates")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header("X-Admin-Operator", "reminder-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "template_name": "%s",
+                      "reminder_type": "vaccine",
+                      "default_reminder_mode": "cycle",
+                      "default_advance_value": 7,
+                      "default_advance_unit": "day",
+                      "default_cycle_value": 12,
+                      "default_cycle_unit": "month",
+                      "applicable_pet_type": "dog",
+                      "enabled": true,
+                      "sort_order": 3
+                    }
+                    """.formatted(templateName)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.template_name", is(templateName)))
+            .andExpect(jsonPath("$.data.reminder_type", is("vaccine")))
+            .andExpect(jsonPath("$.data.default_reminder_mode", is("cycle")))
+            .andExpect(jsonPath("$.data.default_advance_value", is(7)))
+            .andExpect(jsonPath("$.data.default_cycle_value", is(12)))
+            .andExpect(jsonPath("$.data.applicable_pet_type", is("dog")))
+            .andExpect(jsonPath("$.data.enabled", is(true)))
+            .andReturn();
+        String templateId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.data.template_id");
+
+        mockMvc.perform(get("/api/v1/admin/reminder-templates")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .param("keyword", templateName)
+                .param("reminder_type", "vaccine")
+                .param("default_reminder_mode", "cycle")
+                .param("applicable_pet_type", "dog")
+                .param("enabled", "true"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.template_id == '%s')].template_name"
+                .formatted(templateId), is(List.of(templateName))))
+            .andExpect(jsonPath("$.data[?(@.template_id == '%s')].default_cycle_unit"
+                .formatted(templateId), is(List.of("month"))));
+
+        mockMvc.perform(get("/api/v1/admin/reminder-templates/%s".formatted(templateId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.template_id", is(templateId)))
+            .andExpect(jsonPath("$.data.created_at").exists())
+            .andExpect(jsonPath("$.data.updated_at").exists());
+
+        String updatedTemplateName = templateName + "-已更新";
+        mockMvc.perform(patch("/api/v1/admin/reminder-templates/%s".formatted(templateId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header("X-Admin-Operator", "reminder-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "template_name": "%s",
+                      "reminder_type": "examination",
+                      "default_reminder_mode": "single",
+                      "default_advance_value": 1,
+                      "default_advance_unit": "week",
+                      "applicable_pet_type": "cat",
+                      "enabled": true,
+                      "sort_order": 8
+                    }
+                    """.formatted(updatedTemplateName)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.template_name", is(updatedTemplateName)))
+            .andExpect(jsonPath("$.data.reminder_type", is("examination")))
+            .andExpect(jsonPath("$.data.default_reminder_mode", is("single")))
+            .andExpect(jsonPath("$.data.default_cycle_value", nullValue()))
+            .andExpect(jsonPath("$.data.default_cycle_unit", nullValue()))
+            .andExpect(jsonPath("$.data.applicable_pet_type", is("cat")))
+            .andExpect(jsonPath("$.data.sort_order", is(8)));
+
+        mockMvc.perform(patch("/api/v1/admin/reminder-templates/%s/status".formatted(templateId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header("X-Admin-Operator", "reminder-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "enabled": false
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.template_id", is(templateId)))
+            .andExpect(jsonPath("$.data.enabled", is(false)));
+
+        mockMvc.perform(get("/api/v1/admin/reminder-templates")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .param("keyword", updatedTemplateName)
+                .param("reminder_type", "examination")
+                .param("default_reminder_mode", "single")
+                .param("applicable_pet_type", "cat")
+                .param("enabled", "false"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.template_id == '%s')].enabled"
+                .formatted(templateId), is(List.of(false))));
+    }
+
+    @Test
+    void shouldRejectInvalidReminderTemplateCycleConfig() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/reminder-templates")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "template_name": "错误模板",
+                      "reminder_type": "custom",
+                      "default_reminder_mode": "single",
+                      "default_advance_value": 0,
+                      "default_advance_unit": "day",
+                      "default_cycle_value": 1,
+                      "default_cycle_unit": "month",
+                      "applicable_pet_type": "all",
+                      "enabled": true,
+                      "sort_order": 0
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code", is("BAD_REQUEST")));
+    }
+
+    @Test
+    void shouldRejectAdminReminderTemplateWithoutAccessToken() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/reminder-templates"))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
     }

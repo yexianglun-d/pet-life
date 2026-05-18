@@ -61,6 +61,7 @@ public class GlobalExceptionHandler {
                  PET_NOT_FOUND,
                  HEALTH_RECORD_NOT_FOUND,
                  REMINDER_NOT_FOUND,
+                 REMINDER_TEMPLATE_NOT_FOUND,
                  DAILY_LOG_NOT_FOUND,
                  COMMUNITY_POST_NOT_FOUND,
                  MODERATION_REPORT_NOT_FOUND,

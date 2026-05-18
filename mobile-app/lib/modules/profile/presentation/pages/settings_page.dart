@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/profile/presentation/pages/city_selection_page.dart';
@@ -229,7 +230,12 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildBody() {
     if (_isLoading && _settings == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const CompanionPageLoading(
+        title: '正在整理设置',
+        description: '昵称、城市和通知偏好会按当前账号状态准备好。',
+        icon: Icons.manage_accounts_outlined,
+        layout: CompanionLoadingLayout.detail,
+      );
     }
 
     if (_errorMessage != null && _settings == null) {

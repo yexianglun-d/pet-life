@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/health/presentation/pages/health_record_editor_page.dart';
@@ -202,7 +203,12 @@ class _HealthRecordDetailPageState extends State<HealthRecordDetailPage> {
 
   Widget _buildBody(HealthRecordSnapshot? healthRecord) {
     if (_isLoading && healthRecord == null) {
-      return const Center(child: CircularProgressIndicator());
+      return CompanionPageLoading(
+        title: '正在整理${widget.petName}的健康记录',
+        description: '时间、结果和附件区域会先保持详情结构，加载完成后直接补上内容。',
+        icon: Icons.health_and_safety_outlined,
+        layout: CompanionLoadingLayout.detail,
+      );
     }
 
     if (_errorMessage != null && healthRecord == null) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/dailylog/presentation/pages/daily_log_editor_page.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
@@ -204,7 +205,12 @@ class _DailyLogDetailPageState extends State<DailyLogDetailPage> {
 
   Widget _buildBody(DailyLogSnapshot? dailyLog) {
     if (_isLoading && dailyLog == null) {
-      return const Center(child: CircularProgressIndicator());
+      return CompanionPageLoading(
+        title: '正在整理${widget.petName}的日常片段',
+        description: '内容、标签和照片视频区域会先保持详情结构，加载完成后直接补上内容。',
+        icon: Icons.auto_awesome_outlined,
+        layout: CompanionLoadingLayout.detail,
+      );
     }
 
     if (_errorMessage != null && dailyLog == null) {

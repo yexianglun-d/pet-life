@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_post_detail_page.dart';
@@ -149,11 +150,8 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
     required bool isLoading,
   }) {
     if (isLoading && posts.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 20),
-          child: CircularProgressIndicator(),
-        ),
+      return const CompanionSkeletonList(
+        itemCount: 3,
       );
     }
 

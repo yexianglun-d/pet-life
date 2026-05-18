@@ -7,6 +7,106 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-18 服务端后台提醒模板管理补齐对移动端无接口变更
+
+### 1. 新完成内容
+
+- 服务端补齐后台提醒模板管理接口：列表、详情、创建、更新、启停。
+- 本轮新增能力仅面向 admin-web 后续提醒模板页面，未修改 mobile-app 代码，未改变用户端提醒创建、列表、完成、跳过接口字段。
+- 提醒模板暂未接入用户端模板选择流程。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 服务端实现与 OpenAPI 变更见 `docs/project/server-thread-summary.md` 同日记录。
+- 本轮未修改 `mobile-app` 目录源码。
+
+### 3. 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 65, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- `git diff --check`：通过。
+- mobile-app 分析与测试未执行：本轮没有修改 mobile-app 源码或用户端接口字段。
+
+### 4. 未完成事项
+
+- mobile-app 侧继续按既有计划推进加载骨架、全局反馈组件化、社区发布页、话题页、问答详情页和关注关系。
+- 若后续要做用户端模板选择，需要服务端先明确用户端模板读取接口和字段契约。
+
+### 5. 风险或阻塞
+
+- 本轮没有用户端接口字段变更；移动端不能提前假设模板选择能力已经可用。
+- 后台真实账号体系、消息模板和通知渠道配置仍由服务端/admin-web 线程推进，不阻塞当前移动端提醒功能。
+
+### 6. 下一步建议
+
+1. mobile-app 继续按原计划推进当前 UI/交互收口任务。
+2. 若后续服务端新增用户端提醒模板接口，再由 mobile-app 线程读取 OpenAPI 后接入。
+
+## 2026-05-18 移动端加载骨架组件统一
+
+### 1. 新完成内容
+
+- 新增陪伴式加载组件：`CompanionPageLoading`、`CompanionLoadingState`、`CompanionSkeletonList`、`CompanionSkeletonCard`，覆盖整页、详情、列表和局部卡片加载场景。
+- 替换当前 mobile-app 中 `rg` 可定位到的全部 `CircularProgressIndicator`，避免主加载态继续使用纯居中转圈。
+- 首页入口、主壳首页数据加载、周/月报、宠物管理/详情、健康记录列表/详情、萌宠日常列表/详情、提醒列表、时间轴、消息中心、服务中心主要列表/详情/预约/评价区、设置页、家庭管理和社区首页/详情加载态已切换为统一骨架语言。
+- 保持 `DESIGN.md` 的温暖、轻松、柔和、陪伴感方向，未引入新依赖或复杂状态管理。
+
+### 2. 新增/修改文件
+
+- 新增：`mobile-app/lib/modules/common/presentation/widgets/companion_loading.dart`
+- 修改：`mobile-app/lib/app/entry/presentation/pages/app_entry_page.dart`
+- 修改：`mobile-app/lib/modules/shell/presentation/pages/app_shell_page.dart`
+- 修改：`mobile-app/lib/modules/home/presentation/pages/home_page.dart`
+- 修改：`mobile-app/lib/modules/home/presentation/pages/pet_report_page.dart`
+- 修改：`mobile-app/lib/modules/pet/presentation/pages/pet_management_page.dart`
+- 修改：`mobile-app/lib/modules/pet/presentation/pages/pet_detail_page.dart`
+- 修改：`mobile-app/lib/modules/health/presentation/pages/health_record_list_page.dart`
+- 修改：`mobile-app/lib/modules/health/presentation/pages/health_record_detail_page.dart`
+- 修改：`mobile-app/lib/modules/dailylog/presentation/pages/daily_log_list_page.dart`
+- 修改：`mobile-app/lib/modules/dailylog/presentation/pages/daily_log_detail_page.dart`
+- 修改：`mobile-app/lib/modules/reminder/presentation/pages/reminder_list_page.dart`
+- 修改：`mobile-app/lib/modules/timeline/presentation/pages/timeline_page.dart`
+- 修改：`mobile-app/lib/modules/notification/presentation/pages/message_center_page.dart`
+- 修改：`mobile-app/lib/modules/profile/presentation/pages/settings_page.dart`
+- 修改：`mobile-app/lib/modules/service/presentation/pages/service_placeholder_page.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/pages/community_home_page.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/pages/community_post_detail_page.dart`
+- 修改：`mobile-app/lib/modules/family/presentation/pages/family_management_page.dart`
+- 修改：`docs/project/03-ui-closure-checklist.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+
+### 3. 验证命令与结果
+
+- `cd mobile-app && /Users/deng/development/flutter/bin/dart format ...`
+  - 结果：通过。
+- `cd mobile-app && /Users/deng/development/flutter/bin/flutter analyze`
+  - 结果：通过，`No issues found!`。
+- `cd mobile-app && /Users/deng/development/flutter/bin/flutter test`
+  - 结果：通过，`All tests passed!`。
+- `git diff --check -- ...`
+  - 结果：通过。
+
+### 4. 未完成事项
+
+- 全局 Snackbar / Toast / Confirm 的全量深层组件化仍未完成。
+- 社区发布页、话题页、问答详情页、关注关系能力仍未完成，需等待服务端 OpenAPI 稳定。
+
+### 5. 风险或阻塞
+
+- 本轮仅统一加载视觉和结构，不改变接口、状态机或服务端能力。
+- 部分局部“提交中 / 保存中”按钮文案仍保留为动作反馈，未改成骨架加载态。
+- 社区发布、话题、问答详情、关注关系依赖服务端接口字段稳定。
+
+### 6. 下一步建议
+
+1. 继续推进全局 Snackbar / Toast / Confirm 的全量深层组件化，覆盖登录、首页快捷记录、社区互动、家庭邀请等剩余反馈。
+2. 做一次移动端文案扫尾，重点校正按钮、空状态、风险操作和社区互动提示。
+3. 等服务端 OpenAPI 明确后，再继续社区发布页、话题页、问答详情页与关注关系。
+
 ## 2026-05-18 服务端后台提醒查询补齐对移动端无接口变更
 
 ### 1. 新完成内容
@@ -86,7 +186,6 @@
 ### 4. 未完成事项
 
 - 全局 Snackbar / Toast / Confirm 的全量深层组件化仍未完成，本轮只统一了目标范围内的成功、错误和表单校验反馈。
-- 加载骨架组件统一仍未完成。
 - 社区发布页、话题页、问答详情页、关注关系能力仍未完成，需等待服务端 OpenAPI 稳定。
 
 ### 5. 风险或阻塞
@@ -97,9 +196,8 @@
 
 ### 6. 下一步建议
 
-1. 优先做加载骨架组件统一，替换仍在使用的裸 `CircularProgressIndicator`。
-2. 再推进全局 Snackbar / Toast / Confirm 的全量深层组件化，覆盖登录、社区互动、家庭邀请、首页快捷记录等剩余页面。
-3. 等服务端 OpenAPI 明确后，再继续社区发布页、话题页、问答详情页与关注关系。
+1. 继续推进全局 Snackbar / Toast / Confirm 的全量深层组件化，覆盖登录、社区互动、家庭邀请、首页快捷记录等剩余页面。
+2. 等服务端 OpenAPI 明确后，再继续社区发布页、话题页、问答详情页与关注关系。
 
 ## 2026-05-18 移动端基础反馈态收口
 
@@ -138,10 +236,7 @@
 
 ### 4. 未完成事项
 
-- 表单校验错误态统一仍未完成。
-- 成功反馈统一仍未完成。
-- 全局 Snackbar / Toast / Confirm 的更深层组件化仍未完成。
-- 加载骨架组件统一仍未完成。
+- 全局 Snackbar / Toast / Confirm 的全量深层组件化仍未完成。
 - 社区发布页、话题页、问答详情页、关注关系能力仍未完成。
 
 ### 5. 风险或阻塞
@@ -152,6 +247,5 @@
 
 ### 6. 下一步建议
 
-1. 优先完成表单校验错误态统一，覆盖健康记录、萌宠日常、宠物编辑、提醒编辑等高频表单。
-2. 然后完成成功反馈统一，把保存、删除、预约、评价等操作反馈收口到统一组件或工具方法。
-3. 等服务端 OpenAPI 明确后，再继续社区发布页、话题页、问答详情页与关注关系。
+1. 继续推进全局 Snackbar / Toast / Confirm 的全量深层组件化。
+2. 等服务端 OpenAPI 明确后，再继续社区发布页、话题页、问答详情页与关注关系。

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/dailylog/presentation/pages/daily_log_detail_page.dart';
@@ -127,7 +128,12 @@ class _PetReportPageState extends State<PetReportPage> {
   Widget _buildBody() {
     final HomePetReportSnapshot? report = _report;
     if (_isLoading && report == null) {
-      return const Center(child: CircularProgressIndicator());
+      return CompanionPageLoading(
+        title: widget.reportType == 'monthly' ? '正在整理月报' : '正在整理周报',
+        description: '把最近的健康、提醒和日常片段先排好，报告会更容易回看。',
+        icon: Icons.summarize_outlined,
+        layout: CompanionLoadingLayout.detail,
+      );
     }
 
     if (_errorMessage != null && report == null) {

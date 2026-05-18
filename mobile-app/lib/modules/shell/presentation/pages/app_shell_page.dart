@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_home_page.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/home/presentation/pages/home_page.dart';
 import 'package:petlife_mobile_app/modules/notification/presentation/pages/message_center_page.dart';
@@ -321,25 +322,11 @@ class _ShellLoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 240,
-        padding: const EdgeInsets.all(26),
-        decoration: BoxDecoration(
-          color: AppThemePalette.surface,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: AppThemePalette.line),
-          boxShadow: AppThemePalette.softShadow,
-        ),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('正在整理今天的宠物生活'),
-          ],
-        ),
-      ),
+    return const CompanionPageLoading(
+      title: '正在整理今天的宠物生活',
+      description: '首页、提醒和最近记录会一起准备好，尽量保持页面结构稳定。',
+      icon: Icons.pets_rounded,
+      layout: CompanionLoadingLayout.detail,
     );
   }
 }

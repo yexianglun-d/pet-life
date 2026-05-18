@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/family/presentation/pages/family_invitation_page.dart';
@@ -172,7 +173,12 @@ class _FamilyManagementPageState extends State<FamilyManagementPage> {
 
   Widget _buildBody(FamilyDetailSnapshot? familyDetail) {
     if (_isLoading && familyDetail == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const CompanionPageLoading(
+        title: '正在整理共养家庭',
+        description: '家庭成员、共享宠物和邀请入口会按协作空间结构准备好。',
+        icon: Icons.groups_rounded,
+        layout: CompanionLoadingLayout.detail,
+      );
     }
 
     if (_errorMessage != null && familyDetail == null) {

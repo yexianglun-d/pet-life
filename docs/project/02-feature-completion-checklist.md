@@ -62,6 +62,7 @@
 - [x] 用户端统一网络层与仓储层骨架完成
 - [x] 用户端无网络 / 超时 / 会话过期异常分类
 - [x] 用户端高频表单校验错误态与成功反馈统一
+- [x] 用户端陪伴式加载骨架组件与高频页面加载态统一
 - [x] 后台管理端路由和布局骨架完成
 - [x] 服务端媒体本地直传链路
 - [x] 媒体 asset_id 归属、业务类型和文件类型校验
@@ -303,11 +304,16 @@
 - [x] 自动生成下一次提醒
 - [x] `GET /api/v1/admin/reminders`
 - [x] `GET /api/v1/admin/reminders/{reminderId}`
+- [x] `GET /api/v1/admin/reminder-templates`
+- [x] `GET /api/v1/admin/reminder-templates/{templateId}`
+- [x] `POST /api/v1/admin/reminder-templates`
+- [x] `PATCH /api/v1/admin/reminder-templates/{templateId}`
+- [x] `PATCH /api/v1/admin/reminder-templates/{templateId}/status`
 
 ### 8.3 后台管理端
 
-- [ ] 提醒模板管理（需服务端先定义提醒模板模型与维护接口）
-- [x] 系统提醒查询接口（服务端与 OpenAPI 已完成，admin-web 页面待接入）
+- [x] 系统提醒查询页面接入
+- [x] 提醒模板管理页面接入
 
 ## 9. 萌宠日常
 

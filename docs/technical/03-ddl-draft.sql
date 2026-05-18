@@ -240,6 +240,26 @@ CREATE TABLE IF NOT EXISTS `pet_reminders` (
   CONSTRAINT `fk_pet_reminders_source` FOREIGN KEY (`source_record_id`) REFERENCES `pet_health_records` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='宠物提醒表';
 
+CREATE TABLE IF NOT EXISTS `reminder_templates` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+  `template_name` VARCHAR(100) NOT NULL COMMENT '模板名称',
+  `reminder_type` VARCHAR(30) NOT NULL COMMENT '提醒类型：vaccine/deworming/examination/medication/custom',
+  `default_reminder_mode` VARCHAR(20) NOT NULL COMMENT '默认提醒模式：single/cycle',
+  `default_advance_value` INT NOT NULL DEFAULT 0 COMMENT '默认提前量',
+  `default_advance_unit` VARCHAR(20) NOT NULL DEFAULT 'day' COMMENT '默认提前单位：day/week/month',
+  `default_cycle_value` INT DEFAULT NULL COMMENT '默认周期值',
+  `default_cycle_unit` VARCHAR(20) DEFAULT NULL COMMENT '默认周期单位：day/week/month',
+  `applicable_pet_type` VARCHAR(20) NOT NULL DEFAULT 'all' COMMENT '适用宠物类型：all/cat/dog/other',
+  `enabled` TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用：0-否 1-是',
+  `sort_order` INT NOT NULL DEFAULT 0 COMMENT '展示排序',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` DATETIME DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_reminder_templates_type_enabled` (`reminder_type`, `enabled`),
+  KEY `idx_reminder_templates_pet_sort` (`applicable_pet_type`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='提醒模板表';
+
 CREATE TABLE IF NOT EXISTS `pet_daily_logs` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
   `pet_id` BIGINT UNSIGNED NOT NULL COMMENT '宠物 ID',

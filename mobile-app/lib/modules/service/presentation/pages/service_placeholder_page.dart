@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
@@ -83,7 +84,12 @@ class _ServicePlaceholderPageState extends State<ServicePlaceholderPage> {
       builder:
           (BuildContext context, AsyncSnapshot<_ServiceHomeViewData> snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const CompanionPageLoading(
+            title: '正在整理附近服务',
+            description: '城市开通状态、服务分类和近期预约会一起准备好。',
+            icon: Icons.storefront_outlined,
+            layout: CompanionLoadingLayout.detail,
+          );
         }
         if (snapshot.hasError || !snapshot.hasData) {
           return _ErrorState(
@@ -202,7 +208,12 @@ class _ServiceProviderListPageState extends State<ServiceProviderListPage> {
         builder: (BuildContext context,
             AsyncSnapshot<List<ServiceProviderSnapshot>> snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return CompanionPageLoading(
+              title: '正在查找${widget.category.title}',
+              description: '服务商列表会按当前城市和服务类型整理好。',
+              icon: Icons.search_rounded,
+              layout: CompanionLoadingLayout.list,
+            );
           }
           if (snapshot.hasError || !snapshot.hasData) {
             return _ErrorState(
@@ -294,7 +305,12 @@ class _ServiceProviderDetailPageState extends State<ServiceProviderDetailPage> {
         return Scaffold(
           appBar: AppBar(title: Text(title)),
           body: snapshot.connectionState != ConnectionState.done
-              ? const Center(child: CircularProgressIndicator())
+              ? const CompanionPageLoading(
+                  title: '正在整理服务商详情',
+                  description: '服务项目、可约时段和评价信息会一起准备好。',
+                  icon: Icons.storefront_outlined,
+                  layout: CompanionLoadingLayout.detail,
+                )
               : snapshot.hasError || !snapshot.hasData
                   ? _ErrorState(
                       message: snapshot.error.toString(),
@@ -425,7 +441,12 @@ class _ServiceAppointmentEditorPageState
     return Scaffold(
       appBar: AppBar(title: const Text('提交预约')),
       body: _loadingUser
-          ? const Center(child: CircularProgressIndicator())
+          ? const CompanionPageLoading(
+              title: '正在准备预约信息',
+              description: '会先带入当前宠物、联系人和可预约时段。',
+              icon: Icons.event_available_outlined,
+              layout: CompanionLoadingLayout.compact,
+            )
           : Form(
               key: _formKey,
               child: ListView(
@@ -580,7 +601,12 @@ class _ServiceAppointmentListPageState
         builder: (BuildContext context,
             AsyncSnapshot<List<ServiceAppointmentSnapshot>> snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const CompanionPageLoading(
+              title: '正在整理预约记录',
+              description: '待确认、已完成和可评价的预约会按时间排好。',
+              icon: Icons.event_note_outlined,
+              layout: CompanionLoadingLayout.list,
+            );
           }
           if (snapshot.hasError || !snapshot.hasData) {
             return _ErrorState(
@@ -820,7 +846,10 @@ class _ProviderDetailBody extends StatelessWidget {
               AsyncSnapshot<List<ProviderReviewSnapshot>> snapshot,
             ) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
+                return const CompanionSkeletonList(
+                  itemCount: 2,
+                  showAvatar: false,
+                );
               }
               if (snapshot.hasError || !snapshot.hasData) {
                 return CompanionEmptyState(

@@ -14,6 +14,8 @@
         <el-menu-item index="/health-records">健康记录</el-menu-item>
         <el-menu-item index="/daily-logs">萌宠日常</el-menu-item>
         <el-menu-item index="/timeline-events">时间轴排查</el-menu-item>
+        <el-menu-item index="/system-reminders">系统提醒</el-menu-item>
+        <el-menu-item index="/reminder-templates">提醒模板</el-menu-item>
         <el-menu-item index="/service-providers">服务商管理</el-menu-item>
         <el-menu-item index="/system-config">系统配置</el-menu-item>
       </el-menu>
@@ -25,7 +27,7 @@
       <el-header class="admin-layout__header">
         <div>
           <div class="admin-layout__header-title">运营与治理中心</div>
-          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 社区审核 / 健康档案 / 萌宠日常 / 时间轴 / 服务管理</div>
+          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 社区审核 / 健康档案 / 萌宠日常 / 时间轴 / 提醒 / 服务管理</div>
         </div>
         <div class="admin-layout__header-actions">
           <div class="admin-layout__operator">{{ operatorName }}</div>

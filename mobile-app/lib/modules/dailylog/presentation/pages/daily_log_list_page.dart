@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/dailylog/presentation/pages/daily_log_detail_page.dart';
@@ -158,9 +159,8 @@ class _DailyLogListPageState extends State<DailyLogListPage> {
 
   Widget _buildDailyLogList() {
     if (_isLoading && _dailyLogs.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(child: CircularProgressIndicator()),
+      return const CompanionSkeletonList(
+        itemCount: 3,
       );
     }
 

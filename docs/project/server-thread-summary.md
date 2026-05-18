@@ -7,6 +7,81 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用“核心可用”等阶段性表述。
 
+## 2026-05-18 后台提醒模板管理接口补齐
+
+### 新完成内容
+
+- 新增提醒模板模型与 DDL 草案 `reminder_templates`，覆盖模板名称、提醒类型、默认提醒模式、默认提前量、默认周期、适用宠物类型、启用状态、排序、创建/更新时间和软删除预留字段。
+- 新增后台提醒模板管理接口：
+  - `GET /api/v1/admin/reminder-templates`
+  - `GET /api/v1/admin/reminder-templates/{templateId}`
+  - `POST /api/v1/admin/reminder-templates`
+  - `PATCH /api/v1/admin/reminder-templates/{templateId}`
+  - `PATCH /api/v1/admin/reminder-templates/{templateId}/status`
+- 新增模板字段校验与状态规则：`single` 模板不能传默认周期字段，`cycle` 模板必须传默认周期值和单位；提醒类型、单位、适用宠物类型均按枚举归一校验。
+- 模板创建、更新、启停复用现有 Bearer 鉴权和 `X-Admin-Operator` 审计上下文，不引入真实后台账号体系。
+- 新增服务端测试覆盖列表、详情、筛选、创建、更新、启停、非法周期配置和无 token 权限边界。
+- 已同步 OpenAPI、技术接口说明、DDL 草案、后台接口缺口清单、功能完成清单和当前交付状态。
+
+### 新增/修改文件
+
+- 新增服务端文件：
+  - `server/src/main/java/com/petlife/server/modules/reminder/controller/AdminReminderTemplateController.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/converter/ReminderTemplateConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/domain/entity/ReminderTemplateEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/dto/request/AdminUpsertReminderTemplateRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/dto/request/AdminUpdateReminderTemplateStatusRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/dto/response/ReminderTemplateResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/persistence/ReminderTemplatePersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/persistence/command/UpsertReminderTemplateCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/persistence/command/UpdateReminderTemplateStatusCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/persistence/dataobject/ReminderTemplateDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/reminder/service/ReminderTemplateApplicationService.java`
+- 修改服务端文件：
+  - `server/src/main/java/com/petlife/server/common/response/ResponseCode.java`
+  - `server/src/main/java/com/petlife/server/config/GlobalExceptionHandler.java`
+  - `server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+- 修改文档：
+  - `docs/api/petlife-openapi.yaml`
+  - `docs/technical/02-api-and-events.md`
+  - `docs/technical/03-ddl-draft.sql`
+  - `docs/project/01-current-delivery-status.md`
+  - `docs/project/02-feature-completion-checklist.md`
+  - `docs/project/04-admin-web-api-gap-list.md`
+  - `docs/project/server-thread-summary.md`
+  - `docs/project/admin-web-thread-summary.md`
+  - `docs/project/mobile-app-thread-summary.md`
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`
+  - 结果：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`
+  - 结果：通过，`Tests run: 65, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`
+  - 结果：通过。
+- `git diff --check`
+  - 结果：通过。
+
+### 未完成事项
+
+- admin-web 尚未接入系统提醒查询页面和提醒模板管理页面。
+- 后台真实账号体系、角色权限边界、登录、退出、刷新和管理端审计身份仍未完成。
+- 消息模板管理、通知发送配置模型和维护接口仍未完成。
+- 提醒模板暂未接入用户端提醒创建流程，本轮仅完成后台管理端服务端契约。
+
+### 风险或阻塞
+
+- 当前模板写接口仍复用现有 Bearer 鉴权过滤器和 `X-Admin-Operator` 审计标识；真实管理员身份与权限边界需后续单独实现。
+- 当前列表按 `sort_order ASC, id DESC` 返回最多 200 条；如果 admin-web 需要分页，需要先更新 OpenAPI 契约再扩展。
+- DDL 已进入草案和测试库建表逻辑，生产或长期环境仍需按 `docs/technical/03-ddl-draft.sql` 执行表结构变更。
+
+### 下一步建议
+
+1. admin-web 可按 OpenAPI 接入系统提醒查询和提醒模板管理页面。
+2. 服务端下一轮按缺口清单推进消息模板管理与通知发送配置模型。
+3. 后台真实账号体系应单独设计角色权限、会话与审计身份后再实现。
+
 ## 2026-05-18 后台提醒查询接口补齐
 
 ### 新完成内容

@@ -64,7 +64,7 @@ tags:
   - name: 提醒 (Reminder)
     description: 提醒计划与处理
   - name: 后台提醒 (Admin Reminder)
-    description: 系统提醒查询 (管理端)
+    description: 系统提醒查询与提醒模板管理 (管理端)
   - name: 日常 (Daily Log)
     description: 萌宠日常记录
   - name: 时间轴 (Timeline)
@@ -338,6 +338,119 @@ components:
         created_at:
           type: string
           format: date-time
+
+    ReminderTemplate:
+      type: object
+      properties:
+        template_id:
+          type: string
+          example: "61001"
+        template_name:
+          type: string
+          example: "年度疫苗提醒"
+        reminder_type:
+          type: string
+          enum: [vaccine, deworming, examination, medication, custom]
+          example: "vaccine"
+        default_reminder_mode:
+          type: string
+          enum: [single, cycle]
+          example: "cycle"
+        default_advance_value:
+          type: integer
+          minimum: 0
+          example: 7
+          description: 默认提前量
+        default_advance_unit:
+          type: string
+          enum: [day, week, month]
+          example: "day"
+          description: 默认提前单位
+        default_cycle_value:
+          type: integer
+          nullable: true
+          minimum: 1
+          example: 12
+          description: 周期模板的默认周期值；单次模板为 null
+        default_cycle_unit:
+          type: string
+          nullable: true
+          enum: [day, week, month]
+          example: "month"
+          description: 周期模板的默认周期单位；单次模板为 null
+        applicable_pet_type:
+          type: string
+          enum: [all, cat, dog, other]
+          example: "dog"
+        enabled:
+          type: boolean
+          example: true
+        sort_order:
+          type: integer
+          minimum: 0
+          example: 10
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AdminUpsertReminderTemplateRequest:
+      type: object
+      required:
+        - template_name
+        - reminder_type
+        - default_reminder_mode
+        - default_advance_value
+        - default_advance_unit
+        - applicable_pet_type
+        - enabled
+      properties:
+        template_name:
+          type: string
+          maxLength: 100
+          example: "年度疫苗提醒"
+        reminder_type:
+          type: string
+          enum: [vaccine, deworming, examination, medication, custom]
+        default_reminder_mode:
+          type: string
+          enum: [single, cycle]
+        default_advance_value:
+          type: integer
+          minimum: 0
+          description: 默认提前量，允许 0 表示不提前
+        default_advance_unit:
+          type: string
+          enum: [day, week, month]
+        default_cycle_value:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: default_reminder_mode=cycle 时必填；single 时不能传
+        default_cycle_unit:
+          type: string
+          nullable: true
+          enum: [day, week, month]
+          description: default_reminder_mode=cycle 时必填；single 时不能传
+        applicable_pet_type:
+          type: string
+          enum: [all, cat, dog, other]
+        enabled:
+          type: boolean
+        sort_order:
+          type: integer
+          minimum: 0
+          default: 0
+
+    AdminUpdateReminderTemplateStatusRequest:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
 
     DailyLog:
       type: object
@@ -3249,6 +3362,197 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/AdminReminder'
+
+  /admin/reminder-templates:
+    get:
+      tags:
+        - 后台提醒 (Admin Reminder)
+      summary: 后台提醒模板列表
+      description: 查询提醒模板配置，供后台提醒模板管理页展示和筛选。
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+          description: 按模板名称或提醒类型搜索
+        - name: reminder_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [vaccine, deworming, examination, medication, custom]
+          description: 提醒类型
+        - name: default_reminder_mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [single, cycle]
+          description: 默认提醒模式
+        - name: applicable_pet_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, cat, dog, other]
+          description: 适用宠物类型
+        - name: enabled
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: 启用状态
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ReminderTemplate'
+
+    post:
+      tags:
+        - 后台提醒 (Admin Reminder)
+      summary: 创建提醒模板
+      description: 创建后台提醒模板配置；当前复用 Bearer 登录态，操作者可通过 X-Admin-Operator 传入审计标识。
+      parameters:
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 后台操作者标识，用于审计日志
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpsertReminderTemplateRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReminderTemplate'
+
+  /admin/reminder-templates/{templateId}:
+    get:
+      tags:
+        - 后台提醒 (Admin Reminder)
+      summary: 后台提醒模板详情
+      description: 获取单条提醒模板配置详情。
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 模板 ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReminderTemplate'
+
+    patch:
+      tags:
+        - 后台提醒 (Admin Reminder)
+      summary: 更新提醒模板
+      description: 全量更新提醒模板配置；single 模式不能传默认周期字段，cycle 模式必须传默认周期字段。
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 模板 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 后台操作者标识，用于审计日志
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpsertReminderTemplateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReminderTemplate'
+
+  /admin/reminder-templates/{templateId}/status:
+    patch:
+      tags:
+        - 后台提醒 (Admin Reminder)
+      summary: 更新提醒模板启用状态
+      description: 启用或停用提醒模板配置。
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 模板 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 后台操作者标识，用于审计日志
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateReminderTemplateStatusRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReminderTemplate'
 
   # ==================== 管理端 - 内容查询模块 ====================
   /admin/health-records:

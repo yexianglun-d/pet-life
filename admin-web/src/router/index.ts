@@ -10,6 +10,8 @@ import ModerationView from '@/views/moderation/ModerationView.vue';
 import FamilyManagementView from '@/views/operation/FamilyManagementView.vue';
 import PetArchiveQueryView from '@/views/operation/PetArchiveQueryView.vue';
 import UserManagementView from '@/views/operation/UserManagementView.vue';
+import ReminderTemplateManagementView from '@/views/reminder/ReminderTemplateManagementView.vue';
+import SystemReminderQueryView from '@/views/reminder/SystemReminderQueryView.vue';
 import ServiceProviderView from '@/views/service/ServiceProviderView.vue';
 import SystemConfigView from '@/views/system/SystemConfigView.vue';
 
@@ -66,6 +68,16 @@ const routes: RouteRecordRaw[] = [
         path: 'timeline-events',
         name: 'timelineEvents',
         component: TimelineEventDebugView
+      },
+      {
+        path: 'system-reminders',
+        name: 'systemReminders',
+        component: SystemReminderQueryView
+      },
+      {
+        path: 'reminder-templates',
+        name: 'reminderTemplates',
+        component: ReminderTemplateManagementView
       },
       {
         path: 'service-providers',
