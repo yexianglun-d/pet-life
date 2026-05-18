@@ -3,7 +3,7 @@ package com.petlife.server.modules.reminder.dto.response;
 import java.time.LocalDateTime;
 
 /**
- * 后台提醒模板响应。
+ * 提醒模板响应。
  *
  * @param templateId 模板 ID
  * @param templateName 模板名称

@@ -17,6 +17,7 @@ import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.d
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_profile_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/reminder_template_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/timeline_event_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/user_settings_snapshot.dart';
@@ -446,6 +447,26 @@ class _FakePetLifeRepository implements PetLifeRepository {
         cycleValue: 1,
         cycleUnit: 'month',
         notes: '晚饭后执行',
+      ),
+    ];
+  }
+
+  @override
+  Future<List<ReminderTemplateSnapshot>> listReminderTemplates(
+      String petId) async {
+    return const <ReminderTemplateSnapshot>[
+      ReminderTemplateSnapshot(
+        templateId: '70001',
+        templateName: '每月驱虫提醒',
+        reminderType: 'deworming',
+        defaultReminderMode: 'cycle',
+        defaultAdvanceValue: 3,
+        defaultAdvanceUnit: 'day',
+        defaultCycleValue: 1,
+        defaultCycleUnit: 'month',
+        applicablePetType: 'cat',
+        enabled: true,
+        sortOrder: 1,
       ),
     ];
   }

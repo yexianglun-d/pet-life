@@ -1941,6 +1941,41 @@ paths:
                 format: binary
 
   # ==================== 提醒模块 ====================
+  /pets/{petId}/reminder-templates:
+    get:
+      tags:
+        - 提醒 (Reminder)
+      summary: 获取宠物可用提醒模板
+      description: |
+        获取当前登录用户可访问宠物的启用提醒模板。
+
+        **过滤规则**:
+        - 仅返回 enabled=true 的模板
+        - 返回 applicable_pet_type=all 或匹配当前宠物 pet_type 的模板
+        - 不返回后台已停用模板
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 宠物 ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ReminderTemplate'
+
   /pets/{petId}/reminders:
     get:
       tags:

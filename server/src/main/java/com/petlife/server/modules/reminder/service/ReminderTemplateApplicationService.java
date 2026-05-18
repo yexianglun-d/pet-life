@@ -4,6 +4,9 @@ import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
 import com.petlife.server.modules.admin.domain.entity.AdminOperationContext;
 import com.petlife.server.modules.admin.service.AuditLogApplicationService;
+import com.petlife.server.modules.auth.security.CurrentUserContext;
+import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
+import com.petlife.server.modules.pet.persistence.dataobject.PetProfileDataObject;
 import com.petlife.server.modules.reminder.converter.ReminderTemplateConverter;
 import com.petlife.server.modules.reminder.domain.entity.ReminderTemplateEntity;
 import com.petlife.server.modules.reminder.dto.request.AdminUpdateReminderTemplateStatusRequest;
@@ -42,15 +45,28 @@ public class ReminderTemplateApplicationService {
     private final ReminderTemplatePersistenceMapper reminderTemplatePersistenceMapper;
     private final ReminderTemplateConverter reminderTemplateConverter;
     private final AuditLogApplicationService auditLogApplicationService;
+    private final PetPersistenceMapper petPersistenceMapper;
 
     public ReminderTemplateApplicationService(
         ReminderTemplatePersistenceMapper reminderTemplatePersistenceMapper,
         ReminderTemplateConverter reminderTemplateConverter,
-        AuditLogApplicationService auditLogApplicationService
+        AuditLogApplicationService auditLogApplicationService,
+        PetPersistenceMapper petPersistenceMapper
     ) {
         this.reminderTemplatePersistenceMapper = reminderTemplatePersistenceMapper;
         this.reminderTemplateConverter = reminderTemplateConverter;
         this.auditLogApplicationService = auditLogApplicationService;
+        this.petPersistenceMapper = petPersistenceMapper;
+    }
+
+    public List<ReminderTemplateResponse> listUserTemplates(Long petId) {
+        PetProfileDataObject pet = requireAccessiblePet(petId);
+        return reminderTemplatePersistenceMapper
+            .listEnabledTemplatesForPetType(pet.petType())
+            .stream()
+            .map(reminderTemplateConverter::toEntity)
+            .map(reminderTemplateConverter::toResponse)
+            .toList();
     }
 
     public List<ReminderTemplateResponse> listAdminTemplates(
@@ -138,6 +154,15 @@ public class ReminderTemplateApplicationService {
             throw new BusinessException(ResponseCode.REMINDER_TEMPLATE_NOT_FOUND);
         }
         return template;
+    }
+
+    private PetProfileDataObject requireAccessiblePet(Long petId) {
+        Long currentUserId = CurrentUserContext.requireUserId();
+        PetProfileDataObject pet = petPersistenceMapper.findAccessiblePetById(currentUserId, petId);
+        if (pet == null) {
+            throw new BusinessException(ResponseCode.PET_NOT_FOUND);
+        }
+        return pet;
     }
 
     private UpsertReminderTemplateCommand buildUpsertCommand(

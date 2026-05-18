@@ -15,6 +15,7 @@ import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.d
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_profile_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/reminder_template_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/timeline_event_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/user_settings_snapshot.dart';
@@ -427,6 +428,17 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     );
 
     return reminders.map(_toReminderSnapshot).toList();
+  }
+
+  @override
+  Future<List<ReminderTemplateSnapshot>> listReminderTemplates(
+      String petId) async {
+    final List<Map<String, dynamic>> templates = _asMapList(
+      await _apiClient.getData('/api/v1/pets/$petId/reminder-templates'),
+      context: '提醒模板列表',
+    );
+
+    return templates.map(_toReminderTemplateSnapshot).toList();
   }
 
   @override
@@ -1072,6 +1084,23 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       cycleValue: _readNullableInt(payload, 'cycle_value'),
       cycleUnit: _readNullableString(payload, 'cycle_unit'),
       notes: _readNullableString(payload, 'notes'),
+    );
+  }
+
+  ReminderTemplateSnapshot _toReminderTemplateSnapshot(
+      Map<String, dynamic> payload) {
+    return ReminderTemplateSnapshot(
+      templateId: _readString(payload, 'template_id'),
+      templateName: _readString(payload, 'template_name'),
+      reminderType: _readString(payload, 'reminder_type'),
+      defaultReminderMode: _readString(payload, 'default_reminder_mode'),
+      defaultAdvanceValue: _readInt(payload, 'default_advance_value'),
+      defaultAdvanceUnit: _readString(payload, 'default_advance_unit'),
+      defaultCycleValue: _readNullableInt(payload, 'default_cycle_value'),
+      defaultCycleUnit: _readNullableString(payload, 'default_cycle_unit'),
+      applicablePetType: _readString(payload, 'applicable_pet_type'),
+      enabled: _readBool(payload, 'enabled'),
+      sortOrder: _readInt(payload, 'sort_order'),
     );
   }
 

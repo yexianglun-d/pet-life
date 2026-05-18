@@ -4,6 +4,7 @@ import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/reminder_template_snapshot.dart';
 
 /// 提醒新建页。
 class ReminderEditorPage extends StatefulWidget {
@@ -28,8 +29,14 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
   late String _reminderMode;
   late String _cycleUnit;
   late DateTime _dueAt;
+  bool _didLoadTemplates = false;
+  bool _isTemplateLoading = false;
   bool _isSubmitting = false;
+  String? _selectedTemplateId;
+  String? _templateErrorMessage;
   String? _formNoticeMessage;
+  List<ReminderTemplateSnapshot> _reminderTemplates =
+      const <ReminderTemplateSnapshot>[];
 
   @override
   void initState() {
@@ -51,6 +58,66 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
     _dueAtController.dispose();
     _cycleValueController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didLoadTemplates) {
+      return;
+    }
+
+    _didLoadTemplates = true;
+    _loadReminderTemplates();
+  }
+
+  Future<void> _loadReminderTemplates() async {
+    setState(() {
+      _isTemplateLoading = true;
+      _templateErrorMessage = null;
+    });
+
+    try {
+      final repository = PetLifeAppScope.repositoryOf(context);
+      final List<ReminderTemplateSnapshot> templates =
+          await repository.listReminderTemplates(widget.petId);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _reminderTemplates = templates;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _templateErrorMessage = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTemplateLoading = false;
+        });
+      }
+    }
+  }
+
+  void _applyReminderTemplate(ReminderTemplateSnapshot template) {
+    setState(() {
+      _selectedTemplateId = template.templateId;
+      _reminderType = template.reminderType;
+      _reminderMode = template.defaultReminderMode;
+      _titleController.text = template.templateName;
+      if (template.defaultReminderMode == 'cycle') {
+        _cycleValueController.text =
+            (template.defaultCycleValue ?? 1).toString();
+        _cycleUnit = template.defaultCycleUnit ?? 'month';
+      }
+      _formNoticeMessage = null;
+    });
   }
 
   Future<void> _pickDueAt() async {
@@ -173,6 +240,12 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
               ],
               const SizedBox(height: 16),
               _ReminderFormSection(
+                title: '从模板开始',
+                description: '后台维护的常用照护模板会出现在这里，选择后仍可以按实际情况调整。',
+                child: _buildTemplateSelector(),
+              ),
+              const SizedBox(height: 16),
+              _ReminderFormSection(
                 title: '提醒类型',
                 description: '先选这次想记住的是什么，再决定它是一次还是周期。',
                 child: DropdownButtonFormField<String>(
@@ -183,13 +256,14 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
                     DropdownMenuItem(value: 'deworming', child: Text('驱虫')),
                     DropdownMenuItem(value: 'examination', child: Text('体检')),
                     DropdownMenuItem(value: 'medication', child: Text('用药')),
-                    DropdownMenuItem(value: 'observation', child: Text('观察提醒')),
+                    DropdownMenuItem(value: 'custom', child: Text('自定义')),
                   ],
                   onChanged: (String? value) {
                     if (value == null) {
                       return;
                     }
                     setState(() {
+                      _selectedTemplateId = null;
                       _reminderType = value;
                     });
                   },
@@ -213,6 +287,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
                           return;
                         }
                         setState(() {
+                          _selectedTemplateId = null;
                           _reminderMode = value;
                         });
                       },
@@ -261,6 +336,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
                                   return;
                                 }
                                 setState(() {
+                                  _selectedTemplateId = null;
                                   _cycleUnit = value;
                                 });
                               },
@@ -324,6 +400,45 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
           child: Text(_isSubmitting ? '保存中...' : '保存提醒'),
         ),
       ),
+    );
+  }
+
+  Widget _buildTemplateSelector() {
+    if (_isTemplateLoading && _reminderTemplates.isEmpty) {
+      return const _TemplateLoadingCard();
+    }
+
+    if (_templateErrorMessage != null && _reminderTemplates.isEmpty) {
+      return CompanionEmptyState(
+        title: '提醒模板暂时没有加载出来',
+        description: _templateErrorMessage!,
+        icon: Icons.cloud_off_outlined,
+        actionLabel: '重新加载',
+        onAction: _loadReminderTemplates,
+      );
+    }
+
+    if (_reminderTemplates.isEmpty) {
+      return const CompanionEmptyState(
+        title: '还没有可用模板',
+        description: '可以先手动填写提醒，后台启用模板后这里会自动出现。',
+        icon: Icons.auto_awesome_outlined,
+      );
+    }
+
+    return Column(
+      children: _reminderTemplates
+          .map(
+            (ReminderTemplateSnapshot template) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ReminderTemplateCard(
+                template: template,
+                selected: _selectedTemplateId == template.templateId,
+                onTap: () => _applyReminderTemplate(template),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }
@@ -406,6 +521,115 @@ class _ReminderFormSection extends StatelessWidget {
   }
 }
 
+class _TemplateLoadingCard extends StatelessWidget {
+  const _TemplateLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionCard(
+      padding: const EdgeInsets.all(16),
+      radius: 22,
+      color: AppThemePalette.surfaceRaised,
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppThemePalette.warmTint,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: AppThemePalette.primaryDeep,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '正在整理常用提醒模板...',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReminderTemplateCard extends StatelessWidget {
+  const _ReminderTemplateCard({
+    required this.template,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ReminderTemplateSnapshot template;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: onTap,
+      child: CompanionCard(
+        padding: const EdgeInsets.all(16),
+        radius: 22,
+        color:
+            selected ? const Color(0xFFFFE7D8) : AppThemePalette.surfaceRaised,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    template.templateName,
+                    style: textTheme.titleMedium,
+                  ),
+                ),
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: selected
+                      ? AppThemePalette.primaryDeep
+                      : AppThemePalette.muted,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                CompanionPill(
+                  label: _reminderTypeLabel(template.reminderType),
+                  backgroundColor: AppThemePalette.warmTint,
+                  foregroundColor: AppThemePalette.primaryDeep,
+                ),
+                CompanionPill(
+                  label: template.defaultReminderMode == 'cycle'
+                      ? _templateCycleLabel(template)
+                      : '单次提醒',
+                  backgroundColor: AppThemePalette.surface,
+                ),
+                CompanionPill(
+                  label:
+                      '提前 ${template.defaultAdvanceValue} ${_unitLabel(template.defaultAdvanceUnit)}',
+                  backgroundColor: AppThemePalette.surface,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 DateTime _buildDefaultDueAt() {
   final DateTime now = DateTime.now();
   return DateTime(now.year, now.month, now.day + 1, 9);
@@ -421,10 +645,49 @@ String _defaultTitleHint(String reminderType) {
       return '例如：年度体检提醒';
     case 'medication':
       return '例如：耳螨滴药提醒';
-    case 'observation':
+    case 'custom':
       return '例如：复查精神状态';
     default:
       return '请输入提醒标题';
+  }
+}
+
+String _reminderTypeLabel(String reminderType) {
+  switch (reminderType) {
+    case 'vaccine':
+      return '疫苗';
+    case 'deworming':
+      return '驱虫';
+    case 'examination':
+      return '体检';
+    case 'medication':
+      return '用药';
+    case 'custom':
+      return '自定义';
+    default:
+      return reminderType;
+  }
+}
+
+String _templateCycleLabel(ReminderTemplateSnapshot template) {
+  if (template.defaultReminderMode != 'cycle') {
+    return '单次提醒';
+  }
+  final int cycleValue = template.defaultCycleValue ?? 1;
+  final String cycleUnit = template.defaultCycleUnit ?? 'month';
+  return '每 $cycleValue ${_unitLabel(cycleUnit)}';
+}
+
+String _unitLabel(String unit) {
+  switch (unit) {
+    case 'day':
+      return '天';
+    case 'week':
+      return '周';
+    case 'month':
+      return '月';
+    default:
+      return unit;
   }
 }
 

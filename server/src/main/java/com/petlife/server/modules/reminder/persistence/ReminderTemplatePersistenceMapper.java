@@ -70,6 +70,30 @@ public interface ReminderTemplatePersistenceMapper {
           created_at AS createdAt,
           updated_at AS updatedAt
         FROM reminder_templates
+        WHERE deleted_at IS NULL
+          AND enabled = 1
+          AND (applicable_pet_type = 'all' OR applicable_pet_type = #{petType})
+        ORDER BY sort_order ASC, id DESC
+        LIMIT 100
+        """)
+    List<ReminderTemplateDataObject> listEnabledTemplatesForPetType(@Param("petType") String petType);
+
+    @Select("""
+        SELECT
+          id AS templateId,
+          template_name AS templateName,
+          reminder_type AS reminderType,
+          default_reminder_mode AS defaultReminderMode,
+          default_advance_value AS defaultAdvanceValue,
+          default_advance_unit AS defaultAdvanceUnit,
+          default_cycle_value AS defaultCycleValue,
+          default_cycle_unit AS defaultCycleUnit,
+          applicable_pet_type AS applicablePetType,
+          enabled AS enabled,
+          sort_order AS sortOrder,
+          created_at AS createdAt,
+          updated_at AS updatedAt
+        FROM reminder_templates
         WHERE id = #{templateId}
           AND deleted_at IS NULL
         LIMIT 1

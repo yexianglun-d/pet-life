@@ -459,7 +459,18 @@
 
 `GET /pets/{pet_id}/reminders?status=pending`
 
-## 4.7 创建提醒
+## 4.7 获取宠物可用提醒模板
+
+`GET /pets/{pet_id}/reminder-templates`
+
+响应约定：
+
+- 仅返回 `enabled=true` 的模板。
+- 仅返回 `applicable_pet_type=all` 或匹配当前宠物 `pet_type` 的模板。
+- 模板返回 `template_id`、`template_name`、`reminder_type`、`default_reminder_mode`、`default_advance_value`、`default_advance_unit`、`default_cycle_value`、`default_cycle_unit`、`applicable_pet_type`、`sort_order` 等字段。
+- 用户端选择模板后只预填提醒创建表单，不代表服务端自动创建提醒。
+
+## 4.8 创建提醒
 
 `POST /pets/{pet_id}/reminders`
 
@@ -479,7 +490,7 @@
 - `reminder_mode=cycle` 表示周期提醒，必须同时传 `cycle_value` 与 `cycle_unit`
 - `cycle_unit` 当前支持 `day`、`week`、`month`
 
-## 4.8 完成提醒
+## 4.9 完成提醒
 
 `PATCH /pets/{pet_id}/reminders/{reminder_id}/complete`
 
@@ -488,7 +499,7 @@
 - 仅 `pending` 状态的提醒允许完成
 - 周期提醒完成后会自动生成下一条 `pending` 提醒，下一次时间基于原计划时间顺延推算
 
-## 4.9 跳过提醒
+## 4.10 跳过提醒
 
 `PATCH /pets/{pet_id}/reminders/{reminder_id}/skip`
 
@@ -1199,7 +1210,7 @@
 
 说明：
 
-- 系统提醒查询为后台只读能力；提醒模板管理为后台配置写能力，暂不接入用户端模板选择。
+- 系统提醒查询为后台只读能力；提醒模板管理为后台配置写能力；用户端仅通过 `GET /api/v1/pets/{pet_id}/reminder-templates` 读取已启用且适配当前宠物的模板。
 - 后台查询跨家庭读取未软删提醒和未软删宠物，不复用用户端宠物访问权限视角。
 - `default_reminder_mode=single` 时不能传默认周期字段；`default_reminder_mode=cycle` 时必须传默认周期值和单位。
 - 提醒模板创建、更新和启停会写入后台审计日志，当前操作者仍通过 `X-Admin-Operator` 表达，不引入真实后台账号体系。

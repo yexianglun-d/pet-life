@@ -7,6 +7,41 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-18 用户端提醒模板选择接入
+
+### 1. 新完成内容
+
+- 移动端新增提醒模板快照模型与仓储方法，读取 `GET /api/v1/pets/{petId}/reminder-templates`。
+- 提醒新建页新增“从模板开始”区域，展示后台启用且适配当前宠物的模板。
+- 选择模板后会预填提醒标题、提醒类型、提醒模式、周期值和周期单位；用户仍需确认提醒时间并手动保存。
+- 模板加载态、空状态、错误重试和选中态已按当前陪伴式 UI 规范收口。
+
+### 2. 新增/修改文件
+
+- 新增：`mobile-app/lib/shared/domain/models/reminder_template_snapshot.dart`
+- 修改：`mobile-app/lib/shared/repository/petlife_repository.dart`
+- 修改：`mobile-app/lib/shared/repository/network_petlife_repository.dart`
+- 修改：`mobile-app/lib/modules/reminder/presentation/pages/reminder_editor_page.dart`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 服务端接口与 OpenAPI 变更见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- `dart format lib/shared/domain/models/reminder_template_snapshot.dart lib/shared/repository/petlife_repository.dart lib/shared/repository/network_petlife_repository.dart lib/modules/reminder/presentation/pages/reminder_editor_page.dart test/widget_test.dart`：通过。
+- `flutter analyze`：通过，`No issues found!`。
+- `flutter test`：通过，`All tests passed!`。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 提醒编辑旧记录能力仍需服务端先定义更新接口和状态边界。
+- 模板默认提前量目前作为模板信息展示，不自动推算提醒时间；当前提醒创建表单仍以用户选择的提醒时间为准。
+
+### 5. 风险或阻塞
+
+- 如果模板列表接口不可用，页面会展示错误重试，不回退到本地 mock 模板。
+- 后台真实账号体系、通知模板和推送通道仍由服务端/admin-web 线程推进。
+
 ## 2026-05-18 服务端后台提醒模板管理补齐对移动端无接口变更
 
 ### 1. 新完成内容

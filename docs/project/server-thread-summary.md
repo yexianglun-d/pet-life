@@ -7,6 +7,43 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用“核心可用”等阶段性表述。
 
+## 2026-05-18 用户端提醒模板读取接口补齐
+
+### 新完成内容
+
+- 新增用户端宠物可用提醒模板接口：`GET /api/v1/pets/{petId}/reminder-templates`。
+- 接口会校验当前登录用户是否可访问该宠物，仅返回 `enabled=true` 且 `applicable_pet_type=all` 或匹配当前宠物类型的模板。
+- 新增服务端测试覆盖猫宠可见模板范围、停用模板过滤、非匹配宠物类型过滤和无 token 权限边界。
+- 已同步 OpenAPI、技术接口说明、功能完成清单、当前交付状态和 UI 收口清单。
+
+### 新增/修改文件
+
+- 新增：`server/src/main/java/com/petlife/server/modules/reminder/controller/ReminderTemplateController.java`
+- 修改：`server/src/main/java/com/petlife/server/modules/reminder/service/ReminderTemplateApplicationService.java`
+- 修改：`server/src/main/java/com/petlife/server/modules/reminder/persistence/ReminderTemplatePersistenceMapper.java`
+- 修改：`server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/technical/02-api-and-events.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/03-ui-closure-checklist.md`
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 67, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- `git diff --check`：通过。
+
+### 未完成事项
+
+- 提醒模板仍只是读取和表单预填能力；提醒创建仍由用户确认提交。
+- 后台真实账号体系、通知模板和推送通道仍未完成。
+
+### 风险或阻塞
+
+- 当前接口不提供分页，返回最多 100 条启用模板；如果后台模板量明显增长，需要补分页契约。
+
 ## 2026-05-18 后台提醒模板管理接口补齐
 
 ### 新完成内容

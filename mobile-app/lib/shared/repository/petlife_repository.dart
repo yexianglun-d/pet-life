@@ -14,6 +14,7 @@ import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snaps
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/reminder_template_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/timeline_event_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/user_settings_snapshot.dart';
@@ -114,6 +115,8 @@ abstract interface class PetLifeRepository {
   });
 
   Future<List<ReminderSnapshot>> listReminders(String petId);
+
+  Future<List<ReminderTemplateSnapshot>> listReminderTemplates(String petId);
 
   Future<ReminderSnapshot> createReminder({
     required String petId,

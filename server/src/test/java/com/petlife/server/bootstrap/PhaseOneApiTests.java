@@ -1325,6 +1325,67 @@ class PhaseOneApiTests {
     }
 
     @Test
+    void shouldListEnabledReminderTemplatesForCurrentPet() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        String petType = JsonPath.read(
+            mockMvc.perform(get("/api/v1/me")
+                    .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(),
+            "$.data.current_pet.pet_type"
+        );
+        String nonMatchingPetType = "dog".equals(petType) ? "cat" : "dog";
+        String templateNamePrefix = "用户端提醒模板-" + System.nanoTime();
+        String allPetTemplateName = templateNamePrefix + "-全宠";
+        String matchingTemplateName = templateNamePrefix + "-匹配";
+        String nonMatchingTemplateName = templateNamePrefix + "-不匹配";
+        String disabledTemplateName = templateNamePrefix + "-停用";
+
+        jdbcTemplate.update("""
+            INSERT INTO reminder_templates (
+              template_name, reminder_type, default_reminder_mode,
+              default_advance_value, default_advance_unit,
+              default_cycle_value, default_cycle_unit,
+              applicable_pet_type, enabled, sort_order,
+              created_at, updated_at
+            ) VALUES
+              (?, 'vaccine', 'cycle', 7, 'day', 12, 'month', 'all', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+              (?, 'deworming', 'cycle', 3, 'day', 1, 'month', ?, 1, 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+              (?, 'examination', 'single', 1, 'week', NULL, NULL, ?, 1, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+              (?, 'custom', 'single', 0, 'day', NULL, NULL, ?, 0, 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            allPetTemplateName,
+            matchingTemplateName,
+            petType,
+            nonMatchingTemplateName,
+            nonMatchingPetType,
+            disabledTemplateName,
+            petType);
+
+        mockMvc.perform(get("/api/v1/pets/%s/reminder-templates".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.template_name == '%s')].applicable_pet_type"
+                .formatted(allPetTemplateName), is(List.of("all"))))
+            .andExpect(jsonPath("$.data[?(@.template_name == '%s')].applicable_pet_type"
+                .formatted(matchingTemplateName), is(List.of(petType))))
+            .andExpect(jsonPath("$.data[?(@.template_name == '%s')]"
+                .formatted(nonMatchingTemplateName)).isEmpty())
+            .andExpect(jsonPath("$.data[?(@.template_name == '%s')]"
+                .formatted(disabledTemplateName)).isEmpty());
+    }
+
+    @Test
+    void shouldRejectUserReminderTemplateWithoutAccessToken() throws Exception {
+        mockMvc.perform(get("/api/v1/pets/10001/reminder-templates"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+    }
+
+    @Test
     void shouldCreateDailyLog() throws Exception {
         String authorizationHeader = authorizationHeader();
         String petId = currentPetId(authorizationHeader);
