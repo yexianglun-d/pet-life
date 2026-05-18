@@ -2,6 +2,8 @@ package com.petlife.server.modules.pet.service;
 
 import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
+import com.petlife.server.modules.admin.domain.entity.AdminOperationContext;
+import com.petlife.server.modules.admin.service.AuditLogApplicationService;
 import com.petlife.server.modules.auth.security.CurrentUserContext;
 import com.petlife.server.modules.dailylog.converter.DailyLogEntityConverter;
 import com.petlife.server.modules.dailylog.domain.entity.DailyLogEntity;
@@ -9,6 +11,7 @@ import com.petlife.server.modules.dailylog.persistence.DailyLogPersistenceMapper
 import com.petlife.server.modules.family.converter.FamilyEntityConverter;
 import com.petlife.server.modules.family.domain.entity.FamilyMemberEntity;
 import com.petlife.server.modules.family.persistence.FamilyPersistenceMapper;
+import com.petlife.server.modules.family.persistence.command.CreateFamilyCommand;
 import com.petlife.server.modules.health.converter.HealthRecordEntityConverter;
 import com.petlife.server.modules.health.domain.entity.HealthRecordEntity;
 import com.petlife.server.modules.health.persistence.HealthRecordPersistenceMapper;
@@ -17,6 +20,7 @@ import com.petlife.server.modules.pet.converter.PetEntityConverter;
 import com.petlife.server.modules.pet.domain.entity.AdminPetEntity;
 import com.petlife.server.modules.pet.domain.entity.PetProfileEntity;
 import com.petlife.server.modules.pet.dto.request.ArchivePetRequest;
+import com.petlife.server.modules.pet.dto.request.AdminRepairPetRequest;
 import com.petlife.server.modules.pet.dto.request.CreatePetRequest;
 import com.petlife.server.modules.pet.dto.request.UpdatePetRequest;
 import com.petlife.server.modules.pet.dto.response.AdminPetResponse;
@@ -35,7 +39,9 @@ import com.petlife.server.modules.user.domain.entity.FamilySummaryEntity;
 import com.petlife.server.modules.user.domain.entity.UserProfileEntity;
 import com.petlife.server.modules.user.persistence.UserPersistenceMapper;
 import com.petlife.server.modules.user.service.UserBootstrapApplicationService;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,6 +68,7 @@ public class PetApplicationService {
     private final ReminderEntityConverter reminderEntityConverter;
     private final DailyLogEntityConverter dailyLogEntityConverter;
     private final UserBootstrapApplicationService userBootstrapApplicationService;
+    private final AuditLogApplicationService auditLogApplicationService;
 
     public PetApplicationService(
         PetPersistenceMapper petPersistenceMapper,
@@ -77,7 +84,8 @@ public class PetApplicationService {
         HealthRecordEntityConverter healthRecordEntityConverter,
         ReminderEntityConverter reminderEntityConverter,
         DailyLogEntityConverter dailyLogEntityConverter,
-        UserBootstrapApplicationService userBootstrapApplicationService
+        UserBootstrapApplicationService userBootstrapApplicationService,
+        AuditLogApplicationService auditLogApplicationService
     ) {
         this.petPersistenceMapper = petPersistenceMapper;
         this.userPersistenceMapper = userPersistenceMapper;
@@ -93,6 +101,7 @@ public class PetApplicationService {
         this.reminderEntityConverter = reminderEntityConverter;
         this.dailyLogEntityConverter = dailyLogEntityConverter;
         this.userBootstrapApplicationService = userBootstrapApplicationService;
+        this.auditLogApplicationService = auditLogApplicationService;
     }
 
     public List<PetDetailResponse> listPets() {
@@ -139,6 +148,39 @@ public class PetApplicationService {
             throw new BusinessException(ResponseCode.PET_NOT_FOUND);
         }
         return adminPetConverter.toResponse(adminPet);
+    }
+
+    /**
+     * 后台宠物修复工具只处理明确可验证的问题类型。
+     *
+     * <p>修复前先按当前数据库事实校验主人、家庭与成员关系，避免后台按钮变成任意改数据入口。</p>
+     */
+    @Transactional
+    public AdminPetResponse repairAdminPet(
+        Long petId,
+        AdminOperationContext operationContext,
+        AdminRepairPetRequest request
+    ) {
+        AdminPetEntity adminPet = requireAdminPet(petId);
+        String repairType = normalizePetRepairType(request.repairType());
+        switch (repairType) {
+            case "family_missing" -> repairMissingFamily(adminPet);
+            case "owner_member_missing" -> repairOwnerMember(adminPet);
+            case "current_pet_context" -> userBootstrapApplicationService.rebuildCurrentPetContextForPet(petId);
+            default -> throw new BusinessException(ResponseCode.BAD_REQUEST, "宠物修复类型不支持");
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("repair_type", repairType);
+        detail.put("reason", normalizeNullableText(request.reason()));
+        auditLogApplicationService.recordAdminOperation(
+            operationContext,
+            "pet",
+            String.valueOf(petId),
+            "pet_" + repairType + "_repair",
+            detail
+        );
+        return getAdminPet(petId);
     }
 
     @Transactional
@@ -251,6 +293,49 @@ public class PetApplicationService {
         );
     }
 
+    private AdminPetEntity requireAdminPet(Long petId) {
+        AdminPetEntity adminPet = adminPetConverter.toEntity(petPersistenceMapper.findAdminPetById(petId));
+        if (adminPet == null) {
+            throw new BusinessException(ResponseCode.PET_NOT_FOUND);
+        }
+        return adminPet;
+    }
+
+    private void repairMissingFamily(AdminPetEntity adminPet) {
+        PetProfileEntity petProfile = adminPet.getPetProfile();
+        if (petProfile.getFamilyId() != null && adminPet.getFamilyStatus() != null) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "当前宠物已有家庭归属，无需执行家庭缺失修复");
+        }
+        UserProfileEntity ownerProfile =
+            userEntityConverter.toEntity(userPersistenceMapper.findUserProfileById(petProfile.getOwnerUserId()));
+        if (ownerProfile == null) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "宠物主人不存在或已被禁用，无法创建修复家庭");
+        }
+
+        CreateFamilyCommand command = new CreateFamilyCommand();
+        command.setOwnerUserId(ownerProfile.getUserId());
+        command.setFamilyName(ownerProfile.getNickname() + "的家庭");
+        familyPersistenceMapper.insertFamily(command);
+        familyPersistenceMapper.insertFamilyMember(command.getId(), ownerProfile.getUserId(), "owner");
+        petPersistenceMapper.updatePetFamily(petProfile.getPetId(), command.getId());
+        userBootstrapApplicationService.rebuildCurrentPetContextForPet(petProfile.getPetId());
+    }
+
+    private void repairOwnerMember(AdminPetEntity adminPet) {
+        PetProfileEntity petProfile = adminPet.getPetProfile();
+        if (petProfile.getFamilyId() == null || adminPet.getFamilyStatus() == null) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "当前宠物没有有效家庭，请先执行家庭缺失修复");
+        }
+        if (!userPersistenceMapper.existsActiveUserById(petProfile.getOwnerUserId())) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "宠物主人不存在或已被禁用");
+        }
+
+        var family = familyPersistenceMapper.findAdminFamilyById(petProfile.getFamilyId());
+        String ownerRole = family != null && petProfile.getOwnerUserId().equals(family.ownerUserId()) ? "owner" : "admin";
+        familyPersistenceMapper.insertFamilyMember(petProfile.getFamilyId(), petProfile.getOwnerUserId(), ownerRole);
+        userBootstrapApplicationService.rebuildCurrentPetContextForPet(petProfile.getPetId());
+    }
+
     private PetProfileEntity requireAccessiblePet(Long petId) {
         Long currentUserId = CurrentUserContext.requireUserId();
         PetProfileEntity petProfile =
@@ -325,5 +410,18 @@ public class PetApplicationService {
         }
         String normalizedValue = value.trim();
         return normalizedValue.isEmpty() ? null : normalizedValue;
+    }
+
+    private String normalizePetRepairType(String repairType) {
+        String normalizedRepairType = normalizeOptionalText(repairType, 50, "宠物修复类型长度不能超过 50 个字符");
+        if (normalizedRepairType == null) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "宠物修复类型不能为空");
+        }
+        if (!"family_missing".equals(normalizedRepairType)
+            && !"owner_member_missing".equals(normalizedRepairType)
+            && !"current_pet_context".equals(normalizedRepairType)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "宠物修复类型不支持");
+        }
+        return normalizedRepairType;
     }
 }

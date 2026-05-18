@@ -8,6 +8,7 @@ import 'package:petlife_mobile_app/shared/domain/models/family_detail_snapshot.d
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_preview_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/health_record_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/home_aggregate_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/home_pet_report_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/media_asset_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snapshot.dart';
@@ -248,6 +249,8 @@ abstract interface class PetLifeRepository {
   Future<void> removeFamilyMember(String memberId);
 
   Future<PetDashboardSnapshot> getPetDashboard(String petId);
+
+  Future<HomeAggregateSnapshot> getHomeAggregate();
 
   Future<HomePetReportSnapshot> getWeeklyPetReport();
 

@@ -26,6 +26,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,8 +46,44 @@ class PhaseOneApiTests {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @BeforeAll
     void ensureSchemaExtensions() {
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS admin_accounts (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              username VARCHAR(50) NOT NULL COMMENT '后台登录账号',
+              password_hash VARCHAR(100) NOT NULL COMMENT 'BCrypt 密码摘要',
+              display_name VARCHAR(50) NOT NULL COMMENT '管理员展示名称',
+              role_code VARCHAR(50) NOT NULL COMMENT '角色编码',
+              status TINYINT NOT NULL DEFAULT 1 COMMENT '账号状态：1-正常 2-禁用',
+              last_login_at DATETIME DEFAULT NULL COMMENT '最近登录时间',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              deleted_at DATETIME DEFAULT NULL COMMENT '软删除时间',
+              PRIMARY KEY (id),
+              UNIQUE KEY uk_admin_accounts_username (username),
+              KEY idx_admin_accounts_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='后台管理员账号表'
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS admin_sessions (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              admin_account_id BIGINT UNSIGNED NOT NULL COMMENT '管理员账号 ID',
+              refresh_token_hash CHAR(64) NOT NULL COMMENT '刷新令牌 SHA256 摘要',
+              expires_at DATETIME NOT NULL COMMENT '会话过期时间',
+              revoked_at DATETIME DEFAULT NULL COMMENT '吊销时间',
+              last_active_at DATETIME DEFAULT NULL COMMENT '最近活跃时间',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              PRIMARY KEY (id),
+              UNIQUE KEY uk_admin_sessions_refresh_hash (refresh_token_hash),
+              KEY idx_admin_sessions_account (admin_account_id),
+              KEY idx_admin_sessions_active (revoked_at, expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='后台管理员登录会话表'
+            """);
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS media_assets (
               id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
@@ -131,6 +168,7 @@ class PhaseOneApiTests {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='提醒模板表'
             """);
         ensureCommunityReportAdminNotesColumn();
+        ensureAdminAccount();
     }
 
     private void ensureCommunityReportAdminNotesColumn() {
@@ -147,6 +185,25 @@ class PhaseOneApiTests {
                 ADD COLUMN admin_notes VARCHAR(500) DEFAULT NULL COMMENT '管理员处理备注' AFTER processed_by
                 """);
         }
+    }
+
+    private void ensureAdminAccount() {
+        jdbcTemplate.update("""
+            INSERT INTO admin_accounts (
+              username, password_hash, display_name, role_code, status,
+              created_at, updated_at
+            ) VALUES (
+              'admin', ?, '测试管理员', 'super_admin', 1,
+              CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
+            ON DUPLICATE KEY UPDATE
+              password_hash = VALUES(password_hash),
+              display_name = VALUES(display_name),
+              role_code = VALUES(role_code),
+              status = 1,
+              deleted_at = NULL,
+              updated_at = CURRENT_TIMESTAMP
+            """, passwordEncoder.encode("petlife123"));
     }
 
     @Test
@@ -207,6 +264,60 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/me")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + nextAccessToken))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+    }
+
+    @Test
+    void shouldLoginRefreshAndLogoutAdminSession() throws Exception {
+        LoginTokensFixture loginTokens = adminLoginTokens();
+
+        mockMvc.perform(get("/api/v1/admin/users")
+                .header(HttpHeaders.AUTHORIZATION, loginTokens.authorizationHeader()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code", is("OK")));
+
+        MvcResult refreshResult = mockMvc.perform(post("/api/v1/admin/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "refresh_token": "%s"
+                    }
+                    """.formatted(loginTokens.refreshToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.access_token").exists())
+            .andExpect(jsonPath("$.data.refresh_token").exists())
+            .andReturn();
+
+        String refreshedResponseBody = refreshResult.getResponse().getContentAsString();
+        String nextAccessToken = JsonPath.read(refreshedResponseBody, "$.data.access_token");
+        String nextRefreshToken = JsonPath.read(refreshedResponseBody, "$.data.refresh_token");
+
+        mockMvc.perform(get("/api/v1/admin/users")
+                .header(HttpHeaders.AUTHORIZATION, loginTokens.authorizationHeader()))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(post("/api/v1/admin/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "refresh_token": "%s"
+                    }
+                    """.formatted(nextRefreshToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code", is("OK")));
+
+        mockMvc.perform(get("/api/v1/admin/users")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + nextAccessToken))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+    }
+
+    @Test
+    void shouldRejectAdminEndpointWithUserToken() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/users")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader()))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
     }
@@ -295,6 +406,7 @@ class PhaseOneApiTests {
     @Test
     void shouldQueryUsersFromAdminEndpoints() throws Exception {
         String authorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String userId = currentUserId(authorizationHeader);
         String petId = currentPetId(authorizationHeader);
 
@@ -332,7 +444,7 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get(
                 "/api/v1/admin/users?keyword=后台查询&mobile=13800000000&nickname=后台查询用户&city_code=330100&notification_enabled=false&privacy_level=private")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.user_id == '%s')].mobile".formatted(userId), is(List.of("13800000000"))))
             .andExpect(jsonPath("$.data[?(@.user_id == '%s')].settings.notification_enabled"
@@ -345,7 +457,7 @@ class PhaseOneApiTests {
                 .formatted(userId), is(List.of(petId))));
 
         mockMvc.perform(get("/api/v1/admin/users/%s".formatted(userId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.user_id", is(userId)))
             .andExpect(jsonPath("$.data.nickname", is("后台查询用户Momo")))
@@ -354,6 +466,54 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.primary_family.role", is("owner")))
             .andExpect(jsonPath("$.data.current_pet.pet_name", is("Momo")))
             .andExpect(jsonPath("$.data.pet_count", is(1)));
+    }
+
+    @Test
+    void shouldUpdateUserStatusFromAdminEndpoint() throws Exception {
+        String authorizationHeader = authorizationHeader("13600000000");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        String userId = currentUserId(authorizationHeader);
+
+        mockMvc.perform(patch("/api/v1/admin/users/%s/status".formatted(userId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "user-governance-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "status": 2,
+                      "reason": "测试封禁用户"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.user_id", is(userId)))
+            .andExpect(jsonPath("$.data.status", is(2)));
+
+        mockMvc.perform(get("/api/v1/me")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(patch("/api/v1/admin/users/%s/status".formatted(userId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "user-governance-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "status": 1,
+                      "reason": "测试恢复用户"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status", is(1)));
+
+        Integer auditCount = jdbcTemplate.queryForObject("""
+            SELECT COUNT(1)
+            FROM audit_logs
+            WHERE target_type = 'user'
+              AND target_id = ?
+              AND action IN ('user_disable', 'user_restore')
+            """, Integer.class, userId);
+        assertEquals(2, auditCount);
     }
 
     @Test
@@ -626,13 +786,14 @@ class PhaseOneApiTests {
     @Test
     void shouldQueryPetsFromAdminEndpoints() throws Exception {
         String authorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String familyId = currentFamilyId(authorizationHeader);
         String petId = createPet(authorizationHeader, "后台宠物查询Dodo");
 
         mockMvc.perform(get(
                 "/api/v1/admin/pets?keyword=后台宠物&pet_name=后台宠物查询&pet_type=dog&status=active&owner_mobile=13800000000&family_id=%s"
                     .formatted(familyId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.pet.pet_id == '%s')].pet.pet_name"
                 .formatted(petId), is(List.of("后台宠物查询Dodo"))))
@@ -642,13 +803,83 @@ class PhaseOneApiTests {
                 .formatted(petId), is(List.of(familyId))));
 
         mockMvc.perform(get("/api/v1/admin/pets/%s".formatted(petId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.pet.pet_id", is(petId)))
             .andExpect(jsonPath("$.data.pet.pet_type", is("dog")))
             .andExpect(jsonPath("$.data.owner.nickname", is("Momo")))
             .andExpect(jsonPath("$.data.family.family_name", is("Momo的家庭")))
             .andExpect(jsonPath("$.data.family.member_count", is(1)));
+    }
+
+    @Test
+    void shouldRepairPetFromAdminEndpoint() throws Exception {
+        String authorizationHeader = authorizationHeader("13300000000");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        String userId = currentUserId(authorizationHeader);
+        String petId = currentPetId(authorizationHeader);
+        String familyId = currentFamilyId(authorizationHeader);
+
+        jdbcTemplate.update(
+            "DELETE FROM family_members WHERE family_id = ? AND user_id = ?",
+            Long.valueOf(familyId),
+            Long.valueOf(userId)
+        );
+        mockMvc.perform(post("/api/v1/admin/pets/%s/repair".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "pet-repair-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "repair_type": "owner_member_missing",
+                      "reason": "测试修复主人成员关系"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.pet.pet_id", is(petId)))
+            .andExpect(jsonPath("$.data.family.member_count", is(1)));
+
+        jdbcTemplate.update("UPDATE pets SET family_id = NULL WHERE id = ?", Long.valueOf(petId));
+        mockMvc.perform(post("/api/v1/admin/pets/%s/repair".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "pet-repair-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "repair_type": "family_missing",
+                      "reason": "测试修复家庭缺失"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.pet.pet_id", is(petId)))
+            .andExpect(jsonPath("$.data.family.family_id").exists())
+            .andExpect(jsonPath("$.data.family.member_count", is(1)));
+
+        mockMvc.perform(post("/api/v1/admin/pets/%s/repair".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "pet-repair-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "repair_type": "current_pet_context",
+                      "reason": "测试重建当前宠物上下文"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.pet.pet_id", is(petId)));
+
+        Integer auditCount = jdbcTemplate.queryForObject("""
+            SELECT COUNT(1)
+            FROM audit_logs
+            WHERE target_type = 'pet'
+              AND target_id = ?
+              AND action IN (
+                'pet_owner_member_missing_repair',
+                'pet_family_missing_repair',
+                'pet_current_pet_context_repair'
+              )
+            """, Integer.class, petId);
+        assertEquals(3, auditCount);
     }
 
     @Test
@@ -856,13 +1087,14 @@ class PhaseOneApiTests {
     @Test
     void shouldQueryFamiliesFromAdminEndpoints() throws Exception {
         String ownerAuthorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String familyId = currentFamilyId(ownerAuthorizationHeader);
         String petId = currentPetId(ownerAuthorizationHeader);
         joinFamilyMember(ownerAuthorizationHeader, "13900000000", "member");
 
         mockMvc.perform(get(
                 "/api/v1/admin/families?keyword=Momo&family_name=Momo&member_mobile=13900000000&member_role=member&status=1")
-                .header(HttpHeaders.AUTHORIZATION, ownerAuthorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.family_id == '%s')].family_name"
                 .formatted(familyId), is(List.of("Momo的家庭"))))
@@ -874,13 +1106,74 @@ class PhaseOneApiTests {
                 .formatted(familyId), is(List.of(petId))));
 
         mockMvc.perform(get("/api/v1/admin/families/%s".formatted(familyId))
-                .header(HttpHeaders.AUTHORIZATION, ownerAuthorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.family_id", is(familyId)))
             .andExpect(jsonPath("$.data.family_name", is("Momo的家庭")))
             .andExpect(jsonPath("$.data.members[?(@.mobile == '13900000000')].role", is(List.of("member"))))
             .andExpect(jsonPath("$.data.pets[?(@.pet_id == '%s')].owner_mobile".formatted(petId),
                 is(List.of("13800000000"))));
+    }
+
+    @Test
+    void shouldUpdateFamilyStatusAndRepairOwnerMemberFromAdminEndpoint() throws Exception {
+        String ownerAuthorizationHeader = authorizationHeader("13500000000");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        String userId = currentUserId(ownerAuthorizationHeader);
+        String familyId = currentFamilyId(ownerAuthorizationHeader);
+
+        mockMvc.perform(patch("/api/v1/admin/families/%s/status".formatted(familyId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "family-governance-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "status": 2,
+                      "reason": "测试停用家庭"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.family_id", is(familyId)))
+            .andExpect(jsonPath("$.data.status", is(2)));
+
+        mockMvc.perform(patch("/api/v1/admin/families/%s/status".formatted(familyId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "family-governance-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "status": 1,
+                      "reason": "测试恢复家庭"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status", is(1)));
+
+        jdbcTemplate.update(
+            "UPDATE family_members SET role = 'member' WHERE family_id = ? AND user_id = ?",
+            Long.valueOf(familyId),
+            Long.valueOf(userId)
+        );
+        mockMvc.perform(post("/api/v1/admin/families/%s/owner-member-repair".formatted(familyId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "family-governance-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "reason": "测试修复家庭 owner 成员关系"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.members[?(@.user_id == '%s')].role".formatted(userId), is(List.of("owner"))));
+
+        Integer auditCount = jdbcTemplate.queryForObject("""
+            SELECT COUNT(1)
+            FROM audit_logs
+            WHERE target_type = 'family'
+              AND target_id = ?
+              AND action IN ('family_disable', 'family_restore', 'family_owner_member_repair')
+            """, Integer.class, familyId);
+        assertEquals(3, auditCount);
     }
 
     @Test
@@ -1103,6 +1396,7 @@ class PhaseOneApiTests {
     @Test
     void shouldQueryRemindersFromAdminEndpoints() throws Exception {
         String authorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String userId = currentUserId(authorizationHeader);
         String familyId = currentFamilyId(authorizationHeader);
         String petId = currentPetId(authorizationHeader);
@@ -1143,7 +1437,7 @@ class PhaseOneApiTests {
         );
 
         mockMvc.perform(get("/api/v1/admin/reminders")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .param("keyword", "后台提醒查询")
                 .param("status", "completed")
                 .param("reminder_type", "deworming")
@@ -1163,7 +1457,7 @@ class PhaseOneApiTests {
                 .formatted(completedReminderId), is(List.of(userId))));
 
         mockMvc.perform(get("/api/v1/admin/reminders/%s".formatted(completedReminderId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.reminder.reminder_id", is(completedReminderId)))
             .andExpect(jsonPath("$.data.reminder.completed_at").exists())
@@ -1172,7 +1466,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.source_record", nullValue()));
 
         mockMvc.perform(get("/api/v1/admin/reminders")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .param("status", "pending")
                 .param("source_record_id", sourceHealthRecordId))
             .andExpect(status().isOk())
@@ -1191,11 +1485,11 @@ class PhaseOneApiTests {
 
     @Test
     void shouldManageReminderTemplatesFromAdminEndpoints() throws Exception {
-        String authorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String templateName = "后台提醒模板-" + System.nanoTime();
 
         MvcResult createResult = mockMvc.perform(post("/api/v1/admin/reminder-templates")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", "reminder-admin")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -1224,7 +1518,7 @@ class PhaseOneApiTests {
         String templateId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.data.template_id");
 
         mockMvc.perform(get("/api/v1/admin/reminder-templates")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .param("keyword", templateName)
                 .param("reminder_type", "vaccine")
                 .param("default_reminder_mode", "cycle")
@@ -1237,7 +1531,7 @@ class PhaseOneApiTests {
                 .formatted(templateId), is(List.of("month"))));
 
         mockMvc.perform(get("/api/v1/admin/reminder-templates/%s".formatted(templateId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.template_id", is(templateId)))
             .andExpect(jsonPath("$.data.created_at").exists())
@@ -1245,7 +1539,7 @@ class PhaseOneApiTests {
 
         String updatedTemplateName = templateName + "-已更新";
         mockMvc.perform(patch("/api/v1/admin/reminder-templates/%s".formatted(templateId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", "reminder-admin")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -1270,7 +1564,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.sort_order", is(8)));
 
         mockMvc.perform(patch("/api/v1/admin/reminder-templates/%s/status".formatted(templateId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", "reminder-admin")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -1283,7 +1577,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.enabled", is(false)));
 
         mockMvc.perform(get("/api/v1/admin/reminder-templates")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .param("keyword", updatedTemplateName)
                 .param("reminder_type", "examination")
                 .param("default_reminder_mode", "single")
@@ -1297,7 +1591,7 @@ class PhaseOneApiTests {
     @Test
     void shouldRejectInvalidReminderTemplateCycleConfig() throws Exception {
         mockMvc.perform(post("/api/v1/admin/reminder-templates")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader())
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -1656,13 +1950,14 @@ class PhaseOneApiTests {
     void shouldListModerationReports() throws Exception {
         String authorAuthorizationHeader = authorizationHeader();
         String reporterAuthorizationHeader = authorizationHeader("13900000000");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String petId = currentPetId(authorAuthorizationHeader);
         createDailyLog(authorAuthorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
         String postId = currentCommunityPostId(reporterAuthorizationHeader);
         createCommunityPostReport(reporterAuthorizationHeader, postId, "harassment", "持续使用攻击性语言");
 
         mockMvc.perform(get("/api/v1/admin/moderation/reports")
-                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.length()", is(1)))
             .andExpect(jsonPath("$.data[0].reporter_nickname", is("宠物家长")))
@@ -1675,13 +1970,14 @@ class PhaseOneApiTests {
     void shouldConfirmViolationAndHideReportedPost() throws Exception {
         String authorAuthorizationHeader = authorizationHeader();
         String reporterAuthorizationHeader = authorizationHeader("13900000000");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String petId = currentPetId(authorAuthorizationHeader);
         createDailyLog(authorAuthorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
         String postId = currentCommunityPostId(reporterAuthorizationHeader);
         String reportId = createCommunityPostReport(reporterAuthorizationHeader, postId, "illegal", "包含违规售卖信息");
 
         mockMvc.perform(patch("/api/v1/admin/moderation/reports/%s".formatted(reportId))
-                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", "risk-admin")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -1708,7 +2004,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.items[?(@.biz_type == 'moderation_report')].title", is(List.of("举报已处理"))));
 
         mockMvc.perform(get("/api/v1/admin/moderation/audit-logs?operator_id=risk-admin&target_type=moderation_report")
-                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].target_id", is(reportId)))
             .andExpect(jsonPath("$.data[0].action", is("moderation_report_confirm_violation")))
@@ -1719,13 +2015,14 @@ class PhaseOneApiTests {
     void shouldDismissReportAndKeepReportedPostVisible() throws Exception {
         String authorAuthorizationHeader = authorizationHeader();
         String reporterAuthorizationHeader = authorizationHeader("13900000000");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String petId = currentPetId(authorAuthorizationHeader);
         createDailyLog(authorAuthorizationHeader, petId, "今天第一次主动跳上窗台晒太阳。", true);
         String postId = currentCommunityPostId(reporterAuthorizationHeader);
         String reportId = createCommunityPostReport(reporterAuthorizationHeader, postId, "spam", "误报测试");
 
         mockMvc.perform(patch("/api/v1/admin/moderation/reports/%s".formatted(reportId))
-                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", "content-admin")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -1828,6 +2125,7 @@ class PhaseOneApiTests {
     @Test
     void shouldQueryHealthDailyAndTimelineFromAdminEndpoints() throws Exception {
         String authorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String petId = currentPetId(authorizationHeader);
         String healthAssetId = uploadMediaAsset(
             authorizationHeader,
@@ -1880,7 +2178,7 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/admin/health-records?pet_id=%s&record_type=examination&keyword=后台体重"
                 .formatted(petId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.health_record.health_record_id == '%s')].pet.pet_name"
                 .formatted(healthRecordId), is(List.of("Momo"))))
@@ -1888,7 +2186,7 @@ class PhaseOneApiTests {
                 .formatted(healthRecordId), is(List.of(healthAssetId))));
 
         mockMvc.perform(get("/api/v1/admin/health-records/%s".formatted(healthRecordId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.health_record.title", is("后台体重复查")))
             .andExpect(jsonPath("$.data.operator.user_id").exists())
@@ -1896,7 +2194,7 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/admin/daily-logs?pet_id=%s&visibility=public&keyword=后台日常"
                 .formatted(petId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.daily_log.daily_log_id == '%s')].author.nickname"
                 .formatted(dailyLogId), is(List.of("Momo"))))
@@ -1904,7 +2202,7 @@ class PhaseOneApiTests {
                 .formatted(dailyLogId), is(List.of(dailyAssetId))));
 
         mockMvc.perform(get("/api/v1/admin/daily-logs/%s".formatted(dailyLogId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.daily_log.content", is("后台日常查询内容")))
             .andExpect(jsonPath("$.data.pet.pet_id", is(petId)))
@@ -1913,7 +2211,7 @@ class PhaseOneApiTests {
         MvcResult timelineResult = mockMvc.perform(get(
                 "/api/v1/admin/timeline/events?pet_id=%s&event_type=health&source_type=health_record"
                     .formatted(petId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.timeline_event.source_id == '%s')].source_status"
                 .formatted(healthRecordId), is(List.of("active"))))
@@ -1926,7 +2224,7 @@ class PhaseOneApiTests {
         assertEquals(1, eventIds.size());
 
         mockMvc.perform(get("/api/v1/admin/timeline/events/%s".formatted(eventIds.getFirst()))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.timeline_event.source_id", is(healthRecordId)))
             .andExpect(jsonPath("$.data.source_status", is("active")))
@@ -2027,11 +2325,12 @@ class PhaseOneApiTests {
     @Test
     void shouldManageServiceCityConfigInAdminAndControlUserDirectory() throws Exception {
         String authorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String adminOperator = "service-city-admin";
         String petId = currentPetId(authorizationHeader);
 
         mockMvc.perform(post("/api/v1/admin/service/cities")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2074,7 +2373,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.message", is("杭州服务正在筹备中")));
 
         mockMvc.perform(post("/api/v1/admin/service/cities")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2090,7 +2389,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.unavailable_reason", nullValue()));
 
         mockMvc.perform(get("/api/v1/admin/service/cities?city_code=330100&opened=true")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].city_name", is("杭州")));
 
@@ -2101,7 +2400,7 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/admin/service/audit-logs?operator_id=%s&target_type=service_city"
                 .formatted(adminOperator))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.action == 'service_city_upsert')].target_id",
                 is(List.of("330100", "330100"))));
@@ -2184,12 +2483,13 @@ class PhaseOneApiTests {
     @Test
     void shouldManageServiceProviderItemsAndSlotsInAdmin() throws Exception {
         String authorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String adminOperator = "service-resource-admin";
         LocalDate slotDate = LocalDate.now().plusDays(5);
         ensureServiceCityOpened("310000", "上海");
 
         MvcResult providerResult = mockMvc.perform(post("/api/v1/admin/service/providers")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2215,7 +2515,7 @@ class PhaseOneApiTests {
         String providerId = JsonPath.read(providerResult.getResponse().getContentAsString(), "$.data.provider_id");
 
         mockMvc.perform(patch("/api/v1/admin/service/providers/%s".formatted(providerId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2238,7 +2538,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.status", is("online")));
 
         MvcResult itemResult = mockMvc.perform(post("/api/v1/admin/service/providers/%s/items".formatted(providerId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2261,7 +2561,7 @@ class PhaseOneApiTests {
         );
 
         mockMvc.perform(patch("/api/v1/admin/service/providers/%s/items/%s".formatted(providerId, serviceItemId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2278,7 +2578,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.service_items[0].service_name", is("日间托管升级版")));
 
         MvcResult slotResult = mockMvc.perform(post("/api/v1/admin/service/providers/%s/slots".formatted(providerId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2301,7 +2601,7 @@ class PhaseOneApiTests {
         );
 
         mockMvc.perform(patch("/api/v1/admin/service/providers/%s/slots/%s".formatted(providerId, slotId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2318,7 +2618,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.available_slots[0].available_quota", is(4)));
 
         mockMvc.perform(get("/api/v1/admin/service/providers?provider_type=boarding&city_code=310000&status=online")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.provider_id == '%s')].provider_name".formatted(providerId),
                 is(List.of("优住宠物寄养中心 Pro"))));
@@ -2331,7 +2631,7 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/admin/service/audit-logs?operator_id=%s&target_type=provider_schedule_slot"
                 .formatted(adminOperator))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.action == 'provider_schedule_slot_update')].target_id",
                 is(List.of(slotId))));
@@ -2340,6 +2640,7 @@ class PhaseOneApiTests {
     @Test
     void shouldListAndUpdateServiceAppointmentsInAdmin() throws Exception {
         String authorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String adminOperator = "service-appointment-admin";
         String petId = currentPetId(authorizationHeader);
         ProviderFixture provider = createServiceProviderWithSlot("training", "正向训练营", 1);
@@ -2366,13 +2667,13 @@ class PhaseOneApiTests {
         String appointmentId = JsonPath.read(appointmentResult.getResponse().getContentAsString(), "$.data.appointment_id");
 
         mockMvc.perform(get("/api/v1/admin/service/appointments?status=pending_confirm&provider_type=training&city_code=310000")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.appointment_id == '%s')].provider_name".formatted(appointmentId),
                 is(List.of("正向训练营"))));
 
         mockMvc.perform(patch("/api/v1/admin/service/appointments/%s/status".formatted(appointmentId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2386,7 +2687,7 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.remark", is("已确认训练师和到店时间")));
 
         mockMvc.perform(patch("/api/v1/admin/service/appointments/%s/status".formatted(appointmentId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2408,7 +2709,7 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/admin/service/audit-logs?operator_id=%s&target_type=service_appointment"
                 .formatted(adminOperator))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.action == 'service_appointment_status_update')].target_id",
                 is(List.of(appointmentId, appointmentId))));
@@ -2417,6 +2718,7 @@ class PhaseOneApiTests {
     @Test
     void shouldCreateListAndModerateServiceProviderReviews() throws Exception {
         String authorizationHeader = authorizationHeader();
+        String adminAuthorizationHeader = adminAuthorizationHeader();
         String adminOperator = "service-review-admin";
         String petId = currentPetId(authorizationHeader);
         ProviderFixture provider = createServiceProviderWithSlot("hospital", "口碑宠物医院", 1);
@@ -2442,7 +2744,7 @@ class PhaseOneApiTests {
         String appointmentId = JsonPath.read(appointmentResult.getResponse().getContentAsString(), "$.data.appointment_id");
 
         mockMvc.perform(patch("/api/v1/admin/service/appointments/%s/status".formatted(appointmentId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -2453,7 +2755,7 @@ class PhaseOneApiTests {
             .andExpect(status().isOk());
 
         mockMvc.perform(patch("/api/v1/admin/service/appointments/%s/status".formatted(appointmentId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -2491,12 +2793,12 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data[?(@.appointment_id == '%s')].reviewed".formatted(appointmentId), is(List.of(true))));
 
         mockMvc.perform(get("/api/v1/admin/service/reviews?status=visible&provider_type=hospital&city_code=310000")
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.review_id == '%s')].provider_name".formatted(reviewId), is(List.of("口碑宠物医院"))));
 
         mockMvc.perform(patch("/api/v1/admin/service/reviews/%s/status".formatted(reviewId))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
                 .header("X-Admin-Operator", adminOperator)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -2514,7 +2816,7 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/admin/service/audit-logs?operator_id=%s&target_type=provider_review"
                 .formatted(adminOperator))
-                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[?(@.action == 'provider_review_status_update')].target_id",
                 is(List.of(reviewId))));
@@ -2534,6 +2836,27 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.today_todo_count", is(1)))
             .andExpect(jsonPath("$.data.recent_health_records[0]", is("体重复查")))
             .andExpect(jsonPath("$.data.recent_daily_logs[0]").exists());
+    }
+
+    @Test
+    void shouldReturnHomeAggregate() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        createReminder(authorizationHeader, petId);
+        createHealthRecord(authorizationHeader, petId, "首页聚合体重复查");
+        createDailyLog(authorizationHeader, petId, "首页聚合日常记录。", true);
+
+        mockMvc.perform(get("/api/v1/home")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.current_user.current_pet_id", is(petId)))
+            .andExpect(jsonPath("$.data.dashboard.pet.pet_id", is(petId)))
+            .andExpect(jsonPath("$.data.dashboard.today_todo_count", is(1)))
+            .andExpect(jsonPath("$.data.dashboard.health_records[0].title", is("首页聚合体重复查")))
+            .andExpect(jsonPath("$.data.dashboard.daily_logs[0].content", is("首页聚合日常记录。")))
+            .andExpect(jsonPath("$.data.quick_actions[0].action_key", is("feed")))
+            .andExpect(jsonPath("$.data.service_entries[?(@.entry_key == 'hospital')]").isNotEmpty())
+            .andExpect(jsonPath("$.data.device_summary.enabled", is(false)));
     }
 
     @Test
@@ -2685,6 +3008,10 @@ class PhaseOneApiTests {
         return loginTokens(mobile).authorizationHeader();
     }
 
+    private String adminAuthorizationHeader() throws Exception {
+        return adminLoginTokens().authorizationHeader();
+    }
+
     private LoginTokensFixture loginTokens(String mobile) throws Exception {
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login/sms")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -2695,6 +3022,25 @@ class PhaseOneApiTests {
                     }
                     """.formatted(mobile)))
             .andExpect(status().isOk())
+            .andReturn();
+
+        String responseBody = loginResult.getResponse().getContentAsString();
+        String accessToken = JsonPath.read(responseBody, "$.data.access_token");
+        String refreshToken = JsonPath.read(responseBody, "$.data.refresh_token");
+        return new LoginTokensFixture(accessToken, refreshToken);
+    }
+
+    private LoginTokensFixture adminLoginTokens() throws Exception {
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/admin/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "username": "admin",
+                      "password": "petlife123"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.admin.username", is("admin")))
             .andReturn();
 
         String responseBody = loginResult.getResponse().getContentAsString();

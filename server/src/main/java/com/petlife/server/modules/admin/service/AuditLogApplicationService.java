@@ -6,6 +6,7 @@ import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
 import com.petlife.server.modules.admin.converter.AuditLogConverter;
 import com.petlife.server.modules.admin.domain.entity.AdminOperationContext;
+import com.petlife.server.modules.admin.security.CurrentAdminContext;
 import com.petlife.server.modules.admin.dto.response.AuditLogResponse;
 import com.petlife.server.modules.admin.persistence.AuditLogPersistenceMapper;
 import com.petlife.server.modules.admin.persistence.command.CreateAuditLogCommand;
@@ -142,7 +143,12 @@ public class AuditLogApplicationService {
 
     private String normalizeOperatorId(String operatorId) {
         String normalizedOperatorId = normalizeNullableText(operatorId, MAX_OPERATOR_ID_LENGTH);
-        return normalizedOperatorId == null ? DEFAULT_OPERATOR : normalizedOperatorId;
+        if (normalizedOperatorId != null) {
+            return normalizedOperatorId;
+        }
+        return CurrentAdminContext.current()
+            .map(authenticatedAdmin -> normalizeNullableText(authenticatedAdmin.username(), MAX_OPERATOR_ID_LENGTH))
+            .orElse(DEFAULT_OPERATOR);
     }
 
     private String normalizeRequiredText(String text, String message, int maxLength) {

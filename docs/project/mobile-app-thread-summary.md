@@ -7,6 +7,20 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-18 首页专用聚合接口接入
+
+### 1. 新完成内容
+
+- 新增移动端首页聚合快照模型 `HomeAggregateSnapshot`。
+- 仓储层新增 `getHomeAggregate()`，网络实现读取 `GET /api/v1/home`。
+- App 主壳首页加载流程改为消费首页聚合接口，不再由首页入口串联当前用户与宠物面板多接口。
+- 测试假仓储已同步补齐首页聚合方法。
+
+### 2. 验证命令与结果
+
+- `flutter analyze`：通过，`No issues found!`。
+- `flutter test`：通过，`All tests passed!`。
+
 ## 2026-05-18 用户端提醒模板选择接入
 
 ### 1. 新完成内容

@@ -7,6 +7,28 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用“核心可用”等阶段性表述。
 
+## 2026-05-18 后台真实账号、治理写能力与首页聚合补齐
+
+### 新完成内容
+
+- 新增后台真实账号与会话链路：`admin_accounts`、`admin_sessions`、后台登录、刷新、退出和后台 token 鉴权边界。
+- 后台 `/admin/**` 业务接口改为只接受后台 access token，普通 App 用户 token 会被拒绝。
+- 新增用户封禁/恢复接口，封禁时同步吊销用户端会话并写审计。
+- 新增家庭停用/恢复和 owner 成员关系修复接口，停用时重建相关当前宠物上下文。
+- 新增宠物问题数据修复接口，支持 `family_missing`、`owner_member_missing`、`current_pet_context`。
+- 新增 `GET /api/v1/home` 首页专用聚合接口，移动端首页可直接消费该读模型。
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用远程 MySQL 测试库运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -Dtest=PhaseOneApiTests test`：通过，`Tests run: 69, Failures: 0, Errors: 0, Skipped: 0`。
+- 使用远程 MySQL 测试库运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 73, Failures: 0, Errors: 0, Skipped: 0`。
+
+### 未完成事项
+
+- 真实短信、推送通道、对象存储云厂商适配器、第三方审核和地图能力仍未接入。
+- 细粒度后台 RBAC 仍未展开，本轮仅落地独立后台账号、会话和审计身份。
+
 ## 2026-05-18 用户端提醒模板读取接口补齐
 
 ### 新完成内容

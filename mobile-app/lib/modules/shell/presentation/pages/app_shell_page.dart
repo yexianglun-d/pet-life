@@ -11,6 +11,7 @@ import 'package:petlife_mobile_app/modules/profile/presentation/pages/profile_pa
 import 'package:petlife_mobile_app/modules/service/presentation/pages/service_placeholder_page.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/home_aggregate_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 
 class AppShellPage extends StatefulWidget {
@@ -37,14 +38,12 @@ class _AppShellPageState extends State<AppShellPage> {
 
   Future<_ShellViewData> _loadShellViewData() async {
     final repository = PetLifeAppScope.repositoryOf(context);
-    final CurrentUserSnapshot currentUser = await repository.getCurrentUser();
-    final PetDashboardSnapshot? dashboard = currentUser.currentPetId == null
-        ? null
-        : await repository.getPetDashboard(currentUser.currentPetId!);
+    final HomeAggregateSnapshot homeAggregate =
+        await repository.getHomeAggregate();
 
     return _ShellViewData(
-      currentUser: currentUser,
-      dashboard: dashboard,
+      currentUser: homeAggregate.currentUser,
+      dashboard: homeAggregate.dashboard,
     );
   }
 

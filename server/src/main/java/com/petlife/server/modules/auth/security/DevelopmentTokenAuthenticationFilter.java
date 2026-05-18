@@ -3,6 +3,9 @@ package com.petlife.server.modules.auth.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petlife.server.common.response.ApiResponse;
 import com.petlife.server.common.response.ResponseCode;
+import com.petlife.server.modules.admin.security.AuthenticatedAdmin;
+import com.petlife.server.modules.admin.security.CurrentAdminContext;
+import com.petlife.server.modules.admin.token.AdminAccessTokenRepository;
 import com.petlife.server.modules.auth.token.AccessTokenRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -30,13 +33,16 @@ public class DevelopmentTokenAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final AccessTokenRepository accessTokenRepository;
+    private final AdminAccessTokenRepository adminAccessTokenRepository;
     private final ObjectMapper objectMapper;
 
     public DevelopmentTokenAuthenticationFilter(
         AccessTokenRepository accessTokenRepository,
+        AdminAccessTokenRepository adminAccessTokenRepository,
         ObjectMapper objectMapper
     ) {
         this.accessTokenRepository = accessTokenRepository;
+        this.adminAccessTokenRepository = adminAccessTokenRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -45,6 +51,7 @@ public class DevelopmentTokenAuthenticationFilter extends OncePerRequestFilter {
         String requestPath = request.getRequestURI();
         return HttpMethod.OPTIONS.matches(request.getMethod())
             || requestPath.startsWith("/api/v1/auth/")
+            || requestPath.startsWith("/api/v1/admin/auth/")
             || requestPath.startsWith("/actuator/");
     }
 
@@ -55,6 +62,23 @@ public class DevelopmentTokenAuthenticationFilter extends OncePerRequestFilter {
         FilterChain filterChain
     ) throws ServletException, IOException {
         String accessToken = resolveAccessToken(request);
+        if (request.getRequestURI().startsWith("/api/v1/admin/")) {
+            Optional<AuthenticatedAdmin> authenticatedAdmin =
+                adminAccessTokenRepository.findAdminByAccessToken(accessToken);
+            if (authenticatedAdmin.isEmpty()) {
+                writeUnauthorizedResponse(response);
+                return;
+            }
+
+            try {
+                CurrentAdminContext.set(authenticatedAdmin.get());
+                filterChain.doFilter(request, response);
+            } finally {
+                CurrentAdminContext.clear();
+            }
+            return;
+        }
+
         Optional<Long> userId = accessTokenRepository.findUserIdByAccessToken(accessToken);
         if (userId.isEmpty()) {
             writeUnauthorizedResponse(response);

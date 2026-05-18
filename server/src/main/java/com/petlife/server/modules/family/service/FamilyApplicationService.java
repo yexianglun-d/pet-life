@@ -2,6 +2,8 @@ package com.petlife.server.modules.family.service;
 
 import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
+import com.petlife.server.modules.admin.domain.entity.AdminOperationContext;
+import com.petlife.server.modules.admin.service.AuditLogApplicationService;
 import com.petlife.server.modules.auth.security.CurrentUserContext;
 import com.petlife.server.modules.family.converter.AdminFamilyConverter;
 import com.petlife.server.modules.family.converter.FamilyEntityConverter;
@@ -12,6 +14,8 @@ import com.petlife.server.modules.family.domain.entity.FamilyMemberEntity;
 import com.petlife.server.modules.family.domain.entity.FamilyProfileEntity;
 import com.petlife.server.modules.family.dto.request.CreateFamilyInvitationRequest;
 import com.petlife.server.modules.family.dto.request.CreateFamilyRequest;
+import com.petlife.server.modules.family.dto.request.AdminRepairFamilyOwnerRequest;
+import com.petlife.server.modules.family.dto.request.AdminUpdateFamilyStatusRequest;
 import com.petlife.server.modules.family.dto.request.UpdateFamilyMemberRoleRequest;
 import com.petlife.server.modules.family.dto.response.AdminFamilyResponse;
 import com.petlife.server.modules.family.dto.response.FamilyDetailResponse;
@@ -57,6 +61,7 @@ public class FamilyApplicationService {
     private final AdminFamilyConverter adminFamilyConverter;
     private final FamilyEntityConverter familyEntityConverter;
     private final UserBootstrapApplicationService userBootstrapApplicationService;
+    private final AuditLogApplicationService auditLogApplicationService;
 
     public FamilyApplicationService(
         FamilyPersistenceMapper familyPersistenceMapper,
@@ -66,7 +71,8 @@ public class FamilyApplicationService {
         UserEntityConverter userEntityConverter,
         AdminFamilyConverter adminFamilyConverter,
         FamilyEntityConverter familyEntityConverter,
-        UserBootstrapApplicationService userBootstrapApplicationService
+        UserBootstrapApplicationService userBootstrapApplicationService,
+        AuditLogApplicationService auditLogApplicationService
     ) {
         this.familyPersistenceMapper = familyPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
@@ -76,6 +82,7 @@ public class FamilyApplicationService {
         this.adminFamilyConverter = adminFamilyConverter;
         this.familyEntityConverter = familyEntityConverter;
         this.userBootstrapApplicationService = userBootstrapApplicationService;
+        this.auditLogApplicationService = auditLogApplicationService;
     }
 
     public FamilyDetailResponse getCurrentFamily() {
@@ -133,6 +140,78 @@ public class FamilyApplicationService {
             throw new BusinessException(ResponseCode.FAMILY_NOT_FOUND);
         }
         return adminFamilyConverter.toResponse(adminFamily);
+    }
+
+    /**
+     * 后台家庭状态治理会改变用户端可访问家庭集合。
+     *
+     * <p>停用家庭后，需要重建引用该家庭宠物的用户当前宠物指针，避免首页继续落到已停用家庭。</p>
+     */
+    @Transactional
+    public AdminFamilyResponse updateAdminFamilyStatus(
+        Long familyId,
+        AdminOperationContext operationContext,
+        AdminUpdateFamilyStatusRequest request
+    ) {
+        AdminFamilyEntity adminFamily = requireAdminFamily(familyId);
+        Integer targetStatus = normalizeFamilyGovernanceStatus(request.status());
+        if (adminFamily.getStatus().equals(targetStatus)) {
+            return adminFamilyConverter.toResponse(adminFamily);
+        }
+
+        if (familyPersistenceMapper.updateFamilyStatus(familyId, targetStatus) == 0) {
+            throw new BusinessException(ResponseCode.FAMILY_NOT_FOUND);
+        }
+        if (Integer.valueOf(2).equals(targetStatus)) {
+            familyPersistenceMapper.listPetIdsByFamilyId(familyId)
+                .forEach(userBootstrapApplicationService::rebuildCurrentPetContextForPet);
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("from_status", adminFamily.getStatus());
+        detail.put("to_status", targetStatus);
+        detail.put("reason", normalizeNullableText(request.reason()));
+        auditLogApplicationService.recordAdminOperation(
+            operationContext,
+            "family",
+            String.valueOf(familyId),
+            Integer.valueOf(2).equals(targetStatus) ? "family_disable" : "family_restore",
+            detail
+        );
+        return getAdminFamily(familyId);
+    }
+
+    /**
+     * 修复家庭 owner 成员关系时，以 `families.owner_user_id` 为唯一事实来源。
+     *
+     * <p>这样可以消除缺失 owner 成员、重复 owner 角色等问题，同时避免后台人工选择错误用户造成归属漂移。</p>
+     */
+    @Transactional
+    public AdminFamilyResponse repairAdminFamilyOwnerMember(
+        Long familyId,
+        AdminOperationContext operationContext,
+        AdminRepairFamilyOwnerRequest request
+    ) {
+        AdminFamilyEntity adminFamily = requireAdminFamily(familyId);
+        if (!userPersistenceMapper.existsActiveUserById(adminFamily.getOwnerUserId())) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "家庭拥有者用户不存在或已被禁用");
+        }
+
+        familyPersistenceMapper.insertFamilyMember(familyId, adminFamily.getOwnerUserId(), "owner");
+        int demotedRows = familyPersistenceMapper.demoteOtherOwnerMembers(familyId, adminFamily.getOwnerUserId());
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("owner_user_id", adminFamily.getOwnerUserId());
+        detail.put("demoted_owner_count", demotedRows);
+        detail.put("reason", normalizeNullableText(request.reason()));
+        auditLogApplicationService.recordAdminOperation(
+            operationContext,
+            "family",
+            String.valueOf(familyId),
+            "family_owner_member_repair",
+            detail
+        );
+        return getAdminFamily(familyId);
     }
 
     @Transactional
@@ -315,6 +394,14 @@ public class FamilyApplicationService {
             .map(adminFamilyConverter::toPetEntity)
             .toList();
         return adminFamilyConverter.toEntity(dataObject, members, pets);
+    }
+
+    private AdminFamilyEntity requireAdminFamily(Long familyId) {
+        AdminFamilyEntity adminFamily = assembleAdminFamily(familyPersistenceMapper.findAdminFamilyById(familyId));
+        if (adminFamily == null) {
+            throw new BusinessException(ResponseCode.FAMILY_NOT_FOUND);
+        }
+        return adminFamily;
     }
 
     private List<PetDetailResponse> listAllFamilyPets(Long familyId) {
@@ -540,6 +627,13 @@ public class FamilyApplicationService {
         return status;
     }
 
+    private Integer normalizeFamilyGovernanceStatus(Integer status) {
+        if (status == null || (status != 1 && status != 2)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "家庭状态仅支持 1 或 2");
+        }
+        return status;
+    }
+
     private String normalizeOptionalText(String value, int maxLength, String errorMessage) {
         if (value == null || value.trim().isEmpty()) {
             return null;
@@ -549,6 +643,13 @@ public class FamilyApplicationService {
             throw new BusinessException(ResponseCode.BAD_REQUEST, errorMessage);
         }
         return normalizedValue;
+    }
+
+    private String normalizeNullableText(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private String normalizeInviteCode(String inviteCode) {

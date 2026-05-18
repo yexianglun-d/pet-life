@@ -16,12 +16,20 @@
 - 用户治理查询能力已同步到 `docs/api/petlife-openapi.yaml`：
   - `GET /api/v1/admin/users`
   - `GET /api/v1/admin/users/{userId}`
+  - `PATCH /api/v1/admin/users/{userId}/status`
 - 家庭治理查询能力已同步到 `docs/api/petlife-openapi.yaml`：
   - `GET /api/v1/admin/families`
   - `GET /api/v1/admin/families/{familyId}`
+  - `PATCH /api/v1/admin/families/{familyId}/status`
+  - `POST /api/v1/admin/families/{familyId}/owner-member-repair`
 - 宠物主档查询能力已同步到 `docs/api/petlife-openapi.yaml`：
   - `GET /api/v1/admin/pets`
   - `GET /api/v1/admin/pets/{petId}`
+  - `POST /api/v1/admin/pets/{petId}/repair`
+- 后台认证能力已同步到 `docs/api/petlife-openapi.yaml`：
+  - `POST /api/v1/admin/auth/login`
+  - `POST /api/v1/admin/auth/refresh`
+  - `POST /api/v1/admin/auth/logout`
 - 服务中心现有后台能力已同步到 `docs/api/petlife-openapi.yaml`：
   - `GET /api/v1/admin/service/cities`
   - `POST /api/v1/admin/service/cities`
@@ -59,19 +67,18 @@
 
 ## 当前已接入 admin-web 页面
 
-- 用户治理查询接口已接入用户管理查询页，仅支持真实查询和详情查看。
-- 家庭治理查询接口已接入家庭管理查询页，仅支持真实查询和详情查看。
-- 宠物主档查询接口已接入宠物档案查询页，仅支持真实查询和详情查看。
+- 后台认证接口已接入登录页与退出流程。
+- 用户治理接口已接入用户管理查询页，支持真实查询、详情查看、封禁和恢复。
+- 家庭治理接口已接入家庭管理查询页，支持真实查询、详情查看、停用/恢复和 owner 成员关系修复。
+- 宠物主档接口已接入宠物档案查询页，支持真实查询、详情查看和问题数据修复。
 - 系统提醒查询接口已接入系统提醒查询页，仅支持真实查询和详情查看。
 - 提醒模板管理接口已接入提醒模板管理页，支持真实列表、筛选、详情、创建、编辑和启停。
-- 写治理能力仍以服务端状态机、权限边界和审计动作定义为前置条件，不在前端提前占位。
+- 写治理能力已使用服务端状态机、权限边界和审计动作接口，不使用前端本地 mock。
 
 ## 待服务端线程补齐
 
 | 清单项 | 后台页面目标 | 需要补齐的管理端接口 |
 | --- | --- | --- |
-| 2. 认证与会话 | 后台真实账号登录、退出和会话续期 | 需要服务端定义管理员账号模型、权限边界、登录/退出/刷新接口和审计写入 |
-| 5. 宠物主档 | 宠物问题数据修复工具 | 需要服务端先定义可修复问题类型、状态机、审计动作和对应写接口 |
 | 14. 通知与消息 | 消息模板管理、通知发送配置 | 需要服务端定义模板模型、渠道配置模型后补充查询与维护接口 |
 
 ## admin-web 开发顺序建议

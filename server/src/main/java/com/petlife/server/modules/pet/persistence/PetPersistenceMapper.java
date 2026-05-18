@@ -40,8 +40,13 @@ public interface PetPersistenceMapper {
           p.created_at AS createdAt,
           p.updated_at AS updatedAt
         FROM pets p
+        LEFT JOIN families active_family
+          ON active_family.id = p.family_id
+         AND active_family.deleted_at IS NULL
+         AND active_family.status = 1
         WHERE p.deleted_at IS NULL
           AND p.status = 'active'
+          AND (p.family_id IS NULL OR active_family.id IS NOT NULL)
           AND (
             p.owner_user_id = #{userId}
             OR EXISTS (
@@ -152,9 +157,14 @@ public interface PetPersistenceMapper {
           p.created_at AS createdAt,
           p.updated_at AS updatedAt
         FROM pets p
+        LEFT JOIN families active_family
+          ON active_family.id = p.family_id
+         AND active_family.deleted_at IS NULL
+         AND active_family.status = 1
         WHERE p.id = #{petId}
           AND p.deleted_at IS NULL
           AND p.status = 'active'
+          AND (p.family_id IS NULL OR active_family.id IS NOT NULL)
           AND (
             p.owner_user_id = #{userId}
             OR EXISTS (
@@ -372,6 +382,18 @@ public interface PetPersistenceMapper {
           AND status = 'active'
         """)
     int archivePet(ArchivePetCommand command);
+
+    @Update("""
+        UPDATE pets
+        SET family_id = #{familyId},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{petId}
+          AND deleted_at IS NULL
+        """)
+    int updatePetFamily(
+        @Param("petId") Long petId,
+        @Param("familyId") Long familyId
+    );
 
     @Update("""
         UPDATE pets

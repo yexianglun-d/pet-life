@@ -130,9 +130,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="openDetail(row)">查看详情</el-button>
+            <div class="family-action-cell">
+              <el-button size="small" @click="openDetail(row)">查看详情</el-button>
+              <el-button
+                size="small"
+                :type="row.status === 1 ? 'warning' : 'success'"
+                @click="handleFamilyStatusChange(row)"
+              >
+                {{ row.status === 1 ? '停用' : '恢复' }}
+              </el-button>
+              <el-button size="small" @click="handleOwnerRepair(row)">修复 owner</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -218,6 +228,8 @@
 import {
   getAdminFamily,
   listAdminFamilies,
+  repairAdminFamilyOwnerMember,
+  updateAdminFamilyStatus,
   type AdminFamilyMemberSnapshot,
   type AdminFamilySnapshot,
   type FamilyRole,
@@ -226,7 +238,7 @@ import {
   type FamilyStatusFilter,
   type PetStatus
 } from '@/shared/api/adminGovernanceApi';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
 
 const records = ref<AdminFamilySnapshot[]>([]);
@@ -276,7 +288,7 @@ const summaryCards = computed(() => [
   },
   {
     title: '停用家庭',
-    description: '状态为停用的家庭，只读查看不执行恢复动作。',
+    description: '状态为停用的家庭，可在核查后恢复。',
     value: `${disabledFamilyCount.value} 个`
   },
   {
@@ -318,6 +330,61 @@ async function openDetail(record: AdminFamilySnapshot) {
     ElMessage.error(error instanceof Error ? error.message : '家庭详情加载失败');
   } finally {
     detailLoading.value = false;
+  }
+}
+
+async function handleFamilyStatusChange(record: AdminFamilySnapshot) {
+  const targetStatus = record.status === 1 ? 2 : 1;
+  const actionLabel = targetStatus === 2 ? '停用' : '恢复';
+  try {
+    const result = await ElMessageBox.prompt(
+      `请输入${actionLabel}原因，后续会写入后台审计日志。`,
+      `${actionLabel}家庭`,
+      {
+        confirmButtonText: actionLabel,
+        cancelButtonText: '取消',
+        inputPlaceholder: '例如：异常关系核查 / 核查完成恢复'
+      }
+    );
+    await updateAdminFamilyStatus(record.family_id, {
+      status: targetStatus,
+      reason: result.value
+    });
+    ElMessage.success(`已${actionLabel}家庭`);
+    await loadRecords();
+    if (activeRecord.value?.family_id === record.family_id) {
+      activeRecord.value = await getAdminFamily(record.family_id);
+    }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : `${actionLabel}失败`);
+    }
+  }
+}
+
+async function handleOwnerRepair(record: AdminFamilySnapshot) {
+  try {
+    const result = await ElMessageBox.prompt(
+      '将以家庭 owner_user_id 为事实来源，补齐 owner 成员并修正重复 owner 角色。',
+      '修复家庭 owner 关系',
+      {
+        confirmButtonText: '执行修复',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入修复原因'
+      }
+    );
+    await repairAdminFamilyOwnerMember(record.family_id, {
+      reason: result.value
+    });
+    ElMessage.success('家庭 owner 关系已修复');
+    await loadRecords();
+    if (activeRecord.value?.family_id === record.family_id) {
+      activeRecord.value = await getAdminFamily(record.family_id);
+    }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '家庭关系修复失败');
+    }
   }
 }
 
@@ -482,6 +549,12 @@ function formatDateTime(value: string) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.family-action-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .family-detail {

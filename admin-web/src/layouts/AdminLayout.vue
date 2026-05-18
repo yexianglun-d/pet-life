@@ -42,7 +42,9 @@
 </template>
 
 <script setup lang="ts">
-import { ADMIN_ACCESS_TOKEN_KEY, ADMIN_OPERATOR_NAME_KEY } from '@/shared/constants/adminSession';
+import { clearAdminSession, logoutAdmin } from '@/shared/api/adminApi';
+import { ADMIN_OPERATOR_NAME_KEY } from '@/shared/constants/adminSession';
+import { ElMessage } from 'element-plus';
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -55,8 +57,12 @@ const operatorName = computed(
 );
 
 const handleLogout = async () => {
-  window.localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
-  window.localStorage.removeItem(ADMIN_OPERATOR_NAME_KEY);
+  try {
+    await logoutAdmin();
+  } catch (error) {
+    clearAdminSession();
+    ElMessage.warning(error instanceof Error ? error.message : '后台退出接口异常，已清理本地登录态');
+  }
   await router.push({ name: 'login' });
 };
 </script>

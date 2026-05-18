@@ -34,8 +34,8 @@
           <el-form-item label="密码">
             <el-input v-model="password" type="password" show-password placeholder="请输入后台密码" />
           </el-form-item>
-          <el-button type="primary" class="login-panel__submit" @click="handleSubmit">
-            进入后台
+          <el-button type="primary" class="login-panel__submit" :loading="isSubmitting" @click="handleSubmit">
+            {{ isSubmitting ? '正在进入后台...' : '进入后台' }}
           </el-button>
         </el-form>
       </section>
@@ -45,13 +45,14 @@
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus';
-import { ADMIN_ACCESS_TOKEN_KEY, ADMIN_OPERATOR_NAME_KEY } from '@/shared/constants/adminSession';
+import { loginAdmin } from '@/shared/api/adminApi';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const account = ref('admin');
 const password = ref('petlife123');
+const isSubmitting = ref(false);
 
 const handleSubmit = async () => {
   if (!account.value.trim() || !password.value.trim()) {
@@ -59,10 +60,16 @@ const handleSubmit = async () => {
     return;
   }
 
-  window.localStorage.setItem(ADMIN_ACCESS_TOKEN_KEY, 'bootstrap-admin-token');
-  window.localStorage.setItem(ADMIN_OPERATOR_NAME_KEY, account.value.trim());
-  ElMessage.success('已进入后台');
-  await router.push({ name: 'dashboard' });
+  isSubmitting.value = true;
+  try {
+    await loginAdmin(account.value.trim(), password.value);
+    ElMessage.success('已进入后台');
+    await router.push({ name: 'dashboard' });
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '后台登录失败');
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 </script>
 

@@ -20,7 +20,7 @@
 
 - Header：`Authorization: Bearer <access_token>`
 - refresh token 单独通过安全接口换取，不混入普通业务接口
-- 管理端使用独立的后台账号体系或后台角色声明，不与普通 App 用户混用权限
+- 管理端使用独立后台账号与后台会话表，不接受普通 App 用户 token 访问 `/admin/**`
 
 ## 1.3 宠物上下文约定
 
@@ -971,8 +971,10 @@
 
 说明：
 
-- 当前该接口仍为预留契约，App 首页展示暂时由现有宠物摘要、提醒、健康记录、萌宠日常接口组合得到
-- 当前批次首页已落地“快捷记录 / 提醒中心 / 周报 / 月报”，但没有单独新增首页写接口
+- 当前该接口已落地为 App 首页专用聚合接口，App 首页入口优先消费该接口，避免多接口串联导致首页上下文不一致
+- 返回 `current_user`、当前宠物 `dashboard`、`quick_actions`、`community_recommendations`、`service_entries`、`device_summary`
+- `device_summary.enabled=false` 表示设备厂商接入仍按当前预留处理，不进入后端真实设备链路
+- 当前批次首页已落地“快捷记录 / 提醒中心 / 周报 / 月报”，没有单独新增首页写接口
 - 快捷记录复用既有事实接口：
   - `喂食 / 饮水 / 排便` 通过 `POST /pets/{pet_id}/daily-logs` 写入标准化萌宠日常
   - `体重 / 用药` 通过 `POST /pets/{pet_id}/health-records` 写入健康记录
@@ -1077,7 +1079,22 @@
 
 ## 11. 管理后台接口范围
 
-后台不展开全部接口细节，但至少需要以下能力：
+后台接口使用独立后台账号登录态，不复用 App 用户登录态。所有 `/admin/**` 非认证接口均需要后台 access token。
+
+当前已落地的后台认证接口：
+
+- `POST /api/v1/admin/auth/login`
+- `POST /api/v1/admin/auth/refresh`
+- `POST /api/v1/admin/auth/logout`
+
+后台账号与会话说明：
+
+- `admin_accounts` 保存后台账号、BCrypt 密码摘要、展示名称、角色编码和账号状态。
+- `admin_sessions` 保存后台刷新令牌摘要、过期时间、吊销时间和最近活跃时间。
+- 刷新后台 token 时会吊销旧后台会话并签发新 access/refresh token。
+- 审计操作人优先取 `X-Admin-Operator`，未传时使用当前后台登录账号。
+
+后台至少需要以下能力：
 
 1. 用户与封禁管理
 2. 社区内容审核
@@ -1093,6 +1110,7 @@
 
 - `GET /api/v1/admin/users?keyword=Momo&mobile=13800000000&nickname=Momo&city_code=330100&notification_enabled=true&privacy_level=normal`
 - `GET /api/v1/admin/users/{user_id}`
+- `PATCH /api/v1/admin/users/{user_id}/status`
 
 响应约定：
 
@@ -1101,30 +1119,37 @@
 - `primary_family` 返回用户主要家庭上下文；用户暂无可用家庭时返回 `null`。
 - `current_pet` 复用后台宠物上下文结构，包含宠物、家庭和主人信息；用户暂无当前宠物时返回 `null`。
 - 列表接口只读查询真实已存在数据，不触发用户初始化或写入默认家庭/宠物。
+- 写治理仅允许 `status=1` 正常与 `status=2` 禁用之间切换；禁用用户会同步吊销用户端登录会话，并记录 `user_disable` / `user_restore` 审计动作。
 
 当前已落地的后台家庭查询接口：
 
 - `GET /api/v1/admin/families?keyword=Momo&family_name=Momo&member_mobile=13800000000&member_role=owner&status=1`
 - `GET /api/v1/admin/families/{family_id}`
+- `PATCH /api/v1/admin/families/{family_id}/status`
+- `POST /api/v1/admin/families/{family_id}/owner-member-repair`
 
 响应约定：
 
 - 返回家庭基础资料、拥有者、状态、成员数、宠物数、成员关系和家庭宠物列表。
 - `members` 返回成员关系 ID、用户 ID、昵称、手机号、角色、加入状态和加入时间。
 - `pets` 返回家庭下未软删宠物的 ID、名称、类型、品种、状态和主人信息。
-- 该接口是后台只读治理能力，不复用用户端当前家庭权限视角，也不触发家庭初始化。
+- 后台家庭查询不复用用户端当前家庭权限视角，也不触发家庭初始化。
+- 写治理仅允许 `status=1` 正常与 `status=2` 停用之间切换；停用家庭会重建相关宠物的用户当前宠物上下文。
+- owner 成员关系修复以 `families.owner_user_id` 为唯一事实来源，补齐缺失 owner 成员并降级重复 owner。
 
 当前已落地的后台宠物主档查询接口：
 
 - `GET /api/v1/admin/pets?keyword=Momo&pet_name=Momo&pet_type=cat&status=active&owner_mobile=13800000000&family_id=30001`
 - `GET /api/v1/admin/pets/{pet_id}`
+- `POST /api/v1/admin/pets/{pet_id}/repair`
 
 响应约定：
 
 - `pet` 返回宠物主档详情，与用户端宠物详情字段保持一致。
 - `owner` 返回主人用户上下文。
 - `family` 返回家庭 ID、名称、状态和成员数；宠物暂无家庭时返回 `null`。
-- 该接口查询未软删宠物，包含 `active`、`memorial`、`rehomed` 状态，用于后台归属核查；不提供问题数据修复写操作。
+- 该接口查询未软删宠物，包含 `active`、`memorial`、`rehomed` 状态，用于后台归属核查。
+- 宠物修复类型仅支持 `family_missing`、`owner_member_missing`、`current_pet_context`，每次修复都会记录 `pet_*_repair` 审计动作。
 
 当前已落地的后台举报处理接口：
 

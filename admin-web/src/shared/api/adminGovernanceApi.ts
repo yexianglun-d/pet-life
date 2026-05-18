@@ -150,6 +150,20 @@ export interface AdminPetListFilters {
   familyId?: string;
 }
 
+export interface AdminStatusMutationPayload {
+  status: number;
+  reason?: string;
+}
+
+export interface AdminReasonPayload {
+  reason?: string;
+}
+
+export interface AdminPetRepairPayload {
+  repairType: 'family_missing' | 'owner_member_missing' | 'current_pet_context';
+  reason?: string;
+}
+
 function appendFilter(searchParams: URLSearchParams, key: string, value: string | undefined) {
   const normalizedValue = value?.trim();
   if (normalizedValue && normalizedValue !== 'all') {
@@ -183,6 +197,16 @@ export function getAdminUser(userId: string) {
   return adminRequest<AdminUserSnapshot>(`/api/v1/admin/users/${userId}`);
 }
 
+export function updateAdminUserStatus(userId: string, payload: AdminStatusMutationPayload) {
+  return adminRequest<AdminUserSnapshot>(`/api/v1/admin/users/${userId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      status: payload.status,
+      reason: payload.reason
+    })
+  });
+}
+
 export function listAdminFamilies(filters: AdminFamilyListFilters = {}) {
   const searchParams = new URLSearchParams();
   appendFilter(searchParams, 'keyword', filters.keyword);
@@ -195,6 +219,25 @@ export function listAdminFamilies(filters: AdminFamilyListFilters = {}) {
 
 export function getAdminFamily(familyId: string) {
   return adminRequest<AdminFamilySnapshot>(`/api/v1/admin/families/${familyId}`);
+}
+
+export function updateAdminFamilyStatus(familyId: string, payload: AdminStatusMutationPayload) {
+  return adminRequest<AdminFamilySnapshot>(`/api/v1/admin/families/${familyId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      status: payload.status,
+      reason: payload.reason
+    })
+  });
+}
+
+export function repairAdminFamilyOwnerMember(familyId: string, payload: AdminReasonPayload = {}) {
+  return adminRequest<AdminFamilySnapshot>(`/api/v1/admin/families/${familyId}/owner-member-repair`, {
+    method: 'POST',
+    body: JSON.stringify({
+      reason: payload.reason
+    })
+  });
 }
 
 export function listAdminPets(filters: AdminPetListFilters = {}) {
@@ -210,4 +253,14 @@ export function listAdminPets(filters: AdminPetListFilters = {}) {
 
 export function getAdminPet(petId: string) {
   return adminRequest<AdminPetSnapshot>(`/api/v1/admin/pets/${petId}`);
+}
+
+export function repairAdminPet(petId: string, payload: AdminPetRepairPayload) {
+  return adminRequest<AdminPetSnapshot>(`/api/v1/admin/pets/${petId}/repair`, {
+    method: 'POST',
+    body: JSON.stringify({
+      repair_type: payload.repairType,
+      reason: payload.reason
+    })
+  });
 }

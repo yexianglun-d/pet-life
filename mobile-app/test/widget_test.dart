@@ -10,6 +10,7 @@ import 'package:petlife_mobile_app/shared/domain/models/family_detail_snapshot.d
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_preview_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/health_record_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/home_aggregate_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/home_pet_report_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/media_asset_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snapshot.dart';
@@ -80,6 +81,14 @@ class _FakePetLifeRepository implements PetLifeRepository {
         breed: 'British Shorthair',
         gender: 'female',
       ),
+    );
+  }
+
+  @override
+  Future<HomeAggregateSnapshot> getHomeAggregate() async {
+    return HomeAggregateSnapshot(
+      currentUser: await getCurrentUser(),
+      dashboard: await getPetDashboard('10001'),
     );
   }
 

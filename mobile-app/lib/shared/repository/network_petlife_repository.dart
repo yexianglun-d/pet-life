@@ -8,6 +8,7 @@ import 'package:petlife_mobile_app/shared/domain/models/family_detail_snapshot.d
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/family_invitation_preview_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/health_record_draft.dart';
+import 'package:petlife_mobile_app/shared/domain/models/home_aggregate_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/home_pet_report_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/media_asset_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snapshot.dart';
@@ -1026,6 +1027,26 @@ class NetworkPetLifeRepository implements PetLifeRepository {
   }
 
   @override
+  Future<HomeAggregateSnapshot> getHomeAggregate() async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/home'),
+      context: '首页聚合数据',
+    );
+
+    final Object? dashboardPayload = data['dashboard'];
+    return HomeAggregateSnapshot(
+      currentUser: _toCurrentUserSnapshot(
+        _asMap(data['current_user'], context: '首页当前用户'),
+      ),
+      dashboard: dashboardPayload is Map
+          ? _toHomeDashboardSnapshot(
+              Map<String, dynamic>.from(dashboardPayload),
+            )
+          : null,
+    );
+  }
+
+  @override
   Future<HomePetReportSnapshot> getWeeklyPetReport() async {
     final Map<String, dynamic> data = _asMap(
       await _apiClient.getData('/api/v1/home/reports/weekly'),
@@ -1041,6 +1062,25 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       context: '月报数据',
     );
     return _toHomePetReportSnapshot(data);
+  }
+
+  PetDashboardSnapshot _toHomeDashboardSnapshot(
+    Map<String, dynamic> payload,
+  ) {
+    return PetDashboardSnapshot(
+      pet: _toPetProfileSnapshot(_asMap(payload['pet'], context: '首页当前宠物')),
+      todayTodoCount: _readInt(payload, 'today_todo_count'),
+      reminders: _asMapList(payload['reminders'], context: '首页提醒列表')
+          .map(_toReminderSnapshot)
+          .toList(),
+      healthRecords:
+          _asMapList(payload['health_records'], context: '首页健康记录列表')
+              .map(_toHealthRecordSnapshot)
+              .toList(),
+      dailyLogs: _asMapList(payload['daily_logs'], context: '首页日常列表')
+          .map(_toDailyLogSnapshot)
+          .toList(),
+    );
   }
 
   PetProfileSnapshot _toPetProfileSnapshot(Map<String, dynamic> payload) {

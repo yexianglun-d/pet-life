@@ -225,6 +225,15 @@ public interface FamilyPersistenceMapper {
         """)
     List<AdminFamilyPetDataObject> listAdminFamilyPetsByFamilyId(@Param("familyId") Long familyId);
 
+    @Select("""
+        SELECT id
+        FROM pets
+        WHERE family_id = #{familyId}
+          AND deleted_at IS NULL
+        ORDER BY id ASC
+        """)
+    List<Long> listPetIdsByFamilyId(@Param("familyId") Long familyId);
+
     @Insert("""
         INSERT INTO families (
           family_name, owner_user_id, status, created_at, updated_at
@@ -467,6 +476,32 @@ public interface FamilyPersistenceMapper {
     int updateFamilyMemberRole(
         @Param("memberId") Long memberId,
         @Param("role") String role
+    );
+
+    @Update("""
+        UPDATE families
+        SET status = #{status},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{familyId}
+          AND deleted_at IS NULL
+        """)
+    int updateFamilyStatus(
+        @Param("familyId") Long familyId,
+        @Param("status") Integer status
+    );
+
+    @Update("""
+        UPDATE family_members
+        SET role = 'admin',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE family_id = #{familyId}
+          AND user_id <> #{ownerUserId}
+          AND role = 'owner'
+          AND invite_status = 'joined'
+        """)
+    int demoteOtherOwnerMembers(
+        @Param("familyId") Long familyId,
+        @Param("ownerUserId") Long ownerUserId
     );
 
     @Delete("""

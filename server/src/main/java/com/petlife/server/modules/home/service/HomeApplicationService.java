@@ -2,7 +2,11 @@ package com.petlife.server.modules.home.service;
 
 import com.petlife.server.common.exception.BusinessException;
 import com.petlife.server.common.response.ResponseCode;
+import com.petlife.server.modules.auth.converter.AuthResponseConverter;
 import com.petlife.server.modules.auth.security.CurrentUserContext;
+import com.petlife.server.modules.community.converter.CommunityPostConverter;
+import com.petlife.server.modules.community.dto.response.CommunityPostResponse;
+import com.petlife.server.modules.community.persistence.CommunityPersistenceMapper;
 import com.petlife.server.modules.dailylog.converter.DailyLogEntityConverter;
 import com.petlife.server.modules.dailylog.domain.entity.DailyLogEntity;
 import com.petlife.server.modules.dailylog.persistence.DailyLogPersistenceMapper;
@@ -11,7 +15,12 @@ import com.petlife.server.modules.health.domain.entity.HealthRecordEntity;
 import com.petlife.server.modules.health.persistence.HealthRecordPersistenceMapper;
 import com.petlife.server.modules.home.converter.HomeReportConverter;
 import com.petlife.server.modules.home.domain.entity.HomePetReportEntity;
+import com.petlife.server.modules.home.dto.response.HomeAggregateResponse;
+import com.petlife.server.modules.home.dto.response.HomeDeviceSummaryResponse;
+import com.petlife.server.modules.home.dto.response.HomePetDashboardResponse;
 import com.petlife.server.modules.home.dto.response.HomePetReportResponse;
+import com.petlife.server.modules.home.dto.response.HomeQuickActionResponse;
+import com.petlife.server.modules.home.dto.response.HomeServiceEntryResponse;
 import com.petlife.server.modules.pet.converter.PetEntityConverter;
 import com.petlife.server.modules.pet.domain.entity.PetProfileEntity;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
@@ -19,7 +28,9 @@ import com.petlife.server.modules.reminder.converter.ReminderEntityConverter;
 import com.petlife.server.modules.reminder.domain.entity.ReminderEntity;
 import com.petlife.server.modules.reminder.persistence.ReminderPersistenceMapper;
 import com.petlife.server.modules.user.converter.UserEntityConverter;
+import com.petlife.server.modules.user.domain.entity.FamilySummaryEntity;
 import com.petlife.server.modules.user.domain.entity.UserProfileEntity;
+import com.petlife.server.modules.user.dto.response.CurrentUserResponse;
 import com.petlife.server.modules.user.persistence.UserPersistenceMapper;
 import com.petlife.server.modules.user.service.UserBootstrapApplicationService;
 import java.time.LocalDateTime;
@@ -39,6 +50,7 @@ public class HomeApplicationService {
     private static final int WEEKLY_DAYS = 7;
     private static final int MONTHLY_DAYS = 30;
     private static final int RECENT_LIMIT = 5;
+    private static final int HOME_LIST_LIMIT = 5;
 
     private final UserPersistenceMapper userPersistenceMapper;
     private final PetPersistenceMapper petPersistenceMapper;
@@ -52,6 +64,9 @@ public class HomeApplicationService {
     private final DailyLogEntityConverter dailyLogEntityConverter;
     private final HomeReportConverter homeReportConverter;
     private final UserBootstrapApplicationService userBootstrapApplicationService;
+    private final AuthResponseConverter authResponseConverter;
+    private final CommunityPersistenceMapper communityPersistenceMapper;
+    private final CommunityPostConverter communityPostConverter;
 
     public HomeApplicationService(
         UserPersistenceMapper userPersistenceMapper,
@@ -65,7 +80,10 @@ public class HomeApplicationService {
         HealthRecordEntityConverter healthRecordEntityConverter,
         DailyLogEntityConverter dailyLogEntityConverter,
         HomeReportConverter homeReportConverter,
-        UserBootstrapApplicationService userBootstrapApplicationService
+        UserBootstrapApplicationService userBootstrapApplicationService,
+        AuthResponseConverter authResponseConverter,
+        CommunityPersistenceMapper communityPersistenceMapper,
+        CommunityPostConverter communityPostConverter
     ) {
         this.userPersistenceMapper = userPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
@@ -79,6 +97,44 @@ public class HomeApplicationService {
         this.dailyLogEntityConverter = dailyLogEntityConverter;
         this.homeReportConverter = homeReportConverter;
         this.userBootstrapApplicationService = userBootstrapApplicationService;
+        this.authResponseConverter = authResponseConverter;
+        this.communityPersistenceMapper = communityPersistenceMapper;
+        this.communityPostConverter = communityPostConverter;
+    }
+
+    public HomeAggregateResponse getHome() {
+        Long currentUserId = CurrentUserContext.requireUserId();
+        FamilySummaryEntity familySummary = userBootstrapApplicationService.ensurePrimaryFamilyAndCurrentPet(currentUserId);
+        UserProfileEntity currentUser = userEntityConverter.toEntity(userPersistenceMapper.findUserProfileById(currentUserId));
+        if (currentUser == null) {
+            throw new BusinessException(ResponseCode.RESOURCE_NOT_FOUND, "当前用户不存在");
+        }
+
+        PetProfileEntity currentPet = currentUser.getCurrentPetId() == null
+            ? null
+            : petEntityConverter.toEntity(
+                petPersistenceMapper.findAccessiblePetById(currentUserId, currentUser.getCurrentPetId())
+            );
+        CurrentUserResponse currentUserResponse = new CurrentUserResponse(
+            authResponseConverter.toUserResponse(currentUser),
+            currentUser.getCurrentPetId() == null ? null : String.valueOf(currentUser.getCurrentPetId()),
+            currentPet == null ? null : authResponseConverter.toPetSummary(currentPet),
+            authResponseConverter.toFamilySummaryResponse(familySummary)
+        );
+
+        return new HomeAggregateResponse(
+            currentUserResponse,
+            currentPet == null ? null : buildDashboard(currentPet),
+            buildQuickActions(),
+            listCommunityRecommendations(currentUserId),
+            buildServiceEntries(),
+            new HomeDeviceSummaryResponse(
+                false,
+                "智能设备待接入",
+                "当前阶段不接入设备厂商，设备摘要保持明确预留状态。",
+                0
+            )
+        );
     }
 
     public HomePetReportResponse getWeeklyReport() {
@@ -87,6 +143,61 @@ public class HomeApplicationService {
 
     public HomePetReportResponse getMonthlyReport() {
         return homeReportConverter.toResponse(buildPeriodReport("monthly", MONTHLY_DAYS));
+    }
+
+    private HomePetDashboardResponse buildDashboard(PetProfileEntity currentPet) {
+        List<ReminderEntity> reminders = reminderPersistenceMapper.listRemindersByPetId(currentPet.getPetId()).stream()
+            .map(reminderEntityConverter::toEntity)
+            .toList();
+        List<HealthRecordEntity> healthRecords =
+            healthRecordPersistenceMapper.listHealthRecordsByPetId(currentPet.getPetId()).stream()
+                .map(healthRecordEntityConverter::toEntity)
+                .limit(HOME_LIST_LIMIT)
+                .toList();
+        List<DailyLogEntity> dailyLogs = dailyLogPersistenceMapper.listDailyLogsByPetId(currentPet.getPetId()).stream()
+            .map(dailyLogEntityConverter::toEntity)
+            .limit(HOME_LIST_LIMIT)
+            .toList();
+        int pendingReminderCount = (int) reminders.stream()
+            .filter(reminder -> "pending".equals(reminder.getStatus()))
+            .count();
+
+        return new HomePetDashboardResponse(
+            petEntityConverter.toPetDetailResponse(currentPet),
+            pendingReminderCount,
+            reminders.stream().limit(HOME_LIST_LIMIT).map(reminderEntityConverter::toResponse).toList(),
+            healthRecords.stream().map(healthRecordEntityConverter::toResponse).toList(),
+            dailyLogs.stream().map(dailyLogEntityConverter::toResponse).toList()
+        );
+    }
+
+    private List<CommunityPostResponse> listCommunityRecommendations(Long currentUserId) {
+        return communityPersistenceMapper.listRecommendedPosts(currentUserId).stream()
+            .limit(3)
+            .map(communityPostConverter::toEntity)
+            .map(communityPostConverter::toResponse)
+            .toList();
+    }
+
+    private List<HomeQuickActionResponse> buildQuickActions() {
+        return List.of(
+            new HomeQuickActionResponse("feed", "喂食", "daily_log", "按当前时间写入萌宠日常"),
+            new HomeQuickActionResponse("water", "饮水", "daily_log", "按当前时间写入萌宠日常"),
+            new HomeQuickActionResponse("toilet", "排便", "daily_log", "按当前时间写入萌宠日常"),
+            new HomeQuickActionResponse("weight", "体重", "health_record", "写入健康档案"),
+            new HomeQuickActionResponse("medication", "用药", "health_record", "写入健康档案"),
+            new HomeQuickActionResponse("daily_log", "记日常", "daily_log", "进入日常编辑")
+        );
+    }
+
+    private List<HomeServiceEntryResponse> buildServiceEntries() {
+        return List.of(
+            new HomeServiceEntryResponse("hospital", "宠物医院", "预约问诊、体检和复查", true),
+            new HomeServiceEntryResponse("grooming", "洗护美容", "预约洗护、造型和护理", true),
+            new HomeServiceEntryResponse("boarding", "宠物寄养", "安排短期寄养与看护", true),
+            new HomeServiceEntryResponse("training", "行为训练", "寻找训练和行为纠正服务", true),
+            new HomeServiceEntryResponse("mall", "宠物商城", "商城当前仅做页面预留", false)
+        );
     }
 
     private HomePetReportEntity buildPeriodReport(String reportType, int periodDays) {

@@ -29,12 +29,16 @@ public interface AuthTokenPersistenceMapper {
     int insertUserSession(CreateUserSessionCommand command);
 
     @Select("""
-        SELECT user_id
-        FROM user_sessions
-        WHERE id = #{sessionId}
-          AND refresh_token_hash = #{refreshTokenHash}
-          AND revoked_at IS NULL
-          AND expires_at > CURRENT_TIMESTAMP
+        SELECT s.user_id
+        FROM user_sessions s
+        JOIN users u
+          ON u.id = s.user_id
+         AND u.status = 1
+         AND u.deleted_at IS NULL
+        WHERE s.id = #{sessionId}
+          AND s.refresh_token_hash = #{refreshTokenHash}
+          AND s.revoked_at IS NULL
+          AND s.expires_at > CURRENT_TIMESTAMP
         LIMIT 1
         """)
     Long findActiveUserIdBySession(
@@ -43,12 +47,16 @@ public interface AuthTokenPersistenceMapper {
     );
 
     @Select("""
-        SELECT id AS sessionId,
-               user_id AS userId
-        FROM user_sessions
-        WHERE refresh_token_hash = #{refreshTokenHash}
-          AND revoked_at IS NULL
-          AND expires_at > CURRENT_TIMESTAMP
+        SELECT s.id AS sessionId,
+               s.user_id AS userId
+        FROM user_sessions s
+        JOIN users u
+          ON u.id = s.user_id
+         AND u.status = 1
+         AND u.deleted_at IS NULL
+        WHERE s.refresh_token_hash = #{refreshTokenHash}
+          AND s.revoked_at IS NULL
+          AND s.expires_at > CURRENT_TIMESTAMP
         LIMIT 1
         FOR UPDATE
         """)
@@ -90,4 +98,13 @@ public interface AuthTokenPersistenceMapper {
           AND revoked_at IS NULL
         """)
     int revokeSessionByRefreshTokenHash(@Param("refreshTokenHash") String refreshTokenHash);
+
+    @Update("""
+        UPDATE user_sessions
+        SET revoked_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = #{userId}
+          AND revoked_at IS NULL
+        """)
+    int revokeSessionsByUserId(@Param("userId") Long userId);
 }

@@ -18,6 +18,8 @@
    数据库唯一数据源说明、MyBatis 持久化边界、运行配置与当前验证结果。
 6. [06-server-code-structure.md](./06-server-code-structure.md)
    服务端分层结构、命名约定、层间边界和注释规范。
+7. [07-admin-auth-governance-upgrade.sql](./07-admin-auth-governance-upgrade.sql)
+   已初始化测试库补齐后台管理员账号与后台会话表的增量脚本。
 
 ## 与产品文档的关系
 

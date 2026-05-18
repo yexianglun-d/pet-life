@@ -45,6 +45,8 @@ servers:
 tags:
   - name: 认证 (Auth)
     description: 短信登录、Token 管理
+  - name: 后台认证 (Admin Auth)
+    description: 后台账号登录、刷新与退出
   - name: 用户 (User)
     description: 用户资料、设置管理
   - name: 后台用户 (Admin User)
@@ -76,7 +78,7 @@ tags:
   - name: 通知 (Notification)
     description: 站内消息中心
   - name: 首页 (Home)
-    description: 周报、月报
+    description: 首页聚合、周报、月报
   - name: 审核 (Moderation)
     description: 举报处理 (管理端)
   - name: 后台内容 (Admin Content)
@@ -123,6 +125,196 @@ components:
           type: string
           example: "trace_id_123"
           description: 请求追踪 ID
+
+    AdminAccount:
+      type: object
+      properties:
+        admin_account_id:
+          type: string
+          example: "1"
+        username:
+          type: string
+          example: "admin"
+        display_name:
+          type: string
+          example: "系统管理员"
+        role_code:
+          type: string
+          example: "super_admin"
+        status:
+          type: integer
+          enum: [1, 2]
+          example: 1
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    AdminLoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          maxLength: 50
+          example: "admin"
+        password:
+          type: string
+          maxLength: 100
+          example: "petlife123"
+
+    AdminLoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        admin:
+          $ref: '#/components/schemas/AdminAccount'
+
+    AdminRefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    AdminRefreshTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+
+    AdminStatusMutationRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: integer
+          enum: [1, 2]
+          description: 1-正常/恢复，2-禁用/停用
+        reason:
+          type: string
+          maxLength: 200
+          nullable: true
+
+    AdminReasonRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 200
+          nullable: true
+
+    AdminPetRepairRequest:
+      type: object
+      required: [repair_type]
+      properties:
+        repair_type:
+          type: string
+          enum: [family_missing, owner_member_missing, current_pet_context]
+        reason:
+          type: string
+          maxLength: 200
+          nullable: true
+
+    HomeQuickAction:
+      type: object
+      properties:
+        action_key:
+          type: string
+          example: "feed"
+        label:
+          type: string
+          example: "喂食"
+        description:
+          type: string
+          example: "记录一次喂食"
+        target_type:
+          type: string
+          example: "daily_log"
+
+    HomeServiceEntry:
+      type: object
+      properties:
+        entry_key:
+          type: string
+          example: "hospital"
+        label:
+          type: string
+          example: "宠物医院"
+        description:
+          type: string
+        enabled:
+          type: boolean
+          example: true
+
+    HomeDeviceSummary:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          example: false
+        title:
+          type: string
+          example: "智能设备"
+        description:
+          type: string
+        alert_count:
+          type: integer
+          example: 0
+
+    HomePetDashboard:
+      type: object
+      properties:
+        pet:
+          $ref: '#/components/schemas/Pet'
+        today_todo_count:
+          type: integer
+          example: 1
+        reminders:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reminder'
+        health_records:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthRecord'
+        daily_logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyLog'
+
+    HomeAggregate:
+      type: object
+      properties:
+        current_user:
+          type: object
+          description: 当前用户上下文，与 GET /me 响应结构一致
+        dashboard:
+          allOf:
+            - $ref: '#/components/schemas/HomePetDashboard'
+          nullable: true
+        quick_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/HomeQuickAction'
+        community_recommendations:
+          type: array
+          items:
+            type: object
+        service_entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/HomeServiceEntry'
+        device_summary:
+          $ref: '#/components/schemas/HomeDeviceSummary'
 
     MediaAsset:
       type: object
@@ -2952,6 +3144,32 @@ paths:
           description: 标记成功
           
   # ==================== 首页模块 ====================
+  /home:
+    get:
+      tags:
+        - 首页 (Home)
+      summary: 首页专用聚合
+      description: |
+        App 首页专用聚合接口，返回当前用户上下文、当前宠物面板、快捷记录入口、社区推荐、服务入口和设备摘要。
+
+        **说明**:
+        - App 首页入口优先消费该接口，避免多接口串联造成上下文不一致
+        - device_summary.enabled=false 表示设备厂商接入仍按当前预留处理
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/HomeAggregate'
+
   /home/reports/weekly:
     get:
       tags:
@@ -3002,6 +3220,73 @@ paths:
       responses:
         '200':
           description: 获取成功
+
+  # ==================== 管理端 - 认证模块 ====================
+  /admin/auth/login:
+    post:
+      tags:
+        - 后台认证 (Admin Auth)
+      summary: 后台登录
+      description: 使用后台账号密码登录，返回后台 access_token、refresh_token 和管理员账号信息。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminLoginResponse'
+
+  /admin/auth/refresh:
+    post:
+      tags:
+        - 后台认证 (Admin Auth)
+      summary: 后台刷新登录态
+      description: 使用后台 refresh_token 轮换新的后台 access_token 与 refresh_token。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRefreshTokenRequest'
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminRefreshTokenResponse'
+
+  /admin/auth/logout:
+    post:
+      tags:
+        - 后台认证 (Admin Auth)
+      summary: 后台退出登录
+      description: 按后台 refresh_token 吊销后台会话。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRefreshTokenRequest'
+      responses:
+        '200':
+          description: 退出成功
 
   # ==================== 管理端 - 用户查询模块 ====================
   /admin/users:
@@ -3084,6 +3369,47 @@ paths:
       responses:
         '200':
           description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminUser'
+
+  /admin/users/{userId}/status:
+    patch:
+      tags:
+        - 后台用户 (Admin User)
+      summary: 后台用户封禁/恢复
+      description: 后台写治理接口，仅允许在正常与禁用之间切换；禁用时会吊销用户端会话并写入审计日志。
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 用户 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 审计操作者；缺省时使用当前后台登录账号
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminStatusMutationRequest'
+      responses:
+        '200':
+          description: 更新成功
           content:
             application/json:
               schema:
@@ -3179,6 +3505,88 @@ paths:
                       data:
                         $ref: '#/components/schemas/AdminFamily'
 
+  /admin/families/{familyId}/status:
+    patch:
+      tags:
+        - 后台家庭 (Admin Family)
+      summary: 后台家庭停用/恢复
+      description: 后台写治理接口，仅允许在正常与停用之间切换；停用家庭会重建相关宠物的当前宠物上下文。
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 家庭 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 审计操作者；缺省时使用当前后台登录账号
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminStatusMutationRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminFamily'
+
+  /admin/families/{familyId}/owner-member-repair:
+    post:
+      tags:
+        - 后台家庭 (Admin Family)
+      summary: 修复家庭 owner 成员关系
+      description: 以 families.owner_user_id 为唯一事实来源，补齐缺失 owner 成员并降级重复 owner。
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 家庭 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 审计操作者；缺省时使用当前后台登录账号
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminReasonRequest'
+      responses:
+        '200':
+          description: 修复成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminFamily'
+
   # ==================== 管理端 - 宠物查询模块 ====================
   /admin/pets:
     get:
@@ -3261,6 +3669,47 @@ paths:
       responses:
         '200':
           description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminPet'
+
+  /admin/pets/{petId}/repair:
+    post:
+      tags:
+        - 后台宠物 (Admin Pet)
+      summary: 修复宠物问题数据
+      description: 仅支持 family_missing、owner_member_missing、current_pet_context 三类可验证修复动作。
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 宠物 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 审计操作者；缺省时使用当前后台登录账号
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPetRepairRequest'
+      responses:
+        '200':
+          description: 修复成功
           content:
             application/json:
               schema:

@@ -132,9 +132,21 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="188" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="openDetail(row)">查看详情</el-button>
+            <div class="pet-action-cell">
+              <el-button size="small" @click="openDetail(row)">查看详情</el-button>
+              <el-dropdown trigger="click" @command="handlePetRepair(row, $event)">
+                <el-button size="small">修复数据</el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="family_missing">家庭缺失</el-dropdown-item>
+                    <el-dropdown-item command="owner_member_missing">主人成员关系</el-dropdown-item>
+                    <el-dropdown-item command="current_pet_context">当前宠物指针</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -230,13 +242,14 @@
 import {
   getAdminPet,
   listAdminPets,
+  repairAdminPet,
   type AdminPetSnapshot,
   type FamilyStatus,
   type PetStatus,
   type PetStatusFilter,
   type PetTypeFilter
 } from '@/shared/api/adminGovernanceApi';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
 
 const records = ref<AdminPetSnapshot[]>([]);
@@ -293,7 +306,7 @@ const summaryCards = computed(() => [
   },
   {
     title: '非活跃状态',
-    description: '纪念或转交状态的宠物，只读查看不执行修复。',
+    description: '纪念或转交状态的宠物，仍可执行明确的问题数据修复。',
     value: `${records.value.length - activePetCount.value} 只`
   }
 ]);
@@ -331,6 +344,38 @@ async function openDetail(record: AdminPetSnapshot) {
     ElMessage.error(error instanceof Error ? error.message : '宠物详情加载失败');
   } finally {
     detailLoading.value = false;
+  }
+}
+
+async function handlePetRepair(record: AdminPetSnapshot, repairType: string) {
+  const labelMap: Record<string, string> = {
+    family_missing: '家庭缺失',
+    owner_member_missing: '主人成员关系',
+    current_pet_context: '当前宠物指针'
+  };
+  try {
+    const result = await ElMessageBox.prompt(
+      `将执行「${labelMap[repairType] ?? repairType}」修复，并写入后台审计日志。`,
+      '修复宠物问题数据',
+      {
+        confirmButtonText: '执行修复',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入修复原因'
+      }
+    );
+    await repairAdminPet(record.pet.pet_id, {
+      repairType: repairType as 'family_missing' | 'owner_member_missing' | 'current_pet_context',
+      reason: result.value
+    });
+    ElMessage.success('宠物问题数据已修复');
+    await loadRecords();
+    if (activeRecord.value?.pet.pet_id === record.pet.pet_id) {
+      activeRecord.value = await getAdminPet(record.pet.pet_id);
+    }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '宠物问题数据修复失败');
+    }
   }
 }
 
@@ -477,6 +522,12 @@ function formatDateTime(value: string) {
   color: var(--pet-admin-muted);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.pet-action-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .pet-detail {

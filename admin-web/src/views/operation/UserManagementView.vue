@@ -134,9 +134,18 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="178" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="openDetail(row)">查看详情</el-button>
+            <div class="user-action-cell">
+              <el-button size="small" @click="openDetail(row)">查看详情</el-button>
+              <el-button
+                size="small"
+                :type="row.status === 1 ? 'warning' : 'success'"
+                @click="handleUserStatusChange(row)"
+              >
+                {{ row.status === 1 ? '封禁' : '恢复' }}
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -240,13 +249,14 @@
 import {
   getAdminUser,
   listAdminUsers,
+  updateAdminUserStatus,
   type AdminBooleanFilter,
   type AdminUserSnapshot,
   type FamilyRole,
   type UserPrivacyLevel,
   type UserPrivacyLevelFilter
 } from '@/shared/api/adminGovernanceApi';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
 
 const records = ref<AdminUserSnapshot[]>([]);
@@ -341,6 +351,35 @@ async function openDetail(record: AdminUserSnapshot) {
     ElMessage.error(error instanceof Error ? error.message : '用户详情加载失败');
   } finally {
     detailLoading.value = false;
+  }
+}
+
+async function handleUserStatusChange(record: AdminUserSnapshot) {
+  const targetStatus = record.status === 1 ? 2 : 1;
+  const actionLabel = targetStatus === 2 ? '封禁' : '恢复';
+  try {
+    const result = await ElMessageBox.prompt(
+      `请输入${actionLabel}原因，后续会写入后台审计日志。`,
+      `${actionLabel}用户`,
+      {
+        confirmButtonText: actionLabel,
+        cancelButtonText: '取消',
+        inputPlaceholder: '例如：举报核实 / 误封恢复'
+      }
+    );
+    await updateAdminUserStatus(record.user_id, {
+      status: targetStatus,
+      reason: result.value
+    });
+    ElMessage.success(`已${actionLabel}用户`);
+    await loadRecords();
+    if (activeRecord.value?.user_id === record.user_id) {
+      activeRecord.value = await getAdminUser(record.user_id);
+    }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : `${actionLabel}失败`);
+    }
   }
 }
 
@@ -452,6 +491,12 @@ function formatDateTime(value: string) {
   color: var(--pet-admin-muted);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.user-action-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .user-detail {

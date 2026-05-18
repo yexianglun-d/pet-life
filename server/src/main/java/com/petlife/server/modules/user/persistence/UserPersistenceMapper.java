@@ -106,6 +106,17 @@ public interface UserPersistenceMapper {
     UserProfileDataObject findUserProfileByMobile(@Param("mobile") String mobile);
 
     @Select("""
+        SELECT EXISTS(
+          SELECT 1
+          FROM users
+          WHERE id = #{userId}
+            AND status = 1
+            AND deleted_at IS NULL
+        )
+        """)
+    boolean existsActiveUserById(@Param("userId") Long userId);
+
+    @Select("""
         SELECT
           u.id AS userId,
           u.mobile AS mobile,
@@ -376,6 +387,18 @@ public interface UserPersistenceMapper {
         WHERE user_id = #{userId}
         """)
     int updateUserNotificationSettings(UpdateUserNotificationSettingsCommand command);
+
+    @Update("""
+        UPDATE users
+        SET status = #{status},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{userId}
+          AND deleted_at IS NULL
+        """)
+    int updateUserStatus(
+        @Param("userId") Long userId,
+        @Param("status") Integer status
+    );
 
     @Update("""
         UPDATE users

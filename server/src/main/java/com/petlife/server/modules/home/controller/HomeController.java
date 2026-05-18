@@ -1,6 +1,7 @@
 package com.petlife.server.modules.home.controller;
 
 import com.petlife.server.common.response.ApiResponse;
+import com.petlife.server.modules.home.dto.response.HomeAggregateResponse;
 import com.petlife.server.modules.home.dto.response.HomePetReportResponse;
 import com.petlife.server.modules.home.service.HomeApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +19,11 @@ public class HomeController {
 
     public HomeController(HomeApplicationService homeApplicationService) {
         this.homeApplicationService = homeApplicationService;
+    }
+
+    @GetMapping
+    public ApiResponse<HomeAggregateResponse> getHome() {
+        return ApiResponse.success(homeApplicationService.getHome());
     }
 
     @GetMapping("/reports/weekly")
