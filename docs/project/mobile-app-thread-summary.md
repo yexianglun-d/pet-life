@@ -7,6 +7,88 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-19 移动端通知与消息配置闭环收口
+
+### 1. 新完成内容
+
+- 消息中心已兼容服务端模板化后的通知字段，稳定展示 `title`、`content`、`notify_type`、`biz_type`、`sent_at` 和 `read_status`。
+- 通知消息模型新增 `read_status` 读取，并保留旧 `read` 布尔字段兜底，避免服务端字段切换时已读态丢失。
+- 消息中心保留系统、提醒、预约类型筛选和已读筛选；单条已读、全部已读增加统一成功/错误反馈和处理中态。
+- 通知设置页确认继续读写 `/api/v1/me/settings/notifications` 的 `notification_enabled` 与 `privacy_level`，文案明确当前只控制站内消息中心与提醒接收偏好。
+- 通知设置页新增渠道只读说明，明确短信和系统 Push 未在 App 内提供配置入口；本轮未接入 Firebase、APNs、厂商 Push 或短信 SDK。
+
+### 2. 新增/修改文件
+
+- 修改：`mobile-app/lib/shared/domain/models/notification_inbox_snapshot.dart`
+- 修改：`mobile-app/lib/shared/repository/network_petlife_repository.dart`
+- 修改：`mobile-app/lib/modules/notification/presentation/pages/message_center_page.dart`
+- 修改：`mobile-app/lib/modules/profile/presentation/pages/notification_settings_page.dart`
+- 修改：`mobile-app/lib/modules/profile/presentation/pages/settings_page.dart`
+- 修改：`mobile-app/test/widget_test.dart`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/03-ui-closure-checklist.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- `/Users/deng/development/flutter/bin/dart format lib/shared/domain/models/notification_inbox_snapshot.dart lib/shared/repository/network_petlife_repository.dart lib/modules/notification/presentation/pages/message_center_page.dart lib/modules/profile/presentation/pages/notification_settings_page.dart lib/modules/profile/presentation/pages/settings_page.dart test/widget_test.dart`：通过，`Formatted 6 files (0 changed)`。
+- `/Users/deng/development/flutter/bin/flutter analyze`：通过，`No issues found!`。
+- `/Users/deng/development/flutter/bin/flutter test`：通过，`All tests passed!`。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实短信通道、系统 Push SDK、设备推送 token 上报和通知点击落点仍未接入，本轮按约束不实现。
+- OpenAPI 暂未提供用户侧通知渠道状态查询接口，移动端无法展示真实短信/Push 可用状态。
+
+### 5. 风险或阻塞
+
+- `notification_channel_configs` 当前是后台配置能力，不是用户端设置能力；移动端不能基于后台配置构造本地短信或 Push 开关。
+- 如果后续服务端新增用户可见的渠道状态接口，移动端只能按真实接口做只读展示，再评估是否需要系统权限与 token 契约。
+
+### 6. 下一步建议
+
+1. 服务端若需要用户端展示短信/Push 状态，应先在 OpenAPI 增加用户可见的只读渠道状态接口。
+2. 真实 Push 闭环需服务端先明确 token 上报、设备解绑、通知点击落点和失效处理契约，再由移动端接入 SDK。
+
+## 2026-05-19 服务端通知配置能力补齐对移动端影响
+
+### 1. 新完成内容
+
+- 服务端已补齐消息模板管理、通知渠道配置和通知配置审计接口。
+- 站内欢迎、提醒完成/跳过、服务预约、审核结果通知已改为优先读取启用的 `inbox` 消息模板。
+- 移动端通知列表、已读接口和返回字段保持不变；本轮未修改 mobile-app 源码。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 服务端实现和接口文档见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 81, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实 Push 发送仍未接入；移动端暂不需要接入设备推送 token 或系统推送权限上报。
+- admin-web 尚未接入消息模板与通知渠道配置页面。
+
+### 5. 风险或阻塞
+
+- 后台若修改 `inbox` 消息模板文案，移动端消息中心会展示新的服务端渲染结果；移动端不应硬编码这些文案。
+- 真实 Push 接入前，移动端仍只消费站内消息中心接口。
+
+### 6. 下一步建议
+
+1. 移动端无需跟随本轮做代码调整。
+2. 后续服务端明确 Push token 上报和系统推送契约后，再由移动端接入系统推送权限、token 上传和通知点击落点。
+
 ## 2026-05-19 移动端社区用户闭环接入
 
 ### 1. 新完成内容

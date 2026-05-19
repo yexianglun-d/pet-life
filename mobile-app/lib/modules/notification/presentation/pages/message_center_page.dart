@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
@@ -17,6 +18,8 @@ class _MessageCenterPageState extends State<MessageCenterPage> {
   String _notifyType = 'all';
   String _readStatus = 'all';
   Future<NotificationInboxSnapshot>? _inboxFuture;
+  bool _isMarkingAllRead = false;
+  final Set<String> _markingReadIds = <String>{};
 
   @override
   void didChangeDependencies() {
@@ -38,23 +41,67 @@ class _MessageCenterPageState extends State<MessageCenterPage> {
   }
 
   Future<void> _markAllRead() async {
-    await PetLifeAppScope.repositoryOf(context).markNotificationsRead(
-      notifyType: _notifyType,
-    );
-    if (!mounted) {
+    if (_isMarkingAllRead) {
       return;
     }
-    _reloadInbox();
+
+    setState(() {
+      _isMarkingAllRead = true;
+    });
+
+    try {
+      await PetLifeAppScope.repositoryOf(context).markNotificationsRead(
+        notifyType: _notifyType,
+      );
+      if (!mounted) {
+        return;
+      }
+      showCompanionSuccessFeedback(context, '消息已标记为已读');
+      _reloadInbox();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showCompanionErrorFeedback(context, error.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isMarkingAllRead = false;
+        });
+      }
+    }
   }
 
   Future<void> _markOneRead(String notificationId) async {
-    await PetLifeAppScope.repositoryOf(context).markNotificationRead(
-      notificationId,
-    );
-    if (!mounted) {
+    if (_markingReadIds.contains(notificationId)) {
       return;
     }
-    _reloadInbox();
+
+    setState(() {
+      _markingReadIds.add(notificationId);
+    });
+
+    try {
+      await PetLifeAppScope.repositoryOf(context).markNotificationRead(
+        notificationId,
+      );
+      if (!mounted) {
+        return;
+      }
+      showCompanionSuccessFeedback(context, '已标记为已读');
+      _reloadInbox();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showCompanionErrorFeedback(context, error.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _markingReadIds.remove(notificationId);
+        });
+      }
+    }
   }
 
   void _changeNotifyType(String notifyType) {
@@ -131,6 +178,8 @@ class _MessageCenterPageState extends State<MessageCenterPage> {
               onReadStatusChanged: _changeReadStatus,
               onMarkAllRead: _markAllRead,
               onMarkOneRead: _markOneRead,
+              isMarkingAllRead: _isMarkingAllRead,
+              markingReadIds: _markingReadIds,
             );
           },
         ),
@@ -148,6 +197,8 @@ class _MessageInboxView extends StatelessWidget {
     required this.onReadStatusChanged,
     required this.onMarkAllRead,
     required this.onMarkOneRead,
+    required this.isMarkingAllRead,
+    required this.markingReadIds,
   });
 
   final NotificationInboxSnapshot inbox;
@@ -157,6 +208,8 @@ class _MessageInboxView extends StatelessWidget {
   final ValueChanged<String> onReadStatusChanged;
   final VoidCallback onMarkAllRead;
   final ValueChanged<String> onMarkOneRead;
+  final bool isMarkingAllRead;
+  final Set<String> markingReadIds;
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +240,7 @@ class _MessageInboxView extends StatelessWidget {
                   style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 10),
               Text(
-                '提醒处理、系统消息和后续服务通知都会整理成可回看的记录。',
+                '提醒处理、系统消息和服务预约通知都会整理成可回看的站内消息记录。',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 18),
@@ -221,34 +274,43 @@ class _MessageInboxView extends StatelessWidget {
         const SizedBox(height: 16),
         PageSection(
           title: '消息筛选',
-          description: '按类型和已读状态整理消息，方便快速处理。',
-          actionLabel: '全部已读',
-          onAction: inbox.unreadCount == 0 ? null : onMarkAllRead,
+          description: '按类型和已读状态整理站内消息，当前不包含系统 Push 或短信配置入口。',
+          actionLabel: isMarkingAllRead ? '处理中' : '全部已读',
+          onAction:
+              inbox.unreadCount == 0 || isMarkingAllRead ? null : onMarkAllRead,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'all',
-                    label: Text('全部'),
-                    icon: Icon(Icons.inbox_outlined),
-                  ),
-                  ButtonSegment(
-                    value: 'system',
-                    label: Text('系统'),
-                    icon: Icon(Icons.campaign_outlined),
-                  ),
-                  ButtonSegment(
-                    value: 'reminder',
-                    label: Text('提醒'),
-                    icon: Icon(Icons.notifications_active_outlined),
-                  ),
-                ],
-                selected: <String>{notifyType},
-                onSelectionChanged: (Set<String> values) {
-                  onNotifyTypeChanged(values.first);
-                },
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(
+                      value: 'all',
+                      label: Text('全部'),
+                      icon: Icon(Icons.inbox_outlined),
+                    ),
+                    ButtonSegment(
+                      value: 'system',
+                      label: Text('系统'),
+                      icon: Icon(Icons.campaign_outlined),
+                    ),
+                    ButtonSegment(
+                      value: 'reminder',
+                      label: Text('提醒'),
+                      icon: Icon(Icons.notifications_active_outlined),
+                    ),
+                    ButtonSegment(
+                      value: 'appointment',
+                      label: Text('预约'),
+                      icon: Icon(Icons.event_available_outlined),
+                    ),
+                  ],
+                  selected: <String>{notifyType},
+                  onSelectionChanged: (Set<String> values) {
+                    onNotifyTypeChanged(values.first);
+                  },
+                ),
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -288,6 +350,7 @@ class _MessageInboxView extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: _MessageCard(
                 message: item,
+                isMarkingRead: markingReadIds.contains(item.notificationId),
                 onMarkRead: () => onMarkOneRead(item.notificationId),
               ),
             ),
@@ -334,10 +397,12 @@ class _UnreadMetric extends StatelessWidget {
 class _MessageCard extends StatelessWidget {
   const _MessageCard({
     required this.message,
+    required this.isMarkingRead,
     required this.onMarkRead,
   });
 
   final NotificationMessageSnapshot message;
+  final bool isMarkingRead;
   final VoidCallback onMarkRead;
 
   @override
@@ -392,18 +457,37 @@ class _MessageCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        _formatDateTime(message.sentAt),
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppThemePalette.muted,
-                        ),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _MetaPill(
+                            label: _formatDateTime(message.sentAt),
+                            icon: Icons.schedule_outlined,
+                          ),
+                          _MetaPill(
+                            label: _readStatusLabel(message.readStatus),
+                            icon: message.read
+                                ? Icons.mark_email_read_outlined
+                                : Icons.mark_email_unread_outlined,
+                          ),
+                          if (message.bizType != null)
+                            _MetaPill(
+                              label: _bizTypeLabel(message.bizType!),
+                              icon: Icons.sell_outlined,
+                            ),
+                        ],
                       ),
                     ),
                     if (!message.read)
                       TextButton.icon(
-                        onPressed: onMarkRead,
-                        icon: const Icon(Icons.check_circle_outline_rounded),
-                        label: const Text('标为已读'),
+                        onPressed: isMarkingRead ? null : onMarkRead,
+                        icon: Icon(
+                          isMarkingRead
+                              ? Icons.hourglass_top_rounded
+                              : Icons.check_circle_outline_rounded,
+                        ),
+                        label: Text(isMarkingRead ? '处理中' : '标为已读'),
                       )
                     else
                       const CompanionPill(
@@ -426,6 +510,7 @@ class _MessageCard extends StatelessWidget {
       'reminder' => Icons.notifications_active_outlined,
       'system' => Icons.campaign_outlined,
       'interaction' => Icons.forum_outlined,
+      'appointment' => Icons.event_available_outlined,
       _ => Icons.mail_outline_rounded,
     };
   }
@@ -440,9 +525,48 @@ class _MessageCard extends StatelessWidget {
     };
   }
 
+  String _bizTypeLabel(String bizType) {
+    return switch (bizType) {
+      'user_welcome' => '欢迎消息',
+      'reminder_completed' => '提醒完成',
+      'reminder_skipped' => '提醒跳过',
+      'moderation_report' => '审核结果',
+      'appointment_created' => '预约提交',
+      _ => bizType,
+    };
+  }
+
+  String _readStatusLabel(String readStatus) {
+    return switch (readStatus) {
+      'read' => '已读',
+      'unread' => '未读',
+      _ => readStatus,
+    };
+  }
+
   String _formatDateTime(DateTime value) {
     String twoDigits(int input) => input.toString().padLeft(2, '0');
     return '${value.year}-${twoDigits(value.month)}-${twoDigits(value.day)} '
         '${twoDigits(value.hour)}:${twoDigits(value.minute)}';
+  }
+}
+
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({
+    required this.label,
+    required this.icon,
+  });
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanionPill(
+      label: label,
+      icon: icon,
+      backgroundColor: AppThemePalette.surface,
+      foregroundColor: AppThemePalette.muted,
+    );
   }
 }

@@ -265,7 +265,7 @@ class _FakePetLifeRepository implements PetLifeRepository {
         bizId: '10001',
         title: '欢迎来到宠物生活管家',
         content: '我们会把宠物档案、提醒、日常和重要消息整理在这里。',
-        read: false,
+        readStatus: 'unread',
         sentAt: DateTime(2026, 4, 24, 9),
       ),
       NotificationMessageSnapshot(
@@ -275,7 +275,7 @@ class _FakePetLifeRepository implements PetLifeRepository {
         bizId: '40001',
         title: '提醒已完成',
         content: 'Momo 的「体内驱虫提醒」已完成。',
-        read: true,
+        readStatus: 'read',
         sentAt: DateTime(2026, 4, 24, 10),
         readAt: DateTime(2026, 4, 24, 10, 5),
       ),
@@ -318,7 +318,7 @@ class _FakePetLifeRepository implements PetLifeRepository {
       bizId: '10001',
       title: '欢迎来到宠物生活管家',
       content: '我们会把宠物档案、提醒、日常和重要消息整理在这里。',
-      read: true,
+      readStatus: 'read',
       sentAt: DateTime(2026, 4, 24, 9),
       readAt: DateTime(2026, 4, 24, 9, 10),
     );

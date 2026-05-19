@@ -31,6 +31,8 @@ public enum ResponseCode {
     COMMUNITY_QUESTION_NOT_FOUND("COMMUNITY_QUESTION_NOT_FOUND", "community question does not exist"),
     MODERATION_REPORT_NOT_FOUND("MODERATION_REPORT_NOT_FOUND", "moderation report does not exist"),
     NOTIFICATION_NOT_FOUND("NOTIFICATION_NOT_FOUND", "notification does not exist"),
+    MESSAGE_TEMPLATE_NOT_FOUND("MESSAGE_TEMPLATE_NOT_FOUND", "message template does not exist"),
+    NOTIFICATION_CHANNEL_NOT_FOUND("NOTIFICATION_CHANNEL_NOT_FOUND", "notification channel does not exist"),
     MEDIA_ASSET_NOT_FOUND("MEDIA_ASSET_NOT_FOUND", "media asset does not exist"),
     SERVICE_PROVIDER_NOT_FOUND("SERVICE_PROVIDER_NOT_FOUND", "service provider does not exist"),
     SERVICE_APPOINTMENT_NOT_FOUND("SERVICE_APPOINTMENT_NOT_FOUND", "service appointment does not exist"),

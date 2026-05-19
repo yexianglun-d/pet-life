@@ -83,4 +83,30 @@ public interface AuditLogPersistenceMapper {
         @Param("targetType") String targetType,
         @Param("action") String action
     );
+
+    @Select("""
+        SELECT
+          id AS auditLogId,
+          operator_type AS operatorType,
+          operator_id AS operatorId,
+          target_type AS targetType,
+          target_id AS targetId,
+          action AS action,
+          JSON_UNQUOTE(JSON_EXTRACT(COALESCE(detail_json, JSON_OBJECT()), '$')) AS detailJson,
+          ip_address AS ipAddress,
+          user_agent AS userAgent,
+          created_at AS createdAt
+        FROM audit_logs
+        WHERE target_type IN ('message_template', 'notification_channel')
+          AND (#{operatorId} IS NULL OR operator_id = #{operatorId})
+          AND (#{targetType} IS NULL OR target_type = #{targetType})
+          AND (#{action} IS NULL OR action = #{action})
+        ORDER BY created_at DESC, id DESC
+        LIMIT 200
+        """)
+    List<AuditLogDataObject> listNotificationAuditLogs(
+        @Param("operatorId") String operatorId,
+        @Param("targetType") String targetType,
+        @Param("action") String action
+    );
 }

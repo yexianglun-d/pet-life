@@ -843,6 +843,23 @@ CREATE TABLE IF NOT EXISTS `message_templates` (
   UNIQUE KEY `uk_message_templates_code` (`template_code`, `channel_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='消息模板表';
 
+CREATE TABLE IF NOT EXISTS `notification_channel_configs` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+  `channel_type` VARCHAR(20) NOT NULL COMMENT '渠道类型：inbox/sms/push',
+  `provider_code` VARCHAR(64) NOT NULL COMMENT '供应商编码',
+  `provider_name` VARCHAR(100) NOT NULL COMMENT '供应商名称',
+  `enabled` TINYINT NOT NULL DEFAULT 0 COMMENT '是否启用：0-否 1-是',
+  `config_status` VARCHAR(20) NOT NULL DEFAULT 'draft' COMMENT '配置状态：draft/ready/disabled',
+  `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted_at` DATETIME DEFAULT NULL COMMENT '软删除时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_notification_channel_provider` (`channel_type`, `provider_code`),
+  KEY `idx_notification_channel_enabled` (`channel_type`, `enabled`),
+  KEY `idx_notification_channel_status` (`config_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='通知渠道配置表';
+
 CREATE TABLE IF NOT EXISTS `moderation_tasks` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
   `target_type` VARCHAR(30) NOT NULL COMMENT '目标类型：post/daily_log/media/user_profile',

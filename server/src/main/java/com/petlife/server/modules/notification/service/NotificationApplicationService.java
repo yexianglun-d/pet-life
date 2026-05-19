@@ -8,14 +8,19 @@ import com.petlife.server.modules.notification.domain.entity.NotificationEntity;
 import com.petlife.server.modules.notification.dto.request.MarkNotificationsReadRequest;
 import com.petlife.server.modules.notification.dto.response.NotificationListResponse;
 import com.petlife.server.modules.notification.dto.response.NotificationResponse;
+import com.petlife.server.modules.notification.persistence.MessageTemplatePersistenceMapper;
 import com.petlife.server.modules.notification.persistence.NotificationPersistenceMapper;
 import com.petlife.server.modules.notification.persistence.command.CreateNotificationCommand;
 import com.petlife.server.modules.notification.persistence.command.MarkNotificationReadCommand;
 import com.petlife.server.modules.notification.persistence.command.MarkNotificationsReadCommand;
+import com.petlife.server.modules.notification.persistence.dataobject.MessageTemplateDataObject;
 import com.petlife.server.modules.reminder.domain.entity.ReminderEntity;
 import com.petlife.server.modules.service.domain.entity.ServiceAppointmentEntity;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,11 +37,21 @@ public class NotificationApplicationService {
     private static final String TYPE_SYSTEM = "system";
     private static final String TYPE_REMINDER = "reminder";
     private static final String TYPE_APPOINTMENT = "appointment";
+    private static final String CHANNEL_INBOX = "inbox";
     private static final String READ_ALL = "all";
     private static final String READ_UNREAD = "unread";
     private static final String READ_READ = "read";
     private static final String ACTION_COMPLETED = "completed";
     private static final String ACTION_SKIPPED = "skipped";
+    private static final String TEMPLATE_USER_WELCOME = "user_welcome";
+    private static final String TEMPLATE_REMINDER_COMPLETED = "reminder_completed";
+    private static final String TEMPLATE_REMINDER_SKIPPED = "reminder_skipped";
+    private static final String TEMPLATE_MODERATION_CONFIRMED = "moderation_report_confirm_violation";
+    private static final String TEMPLATE_MODERATION_DISMISSED = "moderation_report_dismiss_report";
+    private static final String TEMPLATE_APPOINTMENT_CREATED = "appointment_created";
+    private static final int MAX_TITLE_LENGTH = 100;
+    private static final int MAX_CONTENT_LENGTH = 500;
+    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{([a-zA-Z0-9_]+)}");
     private static final Set<String> SUPPORTED_NOTIFY_TYPES = Set.of(
         TYPE_ALL,
         TYPE_SYSTEM,
@@ -49,15 +64,50 @@ public class NotificationApplicationService {
         READ_UNREAD,
         READ_READ
     );
+    private static final Map<String, DefaultNotificationTemplate> DEFAULT_INBOX_TEMPLATES = Map.of(
+        TEMPLATE_USER_WELCOME,
+        new DefaultNotificationTemplate(
+            "欢迎来到宠物生活管家",
+            "我们会把宠物档案、提醒、日常和重要消息整理在这里，方便你随时回看。"
+        ),
+        TEMPLATE_REMINDER_COMPLETED,
+        new DefaultNotificationTemplate(
+            "提醒已完成",
+            "${pet_name} 的「${reminder_title}」已完成。${family_suffix}"
+        ),
+        TEMPLATE_REMINDER_SKIPPED,
+        new DefaultNotificationTemplate(
+            "提醒已跳过",
+            "${pet_name} 的「${reminder_title}」已跳过。${family_suffix}"
+        ),
+        TEMPLATE_MODERATION_CONFIRMED,
+        new DefaultNotificationTemplate(
+            "举报已处理",
+            "你提交的举报已确认违规，相关内容已被处理。"
+        ),
+        TEMPLATE_MODERATION_DISMISSED,
+        new DefaultNotificationTemplate(
+            "举报已关闭",
+            "你提交的举报经审核暂未认定违规，感谢你的反馈。"
+        ),
+        TEMPLATE_APPOINTMENT_CREATED,
+        new DefaultNotificationTemplate(
+            "预约已提交",
+            "${pet_name} 的「${provider_name}」预约已提交：${appointment_date} ${appointment_slot}，等待服务方确认。${family_suffix}"
+        )
+    );
 
     private final NotificationPersistenceMapper notificationPersistenceMapper;
+    private final MessageTemplatePersistenceMapper messageTemplatePersistenceMapper;
     private final NotificationConverter notificationConverter;
 
     public NotificationApplicationService(
         NotificationPersistenceMapper notificationPersistenceMapper,
+        MessageTemplatePersistenceMapper messageTemplatePersistenceMapper,
         NotificationConverter notificationConverter
     ) {
         this.notificationPersistenceMapper = notificationPersistenceMapper;
+        this.messageTemplatePersistenceMapper = messageTemplatePersistenceMapper;
         this.notificationConverter = notificationConverter;
     }
 
@@ -105,13 +155,14 @@ public class NotificationApplicationService {
 
     @Transactional
     public void createWelcomeNotificationIfAbsent(Long userId) {
+        RenderedNotificationTemplate template = renderInboxTemplate(TEMPLATE_USER_WELCOME, Map.of());
         CreateNotificationCommand command = buildCreateCommand(
             userId,
             TYPE_SYSTEM,
-            "user_welcome",
+            TEMPLATE_USER_WELCOME,
             userId,
-            "欢迎来到宠物生活管家",
-            "我们会把宠物档案、提醒、日常和重要消息整理在这里，方便你随时回看。"
+            template.title(),
+            template.content()
         );
         notificationPersistenceMapper.insertNotificationIfAbsent(command);
     }
@@ -126,25 +177,32 @@ public class NotificationApplicationService {
         String normalizedAction = normalizeReminderAction(action);
         String petName = notificationPersistenceMapper.findPetNameById(petId);
         String actionText = ACTION_COMPLETED.equals(normalizedAction) ? "已完成" : "已跳过";
-        String title = "提醒" + actionText;
-        String content = "%s 的「%s」%s。".formatted(
-            petName == null || petName.isBlank() ? "当前宠物" : petName,
-            reminder.getTitle(),
-            actionText
-        );
+        String templateCode = ACTION_COMPLETED.equals(normalizedAction)
+            ? TEMPLATE_REMINDER_COMPLETED
+            : TEMPLATE_REMINDER_SKIPPED;
+        String normalizedPetName = petName == null || petName.isBlank() ? "当前宠物" : petName;
 
-        /**
+        /*
          * 家庭共养场景下，提醒处理结果要同步给所有仍有该宠物访问权且开启通知的成员。
          * 接收人范围在 Mapper 中复用宠物访问约束，避免通知泄露给未共享该宠物的家庭成员。
          */
         for (Long recipientUserId : notificationPersistenceMapper.listNotificationRecipientUserIdsByPetId(petId)) {
+            RenderedNotificationTemplate template = renderInboxTemplate(
+                templateCode,
+                Map.of(
+                    "pet_name", normalizedPetName,
+                    "reminder_title", reminder.getTitle(),
+                    "action_text", actionText,
+                    "family_suffix", actorUserId.equals(recipientUserId) ? "" : " 家庭成员已经同步更新。"
+                )
+            );
             CreateNotificationCommand command = buildCreateCommand(
                 recipientUserId,
                 TYPE_REMINDER,
-                "reminder_" + normalizedAction,
+                templateCode,
                 reminder.getReminderId(),
-                title,
-                actorUserId.equals(recipientUserId) ? content : content + " 家庭成员已经同步更新。"
+                template.title(),
+                template.content()
             );
             notificationPersistenceMapper.insertNotificationIfAbsent(command);
         }
@@ -153,15 +211,17 @@ public class NotificationApplicationService {
     @Transactional
     public void createModerationResultNotification(Long reporterUserId, Long reportId, String action) {
         boolean confirmedViolation = "confirm_violation".equals(action);
+        RenderedNotificationTemplate template = renderInboxTemplate(
+            confirmedViolation ? TEMPLATE_MODERATION_CONFIRMED : TEMPLATE_MODERATION_DISMISSED,
+            Map.of()
+        );
         CreateNotificationCommand command = buildCreateCommand(
             reporterUserId,
             TYPE_SYSTEM,
             "moderation_report",
             reportId,
-            confirmedViolation ? "举报已处理" : "举报已关闭",
-            confirmedViolation
-                ? "你提交的举报已确认违规，相关内容已被处理。"
-                : "你提交的举报经审核暂未认定违规，感谢你的反馈。"
+            template.title(),
+            template.content()
         );
         notificationPersistenceMapper.insertNotificationIfAbsent(command);
     }
@@ -171,20 +231,27 @@ public class NotificationApplicationService {
         Long actorUserId,
         ServiceAppointmentEntity appointment
     ) {
-        String content = "%s 的「%s」预约已提交：%s %s，等待服务方确认。".formatted(
-            appointment.getPetName() == null || appointment.getPetName().isBlank() ? "当前宠物" : appointment.getPetName(),
-            appointment.getProviderName(),
-            appointment.getAppointmentDate(),
-            appointment.getAppointmentSlot()
-        );
+        String petName = appointment.getPetName() == null || appointment.getPetName().isBlank()
+            ? "当前宠物"
+            : appointment.getPetName();
         for (Long recipientUserId : notificationPersistenceMapper.listNotificationRecipientUserIdsByPetId(appointment.getPetId())) {
+            RenderedNotificationTemplate template = renderInboxTemplate(
+                TEMPLATE_APPOINTMENT_CREATED,
+                Map.of(
+                    "pet_name", petName,
+                    "provider_name", appointment.getProviderName(),
+                    "appointment_date", String.valueOf(appointment.getAppointmentDate()),
+                    "appointment_slot", appointment.getAppointmentSlot(),
+                    "family_suffix", actorUserId.equals(recipientUserId) ? "" : " 家庭成员已经同步收到这条预约。"
+                )
+            );
             CreateNotificationCommand command = buildCreateCommand(
                 recipientUserId,
                 TYPE_APPOINTMENT,
                 "appointment_created",
                 appointment.getAppointmentId(),
-                "预约已提交",
-                actorUserId.equals(recipientUserId) ? content : content + " 家庭成员已经同步收到这条预约。"
+                template.title(),
+                template.content()
             );
             notificationPersistenceMapper.insertNotificationIfAbsent(command);
         }
@@ -255,10 +322,74 @@ public class NotificationApplicationService {
         return null;
     }
 
+    private RenderedNotificationTemplate renderInboxTemplate(String templateCode, Map<String, String> variables) {
+        MessageTemplateDataObject configuredTemplate =
+            messageTemplatePersistenceMapper.findActiveTemplateByCodeAndChannel(templateCode, CHANNEL_INBOX);
+        String titleTemplate;
+        String contentTemplate;
+        if (configuredTemplate == null) {
+            DefaultNotificationTemplate defaultTemplate = DEFAULT_INBOX_TEMPLATES.get(templateCode);
+            if (defaultTemplate == null) {
+                throw new BusinessException(ResponseCode.MESSAGE_TEMPLATE_NOT_FOUND);
+            }
+            /*
+             * 内置通知属于现有用户主链路，后台未配置模板时不能阻断登录、提醒处理或预约提交。
+             * 这里仅对白名单内置模板使用默认文案；任意未知模板缺失仍会抛出业务异常。
+             */
+            titleTemplate = defaultTemplate.title();
+            contentTemplate = defaultTemplate.content();
+        } else {
+            titleTemplate = configuredTemplate.titleTemplate();
+            contentTemplate = configuredTemplate.contentTemplate();
+        }
+
+        if (titleTemplate == null || titleTemplate.isBlank()) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "站内消息模板标题不能为空");
+        }
+        String title = renderTemplateText(titleTemplate, variables, MAX_TITLE_LENGTH, "站内消息标题不能超过 100 个字符");
+        String content = renderTemplateText(contentTemplate, variables, MAX_CONTENT_LENGTH, "站内消息内容不能超过 500 个字符");
+        return new RenderedNotificationTemplate(title, content);
+    }
+
+    private String renderTemplateText(
+        String templateText,
+        Map<String, String> variables,
+        int maxLength,
+        String maxLengthMessage
+    ) {
+        if (templateText == null || templateText.isBlank()) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "消息模板内容不能为空");
+        }
+        Matcher matcher = PLACEHOLDER_PATTERN.matcher(templateText);
+        StringBuffer renderedText = new StringBuffer();
+        while (matcher.find()) {
+            String variableName = matcher.group(1);
+            if (!variables.containsKey(variableName)) {
+                throw new BusinessException(ResponseCode.BAD_REQUEST, "消息模板占位符不支持：" + variableName);
+            }
+            matcher.appendReplacement(renderedText, Matcher.quoteReplacement(variables.get(variableName)));
+        }
+        matcher.appendTail(renderedText);
+        String normalizedText = renderedText.toString().trim();
+        if (normalizedText.isEmpty()) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "消息模板渲染结果不能为空");
+        }
+        if (normalizedText.length() > maxLength) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, maxLengthMessage);
+        }
+        return normalizedText;
+    }
+
     private String normalizeReminderAction(String action) {
         if (ACTION_COMPLETED.equals(action) || ACTION_SKIPPED.equals(action)) {
             return action;
         }
         throw new BusinessException(ResponseCode.BAD_REQUEST, "提醒通知动作不支持");
+    }
+
+    private record DefaultNotificationTemplate(String title, String content) {
+    }
+
+    private record RenderedNotificationTemplate(String title, String content) {
     }
 }

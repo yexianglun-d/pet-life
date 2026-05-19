@@ -167,6 +167,38 @@ class PhaseOneApiTests {
               KEY idx_reminder_templates_pet_sort (applicable_pet_type, sort_order)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='提醒模板表'
             """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS message_templates (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              template_code VARCHAR(64) NOT NULL COMMENT '模板编码',
+              channel_type VARCHAR(20) NOT NULL COMMENT '渠道类型：sms/push/inbox',
+              title_template VARCHAR(100) DEFAULT NULL COMMENT '标题模板',
+              content_template TEXT NOT NULL COMMENT '内容模板',
+              status VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT '状态：active/inactive',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              PRIMARY KEY (id),
+              UNIQUE KEY uk_message_templates_code (template_code, channel_type)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='消息模板表'
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS notification_channel_configs (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              channel_type VARCHAR(20) NOT NULL COMMENT '渠道类型：inbox/sms/push',
+              provider_code VARCHAR(64) NOT NULL COMMENT '供应商编码',
+              provider_name VARCHAR(100) NOT NULL COMMENT '供应商名称',
+              enabled TINYINT NOT NULL DEFAULT 0 COMMENT '是否启用：0-否 1-是',
+              config_status VARCHAR(20) NOT NULL DEFAULT 'draft' COMMENT '配置状态：draft/ready/disabled',
+              remark VARCHAR(500) DEFAULT NULL COMMENT '备注',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              deleted_at DATETIME DEFAULT NULL COMMENT '软删除时间',
+              PRIMARY KEY (id),
+              UNIQUE KEY uk_notification_channel_provider (channel_type, provider_code),
+              KEY idx_notification_channel_enabled (channel_type, enabled),
+              KEY idx_notification_channel_status (config_status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='通知渠道配置表'
+            """);
         ensureCommunityReportAdminNotesColumn();
         ensureCommunityClosedLoopSchema();
         ensureAdminAccount();
@@ -1663,6 +1695,277 @@ class PhaseOneApiTests {
     @Test
     void shouldRejectAdminReminderTemplateWithoutAccessToken() throws Exception {
         mockMvc.perform(get("/api/v1/admin/reminder-templates"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+    }
+
+    @Test
+    void shouldManageMessageTemplatesFromAdminEndpoints() throws Exception {
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        long suffix = Math.floorMod(System.nanoTime(), 1_000_000_000L);
+        String adminOperator = "msg-template-admin-" + suffix;
+        String templateCode = "notice_template_" + suffix;
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/admin/message-templates")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", adminOperator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "template_code": "%s",
+                      "channel_type": "inbox",
+                      "title_template": "模板标题 ${pet_name}",
+                      "content_template": "模板内容 ${pet_name}",
+                      "enabled": true
+                    }
+                    """.formatted(templateCode)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.template_code", is(templateCode)))
+            .andExpect(jsonPath("$.data.channel_type", is("inbox")))
+            .andExpect(jsonPath("$.data.enabled", is(true)))
+            .andReturn();
+        String templateId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.data.template_id");
+
+        mockMvc.perform(post("/api/v1/admin/message-templates")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "template_code": "%s",
+                      "channel_type": "inbox",
+                      "title_template": "重复模板",
+                      "content_template": "重复模板内容",
+                      "enabled": true
+                    }
+                    """.formatted(templateCode)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message", is("消息模板编码和渠道已存在")));
+
+        MvcResult anotherCreateResult = mockMvc.perform(post("/api/v1/admin/message-templates")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "template_code": "%s_alt",
+                      "channel_type": "inbox",
+                      "title_template": "另一个模板",
+                      "content_template": "另一个模板内容",
+                      "enabled": true
+                    }
+                    """.formatted(templateCode)))
+            .andExpect(status().isOk())
+            .andReturn();
+        String anotherTemplateId = JsonPath.read(anotherCreateResult.getResponse().getContentAsString(), "$.data.template_id");
+
+        mockMvc.perform(patch("/api/v1/admin/message-templates/%s".formatted(anotherTemplateId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "template_code": "%s",
+                      "channel_type": "inbox",
+                      "title_template": "冲突模板",
+                      "content_template": "冲突模板内容",
+                      "enabled": true
+                    }
+                    """.formatted(templateCode)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message", is("消息模板编码和渠道已存在")));
+
+        mockMvc.perform(get("/api/v1/admin/message-templates")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .param("template_code", templateCode)
+                .param("channel_type", "inbox")
+                .param("enabled", "true"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.template_id == '%s')].title_template"
+                .formatted(templateId), is(List.of("模板标题 ${pet_name}"))));
+
+        mockMvc.perform(get("/api/v1/admin/message-templates/%s".formatted(templateId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.template_id", is(templateId)))
+            .andExpect(jsonPath("$.data.created_at").exists())
+            .andExpect(jsonPath("$.data.updated_at").exists());
+
+        mockMvc.perform(patch("/api/v1/admin/message-templates/%s".formatted(templateId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", adminOperator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "template_code": "%s",
+                      "channel_type": "push",
+                      "title_template": "更新后的模板标题",
+                      "content_template": "更新后的模板内容",
+                      "enabled": true
+                    }
+                    """.formatted(templateCode)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.channel_type", is("push")))
+            .andExpect(jsonPath("$.data.title_template", is("更新后的模板标题")));
+
+        mockMvc.perform(patch("/api/v1/admin/message-templates/%s/status".formatted(templateId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", adminOperator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "enabled": false
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.enabled", is(false)));
+
+        mockMvc.perform(get("/api/v1/admin/notification/audit-logs?operator_id=%s&target_type=message_template"
+                .formatted(adminOperator))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.action == 'message_template_status_update')].target_id",
+                is(List.of(templateId))));
+    }
+
+    @Test
+    void shouldManageNotificationChannelsFromAdminEndpoints() throws Exception {
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        long suffix = Math.floorMod(System.nanoTime(), 1_000_000_000L);
+        String adminOperator = "msg-channel-admin-" + suffix;
+        String providerCode = "sms_provider_" + suffix;
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/admin/notification-channels")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", adminOperator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "channel_type": "sms",
+                      "provider_code": "%s",
+                      "provider_name": "短信供应商",
+                      "enabled": false,
+                      "config_status": "draft",
+                      "remark": "仅配置占位，不接真实短信"
+                    }
+                    """.formatted(providerCode)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.channel_type", is("sms")))
+            .andExpect(jsonPath("$.data.provider_code", is(providerCode)))
+            .andExpect(jsonPath("$.data.enabled", is(false)))
+            .andExpect(jsonPath("$.data.config_status", is("draft")))
+            .andReturn();
+        String channelConfigId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.data.channel_config_id");
+
+        mockMvc.perform(post("/api/v1/admin/notification-channels")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "channel_type": "sms",
+                      "provider_code": "%s",
+                      "provider_name": "重复短信供应商",
+                      "enabled": false,
+                      "config_status": "draft"
+                    }
+                    """.formatted(providerCode)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message", is("通知渠道和供应商编码已存在")));
+
+        mockMvc.perform(get("/api/v1/admin/notification-channels")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .param("channel_type", "sms")
+                .param("provider_code", providerCode)
+                .param("enabled", "false")
+                .param("config_status", "draft"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.channel_config_id == '%s')].provider_name"
+                .formatted(channelConfigId), is(List.of("短信供应商"))));
+
+        mockMvc.perform(get("/api/v1/admin/notification-channels/%s".formatted(channelConfigId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.channel_config_id", is(channelConfigId)))
+            .andExpect(jsonPath("$.data.created_at").exists())
+            .andExpect(jsonPath("$.data.updated_at").exists());
+
+        mockMvc.perform(patch("/api/v1/admin/notification-channels/%s".formatted(channelConfigId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", adminOperator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "channel_type": "sms",
+                      "provider_code": "%s",
+                      "provider_name": "短信供应商 Pro",
+                      "enabled": true,
+                      "config_status": "ready",
+                      "remark": "仍不接真实短信发送"
+                    }
+                    """.formatted(providerCode)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.provider_name", is("短信供应商 Pro")))
+            .andExpect(jsonPath("$.data.enabled", is(true)))
+            .andExpect(jsonPath("$.data.config_status", is("ready")));
+
+        mockMvc.perform(patch("/api/v1/admin/notification-channels/%s/status".formatted(channelConfigId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", adminOperator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "enabled": false
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.enabled", is(false)))
+            .andExpect(jsonPath("$.data.config_status", is("disabled")));
+
+        mockMvc.perform(get("/api/v1/admin/notification/audit-logs?operator_id=%s&target_type=notification_channel"
+                .formatted(adminOperator))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.action == 'notification_channel_status_update')].target_id",
+                is(List.of(channelConfigId))));
+    }
+
+    @Test
+    void shouldRenderWelcomeNotificationFromMessageTemplate() throws Exception {
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        jdbcTemplate.update("""
+            DELETE FROM message_templates
+            WHERE template_code = 'user_welcome'
+              AND channel_type = 'inbox'
+            """);
+
+        mockMvc.perform(post("/api/v1/admin/message-templates")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "template_code": "user_welcome",
+                      "channel_type": "inbox",
+                      "title_template": "模板欢迎标题",
+                      "content_template": "模板欢迎内容",
+                      "enabled": true
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        String authorizationHeader = authorizationHeader(uniqueMobile("137"));
+        mockMvc.perform(get("/api/v1/notifications?notify_type=system&read_status=unread")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[?(@.biz_type == 'user_welcome')].title",
+                is(List.of("模板欢迎标题"))))
+            .andExpect(jsonPath("$.data.items[?(@.biz_type == 'user_welcome')].content",
+                is(List.of("模板欢迎内容"))));
+    }
+
+    @Test
+    void shouldRejectAdminNotificationConfigWithoutAccessToken() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/message-templates"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(get("/api/v1/admin/notification-channels"))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
     }
@@ -3316,6 +3619,10 @@ class PhaseOneApiTests {
 
     private String authorizationHeader() throws Exception {
         return authorizationHeader("13800000000");
+    }
+
+    private String uniqueMobile(String prefix) {
+        return prefix + "%08d".formatted(Math.floorMod(System.nanoTime(), 100_000_000L));
     }
 
     private String authorizationHeader(String mobile) throws Exception {

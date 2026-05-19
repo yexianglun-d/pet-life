@@ -379,7 +379,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 16),
           PageSection(
             title: '通知与权限',
-            description: '把消息与隐私偏好整理好，后面消息中心和提醒通知都会按这里的设置工作。',
+            description: '管理站内消息、提醒接收和主页可见偏好；短信与系统推送暂不在 App 内配置。',
             child: CompanionCard(
               color: AppThemePalette.surfaceRaised,
               radius: 22,
@@ -395,8 +395,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         const SizedBox(height: 6),
                         Text(
                           settings.notificationEnabled
-                              ? '当前已开启消息与提醒'
-                              : '当前已关闭消息与提醒',
+                              ? '当前已开启站内消息与提醒偏好'
+                              : '当前已关闭站内消息与提醒偏好',
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color: AppThemePalette.muted,

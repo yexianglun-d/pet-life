@@ -1084,7 +1084,7 @@
 
 ## 10.4 消息通知列表
 
-`GET /notifications?notify_type=all|system|reminder&read_status=all|unread|read`
+`GET /notifications?notify_type=all|system|reminder|appointment&read_status=all|unread|read`
 
 返回关键字段：
 
@@ -1110,12 +1110,16 @@
 - 首次登录欢迎消息：`notify_type=system`，`biz_type=user_welcome`
 - 提醒完成/跳过：`notify_type=reminder`，`biz_type=reminder_completed|reminder_skipped`
 - 审核结果：`notify_type=system`，`biz_type=moderation_report`
+- 服务预约提交：`notify_type=appointment`，`biz_type=appointment_created`
 
 说明：
 
 - 通知生成尊重用户 `notification_switch`
 - 提醒通知会按宠物访问范围投递给有权限的家庭成员
-- 当前未接入系统推送通道，接口表示站内消息中心
+- 站内通知生成会优先读取 `message_templates` 中 `channel_type=inbox` 且 `status=active` 的模板。
+- 内置通知模板编码包括 `user_welcome`、`reminder_completed`、`reminder_skipped`、`appointment_created`、`moderation_report_confirm_violation`、`moderation_report_dismiss_report`。
+- 模板缺失时仅上述内置模板会使用服务端默认模板，避免后台未配置模板阻断登录、提醒处理、预约提交和审核反馈；未知模板缺失仍按业务异常处理。
+- 当前未接入真实短信、真实 Push 或第三方厂商 SDK，`sms`、`push` 只进入后台配置和模板契约。
 
 ## 10.5 单条已读
 
@@ -1136,7 +1140,7 @@
 说明：
 
 - `notify_type=all` 表示全部已读
-- 也可传 `system` 或 `reminder` 按类型批量已读
+- 也可传 `system`、`reminder` 或 `appointment` 按类型批量已读
 
 ## 11. 管理后台接口范围
 
@@ -1326,6 +1330,69 @@
 - 后台查询跨家庭读取未软删提醒和未软删宠物，不复用用户端宠物访问权限视角。
 - `default_reminder_mode=single` 时不能传默认周期字段；`default_reminder_mode=cycle` 时必须传默认周期值和单位。
 - 提醒模板创建、更新和启停会写入后台审计日志，当前操作者仍通过 `X-Admin-Operator` 表达，不引入真实后台账号体系。
+
+当前已落地的后台通知与消息配置接口：
+
+- `GET /api/v1/admin/message-templates?keyword=welcome&template_code=user_welcome&channel_type=inbox&enabled=true`
+- `GET /api/v1/admin/message-templates/{template_id}`
+- `POST /api/v1/admin/message-templates`
+- `PATCH /api/v1/admin/message-templates/{template_id}`
+- `PATCH /api/v1/admin/message-templates/{template_id}/status`
+- `GET /api/v1/admin/notification-channels?channel_type=sms&provider_code=aliyun&enabled=false&config_status=draft`
+- `GET /api/v1/admin/notification-channels/{channel_config_id}`
+- `POST /api/v1/admin/notification-channels`
+- `PATCH /api/v1/admin/notification-channels/{channel_config_id}`
+- `PATCH /api/v1/admin/notification-channels/{channel_config_id}/status`
+- `GET /api/v1/admin/notification/audit-logs?operator_id=notification-admin&target_type=message_template|notification_channel`
+
+`POST /api/v1/admin/message-templates` 与 `PATCH /api/v1/admin/message-templates/{template_id}` 请求关键字段：
+
+```json
+{
+  "template_code": "user_welcome",
+  "channel_type": "inbox",
+  "title_template": "欢迎来到宠物生活管家",
+  "content_template": "我们会把宠物档案、提醒、日常和重要消息整理在这里。",
+  "enabled": true
+}
+```
+
+`PATCH /api/v1/admin/message-templates/{template_id}/status` 请求关键字段：
+
+```json
+{
+  "enabled": false
+}
+```
+
+`POST /api/v1/admin/notification-channels` 与 `PATCH /api/v1/admin/notification-channels/{channel_config_id}` 请求关键字段：
+
+```json
+{
+  "channel_type": "sms",
+  "provider_code": "aliyun",
+  "provider_name": "阿里云短信",
+  "enabled": false,
+  "config_status": "draft",
+  "remark": "仅维护配置，不接真实短信发送"
+}
+```
+
+`PATCH /api/v1/admin/notification-channels/{channel_config_id}/status` 请求关键字段：
+
+```json
+{
+  "enabled": true
+}
+```
+
+说明：
+
+- 消息模板 `template_code + channel_type` 唯一；重复创建或更新会返回明确业务异常。
+- 渠道类型当前仅支持 `inbox`、`sms`、`push`。
+- `notification_channel_configs` 是本轮新增配置表，详见 `docs/technical/08-notification-config-upgrade.sql`；本轮只做配置维护，不做外部发送。
+- 渠道配置状态支持 `draft`、`ready`、`disabled`；启用渠道必须处于 `ready` 状态，停用渠道不能处于 `ready` 状态。
+- 消息模板和通知渠道配置的创建、更新、启停均写入 `audit_logs`，通知配置审计查询只返回 `message_template` 与 `notification_channel` 目标类型。
 
 当前已落地的后台服务中心接口：
 

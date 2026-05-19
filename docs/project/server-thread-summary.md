@@ -7,6 +7,100 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用“核心可用”等阶段性表述。
 
+## 2026-05-19 通知与消息配置闭环服务端能力补齐
+
+### 新完成内容
+
+- 基于现有 `message_templates` 表新增后台消息模板管理接口：
+  - `GET /api/v1/admin/message-templates`
+  - `GET /api/v1/admin/message-templates/{templateId}`
+  - `POST /api/v1/admin/message-templates`
+  - `PATCH /api/v1/admin/message-templates/{templateId}`
+  - `PATCH /api/v1/admin/message-templates/{templateId}/status`
+- 新增消息模板字段校验与唯一性规则：`template_code + channel_type` 唯一，重复创建或更新返回明确业务异常；渠道类型仅支持 `inbox`、`sms`、`push`。
+- 确认全量 DDL 草案此前没有通知渠道配置表，新增 `notification_channel_configs` 增量 SQL 草案与服务端真实模型。
+- 新增后台通知渠道配置接口：
+  - `GET /api/v1/admin/notification-channels`
+  - `GET /api/v1/admin/notification-channels/{channelConfigId}`
+  - `POST /api/v1/admin/notification-channels`
+  - `PATCH /api/v1/admin/notification-channels/{channelConfigId}`
+  - `PATCH /api/v1/admin/notification-channels/{channelConfigId}/status`
+- 新增通知配置审计查询接口 `GET /api/v1/admin/notification/audit-logs`，配置写操作记录 `message_template`、`notification_channel` 审计目标。
+- 欢迎消息、提醒完成/跳过通知、服务预约通知、审核结果通知已改为优先读取启用的 `inbox` 消息模板。
+- 模板缺失策略已收口：仅内置模板白名单使用服务端默认模板，避免后台未配置模板阻断现有登录、提醒、预约和审核主链路；未知模板缺失仍抛业务异常。
+- 新增服务端测试覆盖消息模板 CRUD、启停、重复校验、通知渠道 CRUD、启停、审计查询、权限边界和通知生成读取模板。
+
+### 新增/修改文件
+
+- 新增服务端文件：
+  - `server/src/main/java/com/petlife/server/modules/notification/controller/AdminNotificationConfigController.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/converter/MessageTemplateConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/converter/NotificationChannelConfigConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/domain/entity/MessageTemplateEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/domain/entity/NotificationChannelConfigEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/request/AdminUpsertMessageTemplateRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/request/AdminUpdateMessageTemplateStatusRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/request/AdminUpsertNotificationChannelRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/request/AdminUpdateNotificationChannelStatusRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/response/MessageTemplateResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/response/NotificationChannelConfigResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/MessageTemplatePersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/NotificationChannelConfigPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/command/UpsertMessageTemplateCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/command/UpdateMessageTemplateStatusCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/command/UpsertNotificationChannelConfigCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/command/UpdateNotificationChannelConfigStatusCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/dataobject/MessageTemplateDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/dataobject/NotificationChannelConfigDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/service/NotificationConfigApplicationService.java`
+- 修改服务端文件：
+  - `server/src/main/java/com/petlife/server/common/response/ResponseCode.java`
+  - `server/src/main/java/com/petlife/server/config/GlobalExceptionHandler.java`
+  - `server/src/main/java/com/petlife/server/modules/admin/persistence/AuditLogPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/admin/service/AuditLogApplicationService.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/service/NotificationApplicationService.java`
+  - `server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+- 修改文档：
+  - `docs/api/petlife-openapi.yaml`
+  - `docs/technical/02-api-and-events.md`
+  - `docs/technical/03-ddl-draft.sql`
+  - `docs/technical/08-notification-config-upgrade.sql`
+  - `docs/project/01-current-delivery-status.md`
+  - `docs/project/02-feature-completion-checklist.md`
+  - `docs/project/04-admin-web-api-gap-list.md`
+  - `docs/project/server-thread-summary.md`
+  - `docs/project/admin-web-thread-summary.md`
+  - `docs/project/mobile-app-thread-summary.md`
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`
+  - 结果：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`
+  - 结果：通过，`Tests run: 81, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`
+  - 结果：通过。
+- `git diff --check`
+  - 结果：通过。
+
+### 未完成事项
+
+- admin-web 尚未接入消息模板管理、通知渠道配置和通知配置审计页面。
+- 本轮不接真实短信、不接真实 Push、不接第三方供应商 SDK；短信和 Push 只保留模板与渠道配置契约。
+- 真实外部推送通道、短信服务、对象存储云厂商适配器、第三方内容审核和地图能力仍未完成。
+
+### 风险或阻塞
+
+- `inbox` 和 `push` 模板要求 `title_template` 非空；短信模板允许标题为空。
+- 模板占位符目前用于站内通知渲染，未知占位符会返回业务异常；admin-web 接入模板编辑时应按 OpenAPI 和技术文档限制内置模板编码。
+- 通知渠道配置启用时必须为 `ready`，停用时不能为 `ready`；状态入口会自动把启用归一为 `ready`、停用归一为 `disabled`。
+
+### 下一步建议
+
+1. admin-web 按 OpenAPI 接入消息模板管理、通知渠道配置和通知配置审计页面。
+2. 后续如进入真实短信或 Push 发送，基于 `notification_channel_configs` 增加供应商适配器和发送任务，不在业务服务中硬编码厂商。
+3. 继续保留 `notification_switch` 为用户通知总开关，真实外部推送接入时也要复用该边界。
+
 ## 2026-05-19 社区用户增长闭环服务端能力补齐
 
 ### 新完成内容

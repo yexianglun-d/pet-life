@@ -1061,10 +1061,18 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       bizId: _readNullableString(payload, 'biz_id'),
       title: _readString(payload, 'title'),
       content: _readString(payload, 'content'),
-      read: _readBool(payload, 'read'),
+      readStatus: _readNotificationReadStatus(payload),
       sentAt: _readDateTime(payload, 'sent_at'),
       readAt: _readNullableDateTime(payload, 'read_at'),
     );
+  }
+
+  String _readNotificationReadStatus(Map<String, dynamic> payload) {
+    final String? readStatus = _readNullableString(payload, 'read_status');
+    if (readStatus == 'read' || readStatus == 'unread') {
+      return readStatus!;
+    }
+    return _readBool(payload, 'read') ? 'read' : 'unread';
   }
 
   @override

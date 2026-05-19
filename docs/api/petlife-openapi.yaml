@@ -77,6 +77,8 @@ tags:
     description: 医院、寄养、洗护、训练
   - name: 通知 (Notification)
     description: 站内消息中心
+  - name: 后台通知 (Admin Notification)
+    description: 消息模板、通知渠道配置与审计 (管理端)
   - name: 首页 (Home)
     description: 首页聚合、周报、月报
   - name: 审核 (Moderation)
@@ -643,6 +645,180 @@ components:
       properties:
         enabled:
           type: boolean
+
+    MessageTemplate:
+      type: object
+      properties:
+        template_id:
+          type: string
+          example: "71001"
+        template_code:
+          type: string
+          example: "user_welcome"
+        channel_type:
+          type: string
+          enum: [inbox, sms, push]
+          example: "inbox"
+        title_template:
+          type: string
+          nullable: true
+          example: "欢迎来到宠物生活管家"
+        content_template:
+          type: string
+          example: "我们会把宠物档案、提醒、日常和重要消息整理在这里。"
+        enabled:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AdminUpsertMessageTemplateRequest:
+      type: object
+      required:
+        - template_code
+        - channel_type
+        - content_template
+        - enabled
+      properties:
+        template_code:
+          type: string
+          maxLength: 64
+          example: "user_welcome"
+          description: 模板编码，和 channel_type 组成唯一键
+        channel_type:
+          type: string
+          enum: [inbox, sms, push]
+        title_template:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: "欢迎来到宠物生活管家"
+        content_template:
+          type: string
+          maxLength: 500
+          example: "我们会把宠物档案、提醒、日常和重要消息整理在这里。"
+        enabled:
+          type: boolean
+
+    AdminUpdateMessageTemplateStatusRequest:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+
+    NotificationChannelConfig:
+      type: object
+      properties:
+        channel_config_id:
+          type: string
+          example: "72001"
+        channel_type:
+          type: string
+          enum: [inbox, sms, push]
+          example: "sms"
+        provider_code:
+          type: string
+          example: "aliyun"
+        provider_name:
+          type: string
+          example: "阿里云短信"
+        enabled:
+          type: boolean
+          example: false
+        config_status:
+          type: string
+          enum: [draft, ready, disabled]
+          example: "draft"
+        remark:
+          type: string
+          nullable: true
+          example: "仅维护配置，不接真实短信发送"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AdminUpsertNotificationChannelRequest:
+      type: object
+      required:
+        - channel_type
+        - provider_code
+        - provider_name
+        - enabled
+        - config_status
+      properties:
+        channel_type:
+          type: string
+          enum: [inbox, sms, push]
+        provider_code:
+          type: string
+          maxLength: 64
+          example: "aliyun"
+          description: 与 channel_type 组成唯一键
+        provider_name:
+          type: string
+          maxLength: 100
+          example: "阿里云短信"
+        enabled:
+          type: boolean
+        config_status:
+          type: string
+          enum: [draft, ready, disabled]
+          description: 启用渠道必须为 ready；停用渠道不能为 ready
+        remark:
+          type: string
+          nullable: true
+          maxLength: 500
+
+    AdminUpdateNotificationChannelStatusRequest:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+
+    AuditLog:
+      type: object
+      properties:
+        audit_log_id:
+          type: string
+          example: "90001"
+        operator_type:
+          type: string
+          example: "admin"
+        operator_id:
+          type: string
+          example: "notification-admin"
+        target_type:
+          type: string
+          example: "message_template"
+        target_id:
+          type: string
+          example: "71001"
+        action:
+          type: string
+          example: "message_template_update"
+        detail_json:
+          type: string
+          example: "{\"template_code\":\"user_welcome\"}"
+        ip_address:
+          type: string
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
 
     DailyLog:
       type: object
@@ -3467,6 +3643,7 @@ paths:
         - 首次登录欢迎消息：notify_type=system，biz_type=user_welcome
         - 提醒完成/跳过：notify_type=reminder，biz_type=reminder_completed|reminder_skipped
         - 审核结果：notify_type=system，biz_type=moderation_report
+        - 服务预约提交：notify_type=appointment，biz_type=appointment_created
         
         **说明**:
         - 通知生成尊重用户 notification_switch
@@ -3478,7 +3655,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [all, system, reminder]
+            enum: [all, system, reminder, appointment]
           description: 通知类型筛选
         - name: read_status
           in: query
@@ -3530,7 +3707,7 @@ paths:
                 notify_type:
                   type: string
                   example: "all"
-                  enum: [all, system, reminder]
+                  enum: [all, system, reminder, appointment]
                   description: 通知类型
       responses:
         '200':
@@ -4430,6 +4607,412 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/ReminderTemplate'
+
+  /admin/message-templates:
+    get:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 后台消息模板列表
+      description: 查询消息模板配置，支持按编码、渠道和启用状态筛选。
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+          description: 按模板编码或标题搜索
+        - name: template_code
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+          description: 模板编码
+        - name: channel_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [inbox, sms, push]
+          description: 渠道类型
+        - name: enabled
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: 启用状态
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MessageTemplate'
+
+    post:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 创建消息模板
+      description: 创建消息模板；template_code + channel_type 唯一，重复会返回业务异常。
+      parameters:
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 后台操作者标识，用于审计日志
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpsertMessageTemplateRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageTemplate'
+
+  /admin/message-templates/{templateId}:
+    get:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 后台消息模板详情
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 模板 ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageTemplate'
+
+    patch:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 更新消息模板
+      description: 全量更新消息模板；template_code + channel_type 不能与其他模板重复。
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 模板 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 后台操作者标识，用于审计日志
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpsertMessageTemplateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageTemplate'
+
+  /admin/message-templates/{templateId}/status:
+    patch:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 更新消息模板启用状态
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 模板 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 后台操作者标识，用于审计日志
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateMessageTemplateStatusRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageTemplate'
+
+  /admin/notification-channels:
+    get:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 后台通知渠道配置列表
+      description: 查询站内、短信、Push 渠道配置；本轮不接真实外部发送。
+      parameters:
+        - name: channel_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [inbox, sms, push]
+          description: 渠道类型
+        - name: provider_code
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+          description: 供应商编码
+        - name: enabled
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: 启用状态
+        - name: config_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, ready, disabled]
+          description: 配置状态
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/NotificationChannelConfig'
+
+    post:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 创建通知渠道配置
+      description: 创建通知发送渠道配置；channel_type + provider_code 唯一。
+      parameters:
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 后台操作者标识，用于审计日志
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpsertNotificationChannelRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NotificationChannelConfig'
+
+  /admin/notification-channels/{channelConfigId}:
+    get:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 后台通知渠道配置详情
+      parameters:
+        - name: channelConfigId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 通知渠道配置 ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NotificationChannelConfig'
+
+    patch:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 更新通知渠道配置
+      description: 全量更新渠道配置；启用渠道必须处于 ready 状态，停用渠道不能处于 ready 状态。
+      parameters:
+        - name: channelConfigId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 通知渠道配置 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 后台操作者标识，用于审计日志
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpsertNotificationChannelRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NotificationChannelConfig'
+
+  /admin/notification-channels/{channelConfigId}/status:
+    patch:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 更新通知渠道启用状态
+      description: 启用时配置状态归一为 ready，停用时归一为 disabled。
+      parameters:
+        - name: channelConfigId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 通知渠道配置 ID
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 后台操作者标识，用于审计日志
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateNotificationChannelStatusRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NotificationChannelConfig'
+
+  /admin/notification/audit-logs:
+    get:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 后台通知配置审计日志
+      description: 查询消息模板和通知渠道配置写操作审计日志。
+      parameters:
+        - name: operator_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 操作者标识
+        - name: target_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [message_template, notification_channel]
+          description: 审计目标类型
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 审计动作
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AuditLog'
 
   # ==================== 管理端 - 内容查询模块 ====================
   /admin/health-records:

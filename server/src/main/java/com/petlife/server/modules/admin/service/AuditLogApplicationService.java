@@ -44,6 +44,10 @@ public class AuditLogApplicationService {
         "community_post",
         "community_question"
     );
+    private static final Set<String> SUPPORTED_NOTIFICATION_TARGET_TYPES = Set.of(
+        "message_template",
+        "notification_channel"
+    );
 
     private final AuditLogPersistenceMapper auditLogPersistenceMapper;
     private final AuditLogConverter auditLogConverter;
@@ -124,6 +128,25 @@ public class AuditLogApplicationService {
         String normalizedAction = normalizeNullableText(action, MAX_ACTION_LENGTH);
         return auditLogPersistenceMapper
             .listModerationAuditLogs(normalizedOperatorId, normalizedTargetType, normalizedAction)
+            .stream()
+            .map(auditLogConverter::toEntity)
+            .map(auditLogConverter::toResponse)
+            .toList();
+    }
+
+    public List<AuditLogResponse> listNotificationAuditLogs(
+        String operatorId,
+        String targetType,
+        String action
+    ) {
+        String normalizedOperatorId = normalizeNullableText(operatorId, MAX_OPERATOR_ID_LENGTH);
+        String normalizedTargetType = normalizeNullableText(targetType, MAX_TARGET_TYPE_LENGTH);
+        if (normalizedTargetType != null && !SUPPORTED_NOTIFICATION_TARGET_TYPES.contains(normalizedTargetType)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "通知审计目标类型不支持");
+        }
+        String normalizedAction = normalizeNullableText(action, MAX_ACTION_LENGTH);
+        return auditLogPersistenceMapper
+            .listNotificationAuditLogs(normalizedOperatorId, normalizedTargetType, normalizedAction)
             .stream()
             .map(auditLogConverter::toEntity)
             .map(auditLogConverter::toResponse)

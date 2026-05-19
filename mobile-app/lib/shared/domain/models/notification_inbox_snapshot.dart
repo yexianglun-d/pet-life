@@ -18,7 +18,7 @@ class NotificationMessageSnapshot {
     required this.notifyType,
     required this.title,
     required this.content,
-    required this.read,
+    required this.readStatus,
     required this.sentAt,
     this.bizType,
     this.bizId,
@@ -31,7 +31,9 @@ class NotificationMessageSnapshot {
   final String? bizId;
   final String title;
   final String content;
-  final bool read;
+  final String readStatus;
   final DateTime sentAt;
   final DateTime? readAt;
+
+  bool get read => readStatus == 'read';
 }

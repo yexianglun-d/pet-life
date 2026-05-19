@@ -9,6 +9,8 @@ import HealthRecordReviewView from '@/views/content/HealthRecordReviewView.vue';
 import TimelineEventDebugView from '@/views/content/TimelineEventDebugView.vue';
 import DashboardView from '@/views/dashboard/DashboardView.vue';
 import ModerationView from '@/views/moderation/ModerationView.vue';
+import MessageTemplateManagementView from '@/views/notification/MessageTemplateManagementView.vue';
+import NotificationChannelConfigView from '@/views/notification/NotificationChannelConfigView.vue';
 import FamilyManagementView from '@/views/operation/FamilyManagementView.vue';
 import PetArchiveQueryView from '@/views/operation/PetArchiveQueryView.vue';
 import UserManagementView from '@/views/operation/UserManagementView.vue';
@@ -90,6 +92,16 @@ const routes: RouteRecordRaw[] = [
         path: 'reminder-templates',
         name: 'reminderTemplates',
         component: ReminderTemplateManagementView
+      },
+      {
+        path: 'message-templates',
+        name: 'messageTemplates',
+        component: MessageTemplateManagementView
+      },
+      {
+        path: 'notification-channels',
+        name: 'notificationChannels',
+        component: NotificationChannelConfigView
       },
       {
         path: 'service-providers',

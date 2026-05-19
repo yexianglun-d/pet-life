@@ -7,6 +7,100 @@
 - 若功能状态变化，必须同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 所有状态按完整交付标准记录，不使用阶段性跑通或“核心可用”口径。
 
+## 2026-05-19 通知与消息配置页面接入
+
+### 1. 新完成内容
+
+- 新增消息模板管理页，接入真实后台消息模板列表、详情、创建、编辑、启停接口。
+- 新增通知发送配置页，接入真实后台通知渠道列表、详情、创建、编辑、启停接口。
+- 两个页面均接入 `GET /api/v1/admin/notification/audit-logs`，分别展示消息模板和通知渠道配置审计记录。
+- 通知发送配置页明确标注短信和 Push 当前只维护配置，不代表真实供应商已接入。
+- 后台侧栏和路由新增 `消息模板`、`通知渠道` 入口；系统配置页从占位说明调整为真实通知配置入口。
+
+### 2. 新增/修改文件
+
+- 新增：`admin-web/src/shared/api/adminNotificationConfigApi.ts`
+- 新增：`admin-web/src/views/notification/MessageTemplateManagementView.vue`
+- 新增：`admin-web/src/views/notification/NotificationChannelConfigView.vue`
+- 修改：`admin-web/src/router/index.ts`
+- 修改：`admin-web/src/layouts/AdminLayout.vue`
+- 修改：`admin-web/src/views/system/SystemConfigView.vue`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- `npm run type-check`：通过。
+- `npm run build`：通过；Vite 仍提示主 chunk 超过 500 kB，这是当前后台工程既有打包体积警告，不影响构建结果。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实短信供应商和 Push 推送通道仍未接入。
+- 通知发送配置页只维护后台配置状态，不包含供应商密钥、回调、发送报表或通道健康检查。
+
+### 5. 风险或阻塞
+
+- 消息模板唯一性仍以服务端 `template_code + channel_type` 校验为准，前端只做必填校验。
+- 通知渠道启用时必须为 `ready`，停用时不能为 `ready`；页面已做前置校验，但最终规则以服务端为准。
+
+### 6. 下一步建议
+
+1. 等服务端接入真实短信 / Push 供应商后，再补供应商密钥、发送状态和失败告警后台能力。
+2. 后续如需要按钮级权限，应基于后台 RBAC 扩展菜单与操作权限。
+
+## 2026-05-19 通知与消息配置接口可接入
+
+### 1. 新完成内容
+
+- 服务端已补齐消息模板管理接口，并同步到 `docs/api/petlife-openapi.yaml`：
+  - `GET /api/v1/admin/message-templates`
+  - `GET /api/v1/admin/message-templates/{templateId}`
+  - `POST /api/v1/admin/message-templates`
+  - `PATCH /api/v1/admin/message-templates/{templateId}`
+  - `PATCH /api/v1/admin/message-templates/{templateId}/status`
+- 服务端已补齐通知渠道配置接口，并同步到 OpenAPI：
+  - `GET /api/v1/admin/notification-channels`
+  - `GET /api/v1/admin/notification-channels/{channelConfigId}`
+  - `POST /api/v1/admin/notification-channels`
+  - `PATCH /api/v1/admin/notification-channels/{channelConfigId}`
+  - `PATCH /api/v1/admin/notification-channels/{channelConfigId}/status`
+- 新增通知配置审计查询接口：`GET /api/v1/admin/notification/audit-logs`。
+- 本轮未修改 admin-web 源码，通知配置页面仍待后续接入。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 服务端实现文件见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 81, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- admin-web 尚未实现消息模板管理页、通知渠道配置页和通知配置审计展示。
+- 真实短信和 Push 供应商发送能力未接入，本轮只提供配置模型与后台契约。
+
+### 5. 风险或阻塞
+
+- 消息模板 `template_code + channel_type` 唯一，前端保存前不应在本地绕过服务端重复校验。
+- 通知渠道启用时必须处于 `ready` 状态，停用时不能处于 `ready` 状态；状态切换接口会自动归一配置状态。
+
+### 6. 下一步建议
+
+1. 增加 admin-web 消息模板 API 类型、列表、详情、创建、编辑和启停交互。
+2. 增加通知渠道配置 API 类型、列表、详情、创建、编辑、启停和配置审计查询。
+
 ## 2026-05-19 社区内容治理页面接入
 
 ### 1. 新完成内容
