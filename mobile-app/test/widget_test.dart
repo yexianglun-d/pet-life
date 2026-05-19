@@ -49,9 +49,10 @@ class _FakePetLifeRepository implements PetLifeRepository {
     return AuthSmsSendSnapshot(
       mobile: mobile,
       scene: 'login',
-      mockedCode: '123456',
+      sent: true,
       expiresInSeconds: 300,
       resendInSeconds: 60,
+      providerCode: 'dev_noop',
     );
   }
 
@@ -858,7 +859,7 @@ class _FakePetLifeRepository implements PetLifeRepository {
         providerName: '安心宠物医院',
         cityCode: cityCode ?? '310000',
         address: '上海市徐汇区宠物友好路 88 号',
-        contactPhone: '021-12345678',
+        contactPhone: '021-87654321',
         businessHours: '09:00-20:00',
         ratingAvg: '4.8',
         reviewCount: 16,

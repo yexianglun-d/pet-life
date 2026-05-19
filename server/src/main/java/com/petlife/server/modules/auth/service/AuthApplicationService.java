@@ -23,6 +23,7 @@ import com.petlife.server.modules.user.domain.entity.UserProfileEntity;
 import com.petlife.server.modules.user.service.UserBootstrapApplicationService;
 import com.petlife.server.modules.user.persistence.UserPersistenceMapper;
 import com.petlife.server.modules.user.persistence.command.CreateUserCommand;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,17 +31,13 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 认证应用服务。
  *
- * <p>当前阶段使用固定验证码 `123456` 作为开发联调用验证码，
- * 目的是先把登录流程、前后端契约和页面跳转打通。正式短信接入后，
- * 该服务将替换为真实验证码校验与 token 签发逻辑。</p>
+ * <p>短信验证码由 SmsVerificationApplicationService 生成、摘要落库和状态校验。
+ * AuthApplicationService 只负责认证编排、用户初始化和 token 签发。</p>
  */
 @Service
 public class AuthApplicationService {
 
-    private static final String DEVELOPMENT_SMS_CODE = "123456";
     private static final String DEVELOPMENT_MOBILE = "13800000000";
-    private static final int SMS_CODE_EXPIRE_SECONDS = 300;
-    private static final int SMS_RESEND_SECONDS = 60;
 
     private final AccessTokenRepository accessTokenRepository;
     private final UserPersistenceMapper userPersistenceMapper;
@@ -50,6 +47,7 @@ public class AuthApplicationService {
     private final AuthResponseConverter authResponseConverter;
     private final UserBootstrapApplicationService userBootstrapApplicationService;
     private final NotificationApplicationService notificationApplicationService;
+    private final SmsVerificationApplicationService smsVerificationApplicationService;
 
     public AuthApplicationService(
         AccessTokenRepository accessTokenRepository,
@@ -59,7 +57,8 @@ public class AuthApplicationService {
         PetEntityConverter petEntityConverter,
         AuthResponseConverter authResponseConverter,
         UserBootstrapApplicationService userBootstrapApplicationService,
-        NotificationApplicationService notificationApplicationService
+        NotificationApplicationService notificationApplicationService,
+        SmsVerificationApplicationService smsVerificationApplicationService
     ) {
         this.accessTokenRepository = accessTokenRepository;
         this.userPersistenceMapper = userPersistenceMapper;
@@ -69,24 +68,16 @@ public class AuthApplicationService {
         this.authResponseConverter = authResponseConverter;
         this.userBootstrapApplicationService = userBootstrapApplicationService;
         this.notificationApplicationService = notificationApplicationService;
+        this.smsVerificationApplicationService = smsVerificationApplicationService;
     }
 
-    public AuthSmsSendResponse sendSmsCode(AuthSmsSendRequest request) {
-        return new AuthSmsSendResponse(
-            request.mobile(),
-            request.scene(),
-            DEVELOPMENT_SMS_CODE,
-            SMS_CODE_EXPIRE_SECONDS,
-            SMS_RESEND_SECONDS
-        );
+    public AuthSmsSendResponse sendSmsCode(AuthSmsSendRequest request, HttpServletRequest httpServletRequest) {
+        return smsVerificationApplicationService.sendSmsCode(request, httpServletRequest);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public AuthLoginSmsResponse loginBySms(AuthSmsLoginRequest request) {
-        if (!DEVELOPMENT_SMS_CODE.equals(request.code())) {
-            throw new BusinessException(ResponseCode.AUTH_SMS_CODE_INVALID);
-        }
-
+        smsVerificationApplicationService.verifyLoginCode(request.mobile(), request.code());
         UserProfileEntity userProfile = ensureUserProfile(request.mobile());
         // 登录成功后必须保证用户已经拥有可访问家庭和可用当前宠物，避免后续 `/me` 读取出现脏引用。
         FamilySummaryEntity familySummary =

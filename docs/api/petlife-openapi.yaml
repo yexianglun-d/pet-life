@@ -193,6 +193,91 @@ components:
         refresh_token:
           type: string
 
+    SmsVerificationRecord:
+      type: object
+      description: 后台短信验证码校验记录；不返回明文验证码、code_hash 或 salt。
+      properties:
+        verification_id:
+          type: string
+          example: "90001"
+        mobile:
+          type: string
+          example: "13800000000"
+        scene:
+          type: string
+          enum: [login]
+          example: "login"
+        expires_at:
+          type: string
+          format: date-time
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        attempt_count:
+          type: integer
+          example: 1
+        max_attempt_count:
+          type: integer
+          example: 5
+        status:
+          type: string
+          enum: [active, verified, expired, locked, send_failed]
+          example: "active"
+        request_ip:
+          type: string
+          nullable: true
+          example: "127.0.0.1"
+        user_agent:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SmsSendRecord:
+      type: object
+      description: 后台短信发送记录；不返回明文验证码。
+      properties:
+        send_record_id:
+          type: string
+          example: "91001"
+        verification_id:
+          type: string
+          nullable: true
+          example: "90001"
+        mobile:
+          type: string
+          example: "13800000000"
+        scene:
+          type: string
+          enum: [login]
+          example: "login"
+        provider_code:
+          type: string
+          example: "dev_noop"
+        send_status:
+          type: string
+          enum: [accepted, failed, blocked]
+          example: "accepted"
+        failure_reason:
+          type: string
+          nullable: true
+          example: "同手机号同场景发送过于频繁"
+        request_ip:
+          type: string
+          nullable: true
+          example: "127.0.0.1"
+        user_agent:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
     AdminStatusMutationRequest:
       type: object
       required: [status]
@@ -1424,12 +1509,15 @@ paths:
         - 认证 (Auth)
       summary: 发送短信验证码
       description: |
-        发送短信验证码用于登录
+        发送短信验证码用于登录。服务端生成 6 位随机验证码，只保存 `code_hash` 和 `salt`，响应不返回明文验证码。
         
         **校验规则**:
         - mobile 格式校验
-        - 图形验证通过
-        - 发送频率限制
+        - 当前 scene 仅支持 login
+        - 同手机号 + 同 scene 60 秒内不可重复发送
+        - 同手机号 + 同 scene 每小时最多 5 次
+        - 同 IP + 同 scene 每小时最多 20 次
+        - 当前未接入真实短信厂商，默认通过 `dev_noop` 供应商记录发送受理状态
       security: []
       requestBody:
         required: true
@@ -1463,21 +1551,37 @@ paths:
                       data:
                         type: object
                         properties:
+                          mobile:
+                            type: string
+                            example: "13800000000"
+                          scene:
+                            type: string
+                            example: "login"
                           sent:
                             type: boolean
                             example: true
-                          expire_seconds:
+                          expires_in_seconds:
                             type: integer
                             example: 300
                             description: 验证码有效期（秒）
-                            
+                          resend_in_seconds:
+                            type: integer
+                            example: 60
+                            description: 重发等待秒数
+                          provider_code:
+                            type: string
+                            example: "dev_noop"
+                            description: 当前处理发送请求的供应商编码
+        '429':
+          description: 发送频控限制
+
   /auth/login/sms:
     post:
       tags:
         - 认证 (Auth)
       summary: 短信登录
       description: |
-        使用手机号和验证码登录
+        使用手机号和验证码登录。验证码必须存在、未过期、未使用且未超过错误次数；校验成功后验证码立即失效。
         
         **返回关键字段**:
         - access_token
@@ -1503,8 +1607,9 @@ paths:
                   description: 手机号
                 code:
                   type: string
-                  example: "123456"
-                  description: 验证码
+                  pattern: "^\\d{6}$"
+                  example: "739204"
+                  description: 6 位短信验证码
       responses:
         '200':
           description: 登录成功
@@ -3857,6 +3962,99 @@ paths:
       responses:
         '200':
           description: 退出成功
+
+  /admin/sms-verifications:
+    get:
+      tags:
+        - 后台认证 (Admin Auth)
+      summary: 后台短信验证码校验记录列表
+      description: 查询短信验证码校验记录，用于排查登录验证码问题；不会返回明文验证码、code_hash 或 salt。
+      parameters:
+        - name: mobile
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+          description: 手机号
+        - name: scene
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [login]
+          description: 业务场景
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, verified, expired, locked, send_failed]
+          description: 验证码状态
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SmsVerificationRecord'
+
+  /admin/sms-send-records:
+    get:
+      tags:
+        - 后台认证 (Admin Auth)
+      summary: 后台短信发送记录列表
+      description: 查询短信发送记录和频控拦截记录，用于排查供应商受理状态；不会返回明文验证码。
+      parameters:
+        - name: mobile
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+          description: 手机号
+        - name: scene
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [login]
+          description: 业务场景
+        - name: provider_code
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+          description: 供应商编码
+        - name: send_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [accepted, failed, blocked]
+          description: 发送状态
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SmsSendRecord'
 
   # ==================== 管理端 - 用户查询模块 ====================
   /admin/users:

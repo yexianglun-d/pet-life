@@ -9,6 +9,7 @@
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">消息模板</span>
         <span class="pet-admin-chip">通知渠道</span>
+        <span class="pet-admin-chip">验证码排查</span>
         <span class="pet-admin-chip">功能开通状态</span>
         <span class="pet-admin-chip">预留模块边界</span>
       </div>
@@ -31,6 +32,7 @@
         <div class="system-entry-actions">
           <el-button type="primary" @click="router.push({ name: 'messageTemplates' })">消息模板管理</el-button>
           <el-button @click="router.push({ name: 'notificationChannels' })">通知渠道配置</el-button>
+          <el-button @click="router.push({ name: 'smsVerifications' })">验证码排查</el-button>
         </div>
       </article>
 
@@ -57,6 +59,11 @@ const systemCards = [
     title: '通知与消息',
     description: '负责站内信、短信和 Push 模板内容与渠道配置。',
     highlight: '已接入'
+  },
+  {
+    title: '验证码安全',
+    description: '查看短信发送受理、频控拦截和验证码校验状态。',
+    highlight: '排查入口'
   },
   {
     title: '功能开通',

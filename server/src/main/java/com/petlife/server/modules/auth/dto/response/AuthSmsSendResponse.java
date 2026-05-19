@@ -5,15 +5,17 @@ package com.petlife.server.modules.auth.dto.response;
  *
  * @param mobile 手机号
  * @param scene 业务场景
- * @param mockedCode 开发期验证码
+ * @param sent 是否已提交发送
  * @param expiresInSeconds 过期秒数
  * @param resendInSeconds 重发等待秒数
+ * @param providerCode 供应商编码
  */
 public record AuthSmsSendResponse(
     String mobile,
     String scene,
-    String mockedCode,
+    Boolean sent,
     Integer expiresInSeconds,
-    Integer resendInSeconds
+    Integer resendInSeconds,
+    String providerCode
 ) {
 }

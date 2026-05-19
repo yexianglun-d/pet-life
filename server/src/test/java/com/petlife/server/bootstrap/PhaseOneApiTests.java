@@ -3,6 +3,8 @@ package com.petlife.server.bootstrap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -13,8 +15,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.petlife.server.modules.family.persistence.FamilyPersistenceMapper;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -36,6 +42,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PhaseOneApiTests {
+
+    private static final String TEST_SMS_SCENE = "login";
+    private static final String TEST_SMS_CODE = "654321";
 
     @Autowired
     private MockMvc mockMvc;
@@ -83,6 +92,46 @@ class PhaseOneApiTests {
               KEY idx_admin_sessions_account (admin_account_id),
               KEY idx_admin_sessions_active (revoked_at, expires_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='后台管理员登录会话表'
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS sms_verification_codes (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              mobile VARCHAR(20) NOT NULL COMMENT '手机号',
+              scene VARCHAR(30) NOT NULL COMMENT '业务场景',
+              code_hash CHAR(64) NOT NULL COMMENT '验证码 SHA256 摘要',
+              salt VARCHAR(64) NOT NULL COMMENT '验证码摘要随机盐',
+              expires_at DATETIME NOT NULL COMMENT '过期时间',
+              verified_at DATETIME DEFAULT NULL COMMENT '验证通过时间',
+              attempt_count INT NOT NULL DEFAULT 0 COMMENT '已尝试次数',
+              max_attempt_count INT NOT NULL DEFAULT 5 COMMENT '最大尝试次数',
+              status VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT '状态：active/verified/expired/locked/send_failed',
+              request_ip VARCHAR(64) DEFAULT NULL COMMENT '请求 IP',
+              user_agent VARCHAR(255) DEFAULT NULL COMMENT '客户端标识',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              PRIMARY KEY (id),
+              KEY idx_sms_codes_mobile_scene_status (mobile, scene, status, created_at DESC),
+              KEY idx_sms_codes_expire (expires_at, status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='短信验证码记录表'
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS sms_send_records (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              verification_id BIGINT UNSIGNED DEFAULT NULL COMMENT '验证码记录 ID',
+              mobile VARCHAR(20) NOT NULL COMMENT '手机号',
+              scene VARCHAR(30) NOT NULL COMMENT '业务场景',
+              provider_code VARCHAR(64) NOT NULL COMMENT '短信供应商编码',
+              send_status VARCHAR(20) NOT NULL COMMENT '发送状态：accepted/failed/blocked',
+              failure_reason VARCHAR(500) DEFAULT NULL COMMENT '失败或拦截原因',
+              request_ip VARCHAR(64) DEFAULT NULL COMMENT '请求 IP',
+              user_agent VARCHAR(255) DEFAULT NULL COMMENT '客户端标识',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              PRIMARY KEY (id),
+              KEY idx_sms_send_mobile_scene_time (mobile, scene, created_at DESC),
+              KEY idx_sms_send_ip_scene_time (request_ip, scene, created_at DESC),
+              KEY idx_sms_send_provider_status (provider_code, send_status),
+              CONSTRAINT fk_sms_send_verification FOREIGN KEY (verification_id) REFERENCES sms_verification_codes (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='短信发送记录表'
             """);
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS media_assets (
@@ -289,18 +338,252 @@ class PhaseOneApiTests {
 
     @Test
     void shouldLoginBySms() throws Exception {
+        sendSmsCodeForLogin("13800000000");
+
         mockMvc.perform(post("/api/v1/auth/login/sms")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "mobile": "13800000000",
-                      "code": "123456"
+                      "code": "%s"
                     }
-                    """))
+                    """.formatted(TEST_SMS_CODE)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code", is("OK")))
             .andExpect(jsonPath("$.data.access_token").exists())
             .andExpect(jsonPath("$.data.user.nickname", is("Momo")));
+    }
+
+    @Test
+    void shouldSendSmsCodeWithoutLeakingPlainCode() throws Exception {
+        String mobile = uniqueMobile("131");
+
+        String responseBody = mockMvc.perform(post("/api/v1/auth/sms/send")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "scene": "login"
+                    }
+                    """.formatted(mobile)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.sent", is(true)))
+            .andExpect(jsonPath("$.data.provider_code", is("dev_noop")))
+            .andExpect(jsonPath("$.data.mocked_code").doesNotExist())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String codeHash = latestSmsCodeHash(mobile);
+        String salt = latestSmsCodeSalt(mobile);
+        assertNotNull(codeHash);
+        assertNotNull(salt);
+        assertFalse(responseBody.contains(codeHash));
+        assertFalse(responseBody.contains(salt));
+        assertFalse(responseBody.contains("123456"));
+    }
+
+    @Test
+    void shouldRateLimitSmsSendByMobileSceneAndIp() throws Exception {
+        String mobile = uniqueMobile("132");
+
+        mockMvc.perform(post("/api/v1/auth/sms/send")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "scene": "login"
+                    }
+                    """.formatted(mobile)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code", is("OK")));
+
+        mockMvc.perform(post("/api/v1/auth/sms/send")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "scene": "login"
+                    }
+                    """.formatted(mobile)))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.code", is("AUTH_SMS_SEND_RATE_LIMITED")));
+    }
+
+    @Test
+    void shouldRejectWrongSmsCodeAndLockAfterMaxAttempts() throws Exception {
+        String mobile = uniqueMobile("133");
+        sendSmsCodeForLogin(mobile);
+
+        for (int index = 0; index < 4; index++) {
+            mockMvc.perform(post("/api/v1/auth/login/sms")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "mobile": "%s",
+                          "code": "000000"
+                        }
+                        """.formatted(mobile)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is("AUTH_SMS_CODE_INVALID")));
+        }
+
+        mockMvc.perform(post("/api/v1/auth/login/sms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "code": "000000"
+                    }
+                    """.formatted(mobile)))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.code", is("AUTH_SMS_CODE_ATTEMPT_LIMITED")));
+
+        mockMvc.perform(post("/api/v1/auth/login/sms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "code": "%s"
+                    }
+                    """.formatted(mobile, TEST_SMS_CODE)))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.code", is("AUTH_SMS_CODE_ATTEMPT_LIMITED")));
+
+        Integer attemptCount = jdbcTemplate.queryForObject("""
+            SELECT attempt_count
+            FROM sms_verification_codes
+            WHERE mobile = ? AND scene = 'login'
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """, Integer.class, mobile);
+        String status = jdbcTemplate.queryForObject("""
+            SELECT status
+            FROM sms_verification_codes
+            WHERE mobile = ? AND scene = 'login'
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """, String.class, mobile);
+        assertEquals(5, attemptCount);
+        assertEquals("locked", status);
+    }
+
+    @Test
+    void shouldRejectExpiredSmsCode() throws Exception {
+        String mobile = uniqueMobile("134");
+        sendSmsCodeForLogin(mobile);
+        jdbcTemplate.update("""
+            UPDATE sms_verification_codes
+            SET expires_at = DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 SECOND)
+            WHERE mobile = ? AND scene = 'login'
+            """, mobile);
+
+        mockMvc.perform(post("/api/v1/auth/login/sms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "code": "%s"
+                    }
+                    """.formatted(mobile, TEST_SMS_CODE)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code", is("AUTH_SMS_CODE_EXPIRED")));
+    }
+
+    @Test
+    void shouldInvalidateSmsCodeAfterSuccessfulLogin() throws Exception {
+        String mobile = uniqueMobile("135");
+        sendSmsCodeForLogin(mobile);
+
+        mockMvc.perform(post("/api/v1/auth/login/sms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "code": "%s"
+                    }
+                    """.formatted(mobile, TEST_SMS_CODE)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code", is("OK")));
+
+        mockMvc.perform(post("/api/v1/auth/login/sms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "code": "%s"
+                    }
+                    """.formatted(mobile, TEST_SMS_CODE)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code", is("AUTH_SMS_CODE_USED")));
+    }
+
+    @Test
+    void shouldRejectWrongSmsCodeWithoutSendingCode() throws Exception {
+        String mobile = uniqueMobile("136");
+
+        mockMvc.perform(post("/api/v1/auth/login/sms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "code": "000000"
+                    }
+                    """.formatted(mobile)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code", is("AUTH_SMS_CODE_INVALID")));
+    }
+
+    @Test
+    void shouldQuerySmsRecordsFromAdminWithoutLeakingPlainCode() throws Exception {
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        String mobile = uniqueMobile("137");
+        sendSmsCodeForLogin(mobile);
+
+        String verificationResponseBody = mockMvc.perform(get("/api/v1/admin/sms-verifications")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .param("mobile", mobile)
+                .param("scene", "login"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].mobile", is(mobile)))
+            .andExpect(jsonPath("$.data[0].scene", is("login")))
+            .andExpect(jsonPath("$.data[0].attempt_count", is(0)))
+            .andExpect(jsonPath("$.data[0].code_hash").doesNotExist())
+            .andExpect(jsonPath("$.data[0].salt").doesNotExist())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String sendRecordResponseBody = mockMvc.perform(get("/api/v1/admin/sms-send-records")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .param("mobile", mobile)
+                .param("scene", "login")
+                .param("provider_code", "dev_noop")
+                .param("send_status", "accepted"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].mobile", is(mobile)))
+            .andExpect(jsonPath("$.data[0].provider_code", is("dev_noop")))
+            .andExpect(jsonPath("$.data[0].send_status", is("accepted")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        assertFalse(verificationResponseBody.contains(TEST_SMS_CODE));
+        assertFalse(sendRecordResponseBody.contains(TEST_SMS_CODE));
+        assertFalse(verificationResponseBody.contains(latestSmsCodeHash(mobile)));
+        assertFalse(verificationResponseBody.contains(latestSmsCodeSalt(mobile)));
+    }
+
+    @Test
+    void shouldRejectSmsRecordAdminQueryWithoutAdminAccessToken() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/sms-verifications"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(get("/api/v1/admin/sms-send-records")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader(uniqueMobile("138"))))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
     }
 
     @Test
@@ -3634,14 +3917,15 @@ class PhaseOneApiTests {
     }
 
     private LoginTokensFixture loginTokens(String mobile) throws Exception {
+        sendSmsCodeForLogin(mobile);
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login/sms")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "mobile": "%s",
-                      "code": "123456"
+                      "code": "%s"
                     }
-                    """.formatted(mobile)))
+                    """.formatted(mobile, TEST_SMS_CODE)))
             .andExpect(status().isOk())
             .andReturn();
 
@@ -3668,6 +3952,78 @@ class PhaseOneApiTests {
         String accessToken = JsonPath.read(responseBody, "$.data.access_token");
         String refreshToken = JsonPath.read(responseBody, "$.data.refresh_token");
         return new LoginTokensFixture(accessToken, refreshToken);
+    }
+
+    private void sendSmsCodeForLogin(String mobile) throws Exception {
+        resetSmsSendWindow(mobile);
+        mockMvc.perform(post("/api/v1/auth/sms/send")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "scene": "%s"
+                    }
+                    """.formatted(mobile, TEST_SMS_SCENE)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mocked_code").doesNotExist());
+        prepareLatestSmsCodeForTest(mobile, TEST_SMS_CODE);
+    }
+
+    private void resetSmsSendWindow(String mobile) {
+        jdbcTemplate.update("""
+            UPDATE sms_send_records
+            SET created_at = DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 2 HOUR)
+            WHERE mobile = ?
+            """, mobile);
+    }
+
+    private void prepareLatestSmsCodeForTest(String mobile, String code) {
+        Long verificationId = jdbcTemplate.queryForObject("""
+            SELECT id
+            FROM sms_verification_codes
+            WHERE mobile = ? AND scene = ? AND status = 'active'
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """, Long.class, mobile, TEST_SMS_SCENE);
+        String salt = "phase-one-" + Math.floorMod(System.nanoTime(), 1_000_000_000L);
+        jdbcTemplate.update("""
+            UPDATE sms_verification_codes
+            SET salt = ?,
+                code_hash = ?
+            WHERE id = ?
+            """, salt, hashSmsCode(salt, mobile, TEST_SMS_SCENE, code), verificationId);
+    }
+
+    private String latestSmsCodeHash(String mobile) {
+        return jdbcTemplate.queryForObject("""
+            SELECT code_hash
+            FROM sms_verification_codes
+            WHERE mobile = ? AND scene = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """, String.class, mobile, TEST_SMS_SCENE);
+    }
+
+    private String latestSmsCodeSalt(String mobile) {
+        return jdbcTemplate.queryForObject("""
+            SELECT salt
+            FROM sms_verification_codes
+            WHERE mobile = ? AND scene = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """, String.class, mobile, TEST_SMS_SCENE);
+    }
+
+    private String hashSmsCode(String salt, String mobile, String scene, String code) {
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+            byte[] digest = messageDigest.digest(
+                "%s:%s:%s:%s".formatted(salt, mobile, scene, code).getBytes(StandardCharsets.UTF_8)
+            );
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 algorithm is unavailable", exception);
+        }
     }
 
     private String currentUserId(String authorizationHeader) throws Exception {

@@ -7,6 +7,92 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用“核心可用”等阶段性表述。
 
+## 2026-05-19 短信验证码安全闭环供应商无关底座
+
+### 新完成内容
+
+- 移除服务端固定验证码 `123456` 登录校验，`POST /api/v1/auth/sms/send` 改为生成 6 位随机验证码。
+- 新增 `sms_verification_codes` 与 `sms_send_records` 持久化模型，验证码仅保存 `code_hash` 和 `salt`，不在响应、日志或后台查询中返回明文。
+- 新增验证码状态机：`active`、`verified`、`expired`、`locked`、`send_failed`；支持过期、使用后失效、错误次数递增和达到上限锁定。
+- 新增发送频控：同手机号 + 同 scene 60 秒内不可重复发送、每小时最多 5 次；同 IP + 同 scene 每小时最多 20 次。
+- 新增供应商无关 `SmsProvider` 抽象与 `dev_noop` 实现；当前不接真实短信 SDK，只记录发送受理状态和边界。
+- 新增后台排查接口：
+  - `GET /api/v1/admin/sms-verifications`
+  - `GET /api/v1/admin/sms-send-records`
+- 新增 PhaseOneApiTests 覆盖短信发送不泄露明文、频控、错误次数、过期、成功后失效、错误验证码无法登录、后台查询不泄露明文和权限边界。
+
+### 新增/修改文件
+
+- 新增服务端文件：
+  - `server/src/main/java/com/petlife/server/modules/auth/controller/AdminSmsVerificationController.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/converter/SmsVerificationConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/domain/entity/SmsVerificationCodeEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/domain/entity/SmsSendRecordEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/dto/response/SmsVerificationRecordResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/dto/response/SmsSendRecordResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/persistence/SmsVerificationPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/persistence/command/CreateSmsVerificationCodeCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/persistence/command/CreateSmsSendRecordCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/persistence/command/IncrementSmsVerificationAttemptCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/persistence/command/UpdateSmsVerificationStatusCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/persistence/dataobject/SmsVerificationCodeDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/persistence/dataobject/SmsSendRecordDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/service/SmsVerificationApplicationService.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/service/sms/SmsProvider.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/service/sms/SmsSendResult.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/service/sms/DevelopmentNoopSmsProvider.java`
+  - `docs/technical/09-sms-verification-security.sql`
+- 修改服务端文件：
+  - `server/src/main/java/com/petlife/server/common/response/ResponseCode.java`
+  - `server/src/main/java/com/petlife/server/config/GlobalExceptionHandler.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/controller/AuthController.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/dto/request/AuthSmsLoginRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/dto/request/AuthSmsSendRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/dto/response/AuthSmsSendResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/service/AuthApplicationService.java`
+  - `server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+- 修改文档：
+  - `docs/api/petlife-openapi.yaml`
+  - `docs/api/QUICK_START.md`
+  - `docs/api/POSTMAN_SETUP.md`
+  - `docs/technical/02-api-and-events.md`
+  - `docs/technical/03-ddl-draft.sql`
+  - `docs/project/01-current-delivery-status.md`
+  - `docs/project/02-feature-completion-checklist.md`
+  - `docs/project/04-admin-web-api-gap-list.md`
+  - `docs/project/server-thread-summary.md`
+  - `docs/project/admin-web-thread-summary.md`
+  - `docs/project/mobile-app-thread-summary.md`
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`
+  - 结果：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`
+  - 结果：通过，`Tests run: 89, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`
+  - 结果：通过。
+- `git diff --check`
+  - 结果：通过。
+
+### 未完成事项
+
+- 真实短信供应商 SDK、签名、模板备案、回执和发送回调未接入。
+- admin-web 尚未接入短信验证码发送记录 / 校验记录排查页面。
+- mobile-app 仍需移除固定验证码展示、自动填充和 `mocked_code` 读取逻辑。
+
+### 风险或阻塞
+
+- 当前 `dev_noop` 供应商只表示服务端已受理发送请求；没有真实短信送达能力，生产环境必须先接入真实供应商再对外开放短信登录。
+- 服务端响应已不返回 `mocked_code`，移动端未适配前，用户无法从接口响应中看到验证码。
+- 后台查询接口不会返回明文验证码、`code_hash` 或 `salt`；排查只能基于状态、次数、供应商和时间线。
+
+### 下一步建议
+
+1. mobile-app 按 OpenAPI 移除 `mocked_code` 依赖，并调整登录页不再展示固定验证码。
+2. admin-web 按 OpenAPI 增加短信验证码排查页，只展示安全字段。
+3. 接入真实短信供应商时，基于 `SmsProvider` 增加厂商实现，并保持验证码明文只在发送瞬间存在于内存中。
+
 ## 2026-05-19 通知与消息配置闭环服务端能力补齐
 
 ### 新完成内容

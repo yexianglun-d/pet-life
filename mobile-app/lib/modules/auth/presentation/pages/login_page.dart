@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/auth_sms_send_snapshot.dart';
+import 'package:petlife_mobile_app/shared/network/api_exception.dart';
 
 /// 登录页。
 class LoginPage extends StatefulWidget {
@@ -18,19 +20,29 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
+enum _AuthAction {
+  sendCode,
+  login,
+}
+
 class _LoginPageState extends State<LoginPage> {
+  static const String _smsSentMessage = '验证码已发送，请留意短信';
+
   late final TextEditingController _mobileController;
   late final TextEditingController _codeController;
   Timer? _countdownTimer;
   int _countdownSeconds = 0;
   bool _isSendingCode = false;
   bool _isSubmitting = false;
+  bool _hasRequestedCode = false;
+  String? _authNoticeMessage;
+  CompanionFeedbackTone _authNoticeTone = CompanionFeedbackTone.info;
 
   @override
   void initState() {
     super.initState();
-    _mobileController = TextEditingController(text: '13800000000');
-    _codeController = TextEditingController(text: '123456');
+    _mobileController = TextEditingController();
+    _codeController = TextEditingController();
   }
 
   @override
@@ -48,14 +60,14 @@ class _LoginPageState extends State<LoginPage> {
 
     final String mobile = _mobileController.text.trim();
     if (!_isValidMobile(mobile)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入正确的 11 位手机号')),
-      );
+      _setAuthNotice('请输入正确的 11 位手机号', CompanionFeedbackTone.error);
+      showCompanionErrorFeedback(context, '请输入正确的 11 位手机号');
       return;
     }
 
     setState(() {
       _isSendingCode = true;
+      _authNoticeMessage = null;
     });
 
     try {
@@ -65,18 +77,37 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) {
         return;
       }
-      _codeController.text = result.mockedCode;
+      if (!result.sent) {
+        const String message = '验证码暂时没有发送成功，请稍后重试';
+        _setAuthNotice(message, CompanionFeedbackTone.error);
+        showCompanionErrorFeedback(context, message);
+        return;
+      }
+      setState(() {
+        _hasRequestedCode = true;
+        _authNoticeMessage = null;
+      });
       _startCountdown(result.resendInSeconds);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('验证码已发送，当前演示验证码 ${result.mockedCode}')),
-      );
+      showCompanionSuccessFeedback(context, _smsSentMessage);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+      final String message = _messageForAuthError(
+        error,
+        action: _AuthAction.sendCode,
       );
+      final CompanionFeedbackTone tone = _feedbackToneForAuthError(error);
+      _setAuthNotice(message, tone);
+      if (tone == CompanionFeedbackTone.warning) {
+        showCompanionFeedback(
+          context,
+          message: message,
+          tone: CompanionFeedbackTone.warning,
+        );
+      } else {
+        showCompanionErrorFeedback(context, message);
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -93,15 +124,20 @@ class _LoginPageState extends State<LoginPage> {
 
     final String mobile = _mobileController.text.trim();
     final String code = _codeController.text.trim();
-    if (mobile.isEmpty || code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入手机号和验证码')),
-      );
+    if (!_isValidMobile(mobile)) {
+      _setAuthNotice('请输入正确的 11 位手机号', CompanionFeedbackTone.error);
+      showCompanionErrorFeedback(context, '请输入正确的 11 位手机号');
+      return;
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      _setAuthNotice('请输入 6 位短信验证码', CompanionFeedbackTone.error);
+      showCompanionErrorFeedback(context, '请输入 6 位短信验证码');
       return;
     }
 
     setState(() {
       _isSubmitting = true;
+      _authNoticeMessage = null;
     });
 
     try {
@@ -115,9 +151,21 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+      final String message = _messageForAuthError(
+        error,
+        action: _AuthAction.login,
       );
+      final CompanionFeedbackTone tone = _feedbackToneForAuthError(error);
+      _setAuthNotice(message, tone);
+      if (tone == CompanionFeedbackTone.warning) {
+        showCompanionFeedback(
+          context,
+          message: message,
+          tone: CompanionFeedbackTone.warning,
+        );
+      } else {
+        showCompanionErrorFeedback(context, message);
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -129,6 +177,12 @@ class _LoginPageState extends State<LoginPage> {
 
   void _startCountdown(int seconds) {
     _countdownTimer?.cancel();
+    if (seconds <= 0) {
+      setState(() {
+        _countdownSeconds = 0;
+      });
+      return;
+    }
     setState(() {
       _countdownSeconds = seconds;
     });
@@ -152,6 +206,79 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isValidMobile(String mobile) {
     return RegExp(r'^1\d{10}$').hasMatch(mobile);
+  }
+
+  void _setAuthNotice(String message, CompanionFeedbackTone tone) {
+    setState(() {
+      _authNoticeMessage = message;
+      _authNoticeTone = tone;
+    });
+  }
+
+  String _currentAuthNoticeMessage() {
+    final String? authNoticeMessage = _authNoticeMessage;
+    if (authNoticeMessage != null) {
+      return authNoticeMessage;
+    }
+    if (_hasRequestedCode && _countdownSeconds > 0) {
+      return '$_smsSentMessage。$_countdownSeconds 秒后可再次发送';
+    }
+    if (_hasRequestedCode) {
+      return '如果还没有收到短信，可以重新获取一条新的验证码';
+    }
+    return '输入手机号后获取 6 位短信验证码。验证码由服务端生成，App 不展示验证码内容。';
+  }
+
+  CompanionFeedbackTone _currentAuthNoticeTone() {
+    if (_authNoticeMessage != null) {
+      return _authNoticeTone;
+    }
+    return _hasRequestedCode && _countdownSeconds > 0
+        ? CompanionFeedbackTone.success
+        : CompanionFeedbackTone.info;
+  }
+
+  CompanionFeedbackTone _feedbackToneForAuthError(Object error) {
+    if (error is ApiException &&
+        (error.responseCode == 'AUTH_SMS_SEND_RATE_LIMITED' ||
+            error.responseCode == 'AUTH_SMS_CODE_ATTEMPT_LIMITED')) {
+      return CompanionFeedbackTone.warning;
+    }
+    return CompanionFeedbackTone.error;
+  }
+
+  String _messageForAuthError(
+    Object error, {
+    required _AuthAction action,
+  }) {
+    if (error is ApiException) {
+      switch (error.responseCode) {
+        case 'AUTH_SMS_CODE_INVALID':
+          return '验证码不正确，请重新输入';
+        case 'AUTH_SMS_CODE_EXPIRED':
+          return '验证码已过期，请重新获取';
+        case 'AUTH_SMS_CODE_USED':
+          return '验证码已使用，请重新获取';
+        case 'AUTH_SMS_CODE_ATTEMPT_LIMITED':
+          return '验证码错误次数过多，请重新获取';
+        case 'AUTH_SMS_SEND_RATE_LIMITED':
+          if (_countdownSeconds > 0) {
+            return '验证码发送太频繁，请 $_countdownSeconds 秒后再试';
+          }
+          return '验证码发送太频繁，请稍后再试';
+        case 'AUTH_SMS_SEND_FAILED':
+          return '验证码暂时发送失败，请稍后重试';
+      }
+
+      final String serverMessage = error.message.trim();
+      if (serverMessage.isNotEmpty) {
+        return serverMessage;
+      }
+    }
+
+    return action == _AuthAction.sendCode
+        ? '验证码暂时发送失败，请稍后重试'
+        : '登录暂时没有成功，请稍后重试';
   }
 
   @override
@@ -212,6 +339,7 @@ class _LoginPageState extends State<LoginPage> {
                         Expanded(
                           child: TextField(
                             controller: _codeController,
+                            keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                               labelText: '验证码',
                               hintText: '请输入验证码',
@@ -237,21 +365,9 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppThemePalette.surfaceRaised,
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: Text(
-                        _countdownSeconds > 0
-                            ? '验证码已发送，演示环境会自动填入 123456，$_countdownSeconds 秒后可重新发送。'
-                            : '当前演示环境可直接发送验证码并自动填入 123456，真实短信能力会在完整交付阶段接入。',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppThemePalette.body,
-                        ),
-                      ),
+                    CompanionFormNotice(
+                      message: _currentAuthNoticeMessage(),
+                      tone: _currentAuthNoticeTone(),
                     ),
                     const SizedBox(height: 24),
                     SizedBox(

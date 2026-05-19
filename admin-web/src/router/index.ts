@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import { ADMIN_ACCESS_TOKEN_KEY } from '@/shared/constants/adminSession';
 import LoginView from '@/views/auth/LoginView.vue';
+import SmsVerificationSecurityView from '@/views/auth/SmsVerificationSecurityView.vue';
 import CommunityPostGovernanceView from '@/views/community/CommunityPostGovernanceView.vue';
 import CommunityQuestionGovernanceView from '@/views/community/CommunityQuestionGovernanceView.vue';
 import DailyLogContentView from '@/views/content/DailyLogContentView.vue';
@@ -92,6 +93,11 @@ const routes: RouteRecordRaw[] = [
         path: 'reminder-templates',
         name: 'reminderTemplates',
         component: ReminderTemplateManagementView
+      },
+      {
+        path: 'sms-verifications',
+        name: 'smsVerifications',
+        component: SmsVerificationSecurityView
       },
       {
         path: 'message-templates',

@@ -15,6 +15,7 @@ public record AuthSmsLoginRequest(
     String mobile,
 
     @NotBlank(message = "验证码不能为空")
+    @Pattern(regexp = "^\\d{6}$", message = "验证码必须为 6 位数字")
     String code
 ) {
 }

@@ -53,6 +53,7 @@ public class GlobalExceptionHandler {
         return switch (responseCode) {
             case UNAUTHORIZED, AUTH_REFRESH_TOKEN_INVALID -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN, FAMILY_ROLE_FORBIDDEN, PET_PERMISSION_DENIED -> HttpStatus.FORBIDDEN;
+            case AUTH_SMS_SEND_RATE_LIMITED, AUTH_SMS_CODE_ATTEMPT_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
             case RESOURCE_NOT_FOUND,
                  USER_CURRENT_PET_NOT_FOUND,
                  FAMILY_NOT_FOUND,
@@ -71,7 +72,7 @@ public class GlobalExceptionHandler {
                  MESSAGE_TEMPLATE_NOT_FOUND,
                  NOTIFICATION_CHANNEL_NOT_FOUND,
                  MEDIA_ASSET_NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+            case INTERNAL_SERVER_ERROR, AUTH_SMS_SEND_FAILED -> HttpStatus.INTERNAL_SERVER_ERROR;
             default -> HttpStatus.BAD_REQUEST;
         };
     }

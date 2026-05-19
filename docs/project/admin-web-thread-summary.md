@@ -7,6 +7,94 @@
 - 若功能状态变化，必须同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 所有状态按完整交付标准记录，不使用阶段性跑通或“核心可用”口径。
 
+## 2026-05-19 短信验证码安全排查页面接入
+
+### 1. 新完成内容
+
+- 新增短信验证码安全排查 API 封装，接入真实后台只读接口：
+  - `GET /api/v1/admin/sms-send-records`
+  - `GET /api/v1/admin/sms-verifications`
+- 新增验证码排查页，支持按手机号、scene、send_status、校验 status、provider_code 和时间范围筛选。
+- 页面列表展示手机号脱敏、发送状态、校验状态、错误次数、过期时间、请求 IP、provider_code 和失败原因。
+- 详情抽屉展示发送记录与校验记录的完整排查字段；不展示明文验证码、`code_hash` 或 `salt`。
+- 后台侧栏和路由新增 `验证码排查` 入口，系统配置页新增对应真实入口。
+- 页面明确标注当前是供应商无关安全底座，真实短信供应商尚未接入。
+
+### 2. 新增/修改文件
+
+- 新增：`admin-web/src/shared/api/adminSmsVerificationApi.ts`
+- 新增：`admin-web/src/views/auth/SmsVerificationSecurityView.vue`
+- 修改：`admin-web/src/router/index.ts`
+- 修改：`admin-web/src/layouts/AdminLayout.vue`
+- 修改：`admin-web/src/views/system/SystemConfigView.vue`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- `npm run type-check`：通过。
+- `npm run build`：通过；Vite 仍提示主 chunk 超过 500 kB，这是当前后台工程既有打包体积警告，不影响构建结果。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实短信供应商、发送回执、失败报表和通道健康检查仍未接入。
+- OpenAPI 当前未提供服务端时间范围查询参数；页面时间范围基于真实返回的时间字段做前端收窄。
+
+### 5. 风险或阻塞
+
+- 后台接口不会返回明文验证码、`code_hash` 或 `salt`，页面也未设计查看验证码能力。
+- 当前 `provider_code=dev_noop` 只能排查服务端受理、频控、错误次数和状态机，不代表短信真实送达。
+
+### 6. 下一步建议
+
+1. 服务端如需支持大数据量排查，应补充短信发送记录与校验记录的时间范围查询参数。
+2. 等真实短信供应商接入后，再补发送回执、失败报表和通道健康检查。
+
+## 2026-05-19 服务端短信验证码排查接口可接入
+
+### 1. 新完成内容
+
+- 服务端已补齐短信验证码发送记录和校验记录后台查询接口，并同步到 `docs/api/petlife-openapi.yaml`：
+  - `GET /api/v1/admin/sms-verifications`
+  - `GET /api/v1/admin/sms-send-records`
+- 后台查询接口需要后台 access token；普通 App 用户 token 和未登录请求均不能访问。
+- 接口只返回手机号、场景、状态、次数、供应商、发送状态、失败原因、请求 IP、User-Agent 和时间，不返回明文验证码、`code_hash` 或 `salt`。
+- 本轮未修改 admin-web 源码，短信验证码排查页面仍待后续接入。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 服务端实现和验证见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 89, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- admin-web 尚未接入短信验证码排查页面。
+- 真实短信供应商、发送回执、失败报表和通道健康检查仍未接入。
+
+### 5. 风险或阻塞
+
+- 查询接口不会提供明文验证码，后台页面不能设计“查看验证码”能力。
+- 目前供应商编码为 `dev_noop`，只能排查服务端受理、频控、错误次数和状态机，不代表短信真实送达。
+
+### 6. 下一步建议
+
+1. 新增认证排查或安全治理页面，按 OpenAPI 接入两个只读列表。
+2. 页面筛选建议先覆盖手机号、scene、状态、供应商和发送状态。
+
 ## 2026-05-19 通知与消息配置页面接入
 
 ### 1. 新完成内容

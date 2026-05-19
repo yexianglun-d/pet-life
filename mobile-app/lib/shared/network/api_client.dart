@@ -215,6 +215,7 @@ class ApiClient {
       throw ApiException(
         _readEnvelopeMessage(payload, fallback: '登录状态暂时无法刷新，请稍后重试'),
         kind: ApiExceptionKind.server,
+        responseCode: _readEnvelopeCode(payload),
       );
     }
 
@@ -294,12 +295,16 @@ class ApiClient {
         kind: response.statusCode >= 500
             ? ApiExceptionKind.server
             : ApiExceptionKind.business,
+        responseCode: _readEnvelopeCode(payload),
       );
     }
 
     final String code = payload['code']?.toString() ?? '';
     if (code != 'OK') {
-      throw ApiException(_readEnvelopeMessage(payload, fallback: '业务处理失败'));
+      throw ApiException(
+        _readEnvelopeMessage(payload, fallback: '业务处理失败'),
+        responseCode: _readEnvelopeCode(payload),
+      );
     }
 
     return payload['data'];
@@ -330,5 +335,11 @@ class ApiClient {
     return message == null || message.toString().trim().isEmpty
         ? fallback
         : message.toString();
+  }
+
+  String? _readEnvelopeCode(Map<String, dynamic> payload) {
+    final Object? code = payload['code'];
+    final String value = code?.toString().trim() ?? '';
+    return value.isEmpty ? null : value;
   }
 }

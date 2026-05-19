@@ -107,8 +107,22 @@
 校验：
 
 - mobile 格式
-- 图形验证是否通过
-- 发送频率限制
+- scene 当前仅支持 `login`
+- 服务端生成 6 位随机验证码，`sms_verification_codes` 仅保存 `code_hash` 与 `salt`
+- 写入 `sms_send_records`，记录 `provider_code`、`send_status`、`failure_reason`、`request_ip`、`user_agent`
+- 同手机号 + 同 scene 60 秒内不可重复发送
+- 同手机号 + 同 scene 每小时最多 5 次
+- 同 IP + 同 scene 每小时最多 20 次
+- 当前不接真实短信 SDK，默认 `dev_noop` 供应商只表示服务端已受理并记录发送请求，不返回、不打印、不落库明文验证码
+
+响应关键字段：
+
+- `mobile`
+- `scene`
+- `sent`
+- `expires_in_seconds`
+- `resend_in_seconds`
+- `provider_code`
 
 ## 2.2 短信登录
 
@@ -119,9 +133,18 @@
 ```json
 {
   "mobile": "13800000000",
-  "code": "123456"
+  "code": "739204"
 }
 ```
+
+校验：
+
+- 验证码必须存在且处于 `active`
+- `expires_at` 过期后返回 `AUTH_SMS_CODE_EXPIRED`
+- `verified` 状态验证码不能重复使用，返回 `AUTH_SMS_CODE_USED`
+- 错误验证码会递增 `attempt_count`
+- 达到 `max_attempt_count` 后状态变为 `locked`，返回 `AUTH_SMS_CODE_ATTEMPT_LIMITED`
+- 校验成功立即写入 `verified_at` 并将状态改为 `verified`
 
 响应关键字段：
 
@@ -131,6 +154,20 @@
 - `family_summary`
 - `pets`
 - `current_pet_id`
+
+短信验证码相关错误码：
+
+- `AUTH_SMS_CODE_INVALID`
+- `AUTH_SMS_CODE_EXPIRED`
+- `AUTH_SMS_CODE_USED`
+- `AUTH_SMS_CODE_ATTEMPT_LIMITED`
+- `AUTH_SMS_SEND_RATE_LIMITED`
+- `AUTH_SMS_SEND_FAILED`
+
+DDL 说明：
+
+- 全量草案见 `docs/technical/03-ddl-draft.sql` 的 `sms_verification_codes`、`sms_send_records`
+- 增量草案见 `docs/technical/09-sms-verification-security.sql`
 
 ## 2.3 刷新 token
 
@@ -1151,6 +1188,8 @@
 - `POST /api/v1/admin/auth/login`
 - `POST /api/v1/admin/auth/refresh`
 - `POST /api/v1/admin/auth/logout`
+- `GET /api/v1/admin/sms-verifications?mobile=13800000000&scene=login&status=active`
+- `GET /api/v1/admin/sms-send-records?mobile=13800000000&scene=login&provider_code=dev_noop&send_status=accepted`
 
 后台账号与会话说明：
 
@@ -1158,6 +1197,7 @@
 - `admin_sessions` 保存后台刷新令牌摘要、过期时间、吊销时间和最近活跃时间。
 - 刷新后台 token 时会吊销旧后台会话并签发新 access/refresh token。
 - 审计操作人优先取 `X-Admin-Operator`，未传时使用当前后台登录账号。
+- 短信验证码后台排查接口必须使用后台 access token；接口只返回手机号、场景、状态、次数、供应商和发送状态，不返回明文验证码、`code_hash` 或 `salt`。
 
 后台至少需要以下能力：
 

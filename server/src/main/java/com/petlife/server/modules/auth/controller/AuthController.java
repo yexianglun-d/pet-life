@@ -9,6 +9,7 @@ import com.petlife.server.modules.auth.dto.response.AuthRefreshTokenResponse;
 import com.petlife.server.modules.auth.dto.response.AuthLoginSmsResponse;
 import com.petlife.server.modules.auth.dto.response.AuthSmsSendResponse;
 import com.petlife.server.modules.auth.service.AuthApplicationService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,8 +30,11 @@ public class AuthController {
     }
 
     @PostMapping("/sms/send")
-    public ApiResponse<AuthSmsSendResponse> sendSmsCode(@Valid @RequestBody AuthSmsSendRequest request) {
-        return ApiResponse.success(authApplicationService.sendSmsCode(request));
+    public ApiResponse<AuthSmsSendResponse> sendSmsCode(
+        @Valid @RequestBody AuthSmsSendRequest request,
+        HttpServletRequest httpServletRequest
+    ) {
+        return ApiResponse.success(authApplicationService.sendSmsCode(request, httpServletRequest));
     }
 
     @PostMapping("/login/sms")

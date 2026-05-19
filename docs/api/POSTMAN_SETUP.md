@@ -177,8 +177,11 @@ POST {{base_url}}/api/v1/auth/sms/send
 POST {{base_url}}/api/v1/auth/login/sms
 {
   "mobile": "{{test_mobile}}",
-  "code": "123456"
+  "code": "739204"
 }
+
+# code 示例不是固定验证码，应填写短信中收到的 6 位验证码。
+# 当前默认 dev_noop 短信供应商不会返回调试验证码；联调登录需要真实短信供应商或测试环境安全注入验证码。
 
 # 响应会包含 access_token 和 refresh_token
 # 建议在 Tests 脚本中自动保存到环境变量：

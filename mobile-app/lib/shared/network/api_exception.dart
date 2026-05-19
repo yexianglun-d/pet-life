@@ -3,10 +3,12 @@ class ApiException implements Exception {
   const ApiException(
     this.message, {
     this.kind = ApiExceptionKind.business,
+    this.responseCode,
   });
 
   final String message;
   final ApiExceptionKind kind;
+  final String? responseCode;
 
   @override
   String toString() => message;

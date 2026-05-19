@@ -62,9 +62,10 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     return AuthSmsSendSnapshot(
       mobile: _readString(data, 'mobile'),
       scene: _readString(data, 'scene'),
-      mockedCode: _readString(data, 'mocked_code'),
+      sent: _readBool(data, 'sent'),
       expiresInSeconds: _readInt(data, 'expires_in_seconds'),
       resendInSeconds: _readInt(data, 'resend_in_seconds'),
+      providerCode: _readString(data, 'provider_code'),
     );
   }
 

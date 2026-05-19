@@ -7,6 +7,90 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-19 移动端短信验证码登录体验收口
+
+### 1. 新完成内容
+
+- 登录页移除固定验证码 `123456` 初始化、自动填入和演示验证码提示。
+- 发送验证码响应模型按 OpenAPI 改为读取 `sent`、`expires_in_seconds`、`resend_in_seconds`、`provider_code`，不再读取 `mocked_code`。
+- 发送成功只提示“验证码已发送，请留意短信”，倒计时继续使用服务端返回的 `resend_in_seconds`，不替代服务端频控。
+- 网络层 `ApiException` 保留服务端响应 `code`，登录页按 `AUTH_SMS_CODE_INVALID`、`AUTH_SMS_CODE_EXPIRED`、`AUTH_SMS_CODE_USED`、`AUTH_SMS_CODE_ATTEMPT_LIMITED`、`AUTH_SMS_SEND_RATE_LIMITED`、`AUTH_SMS_SEND_FAILED` 展示不同中文提示。
+- 登录成功流程保持不变，仍由仓储保存 `access_token` / `refresh_token` 后进入主应用。
+
+### 2. 新增/修改文件
+
+- 修改：`mobile-app/lib/modules/auth/presentation/pages/login_page.dart`
+- 修改：`mobile-app/lib/shared/domain/models/auth_sms_send_snapshot.dart`
+- 修改：`mobile-app/lib/shared/repository/network_petlife_repository.dart`
+- 修改：`mobile-app/lib/shared/network/api_client.dart`
+- 修改：`mobile-app/lib/shared/network/api_exception.dart`
+- 修改：`mobile-app/test/widget_test.dart`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/03-ui-closure-checklist.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- `/Users/deng/development/flutter/bin/dart format lib/modules/auth/presentation/pages/login_page.dart lib/shared/domain/models/auth_sms_send_snapshot.dart lib/shared/repository/network_petlife_repository.dart lib/shared/network/api_client.dart lib/shared/network/api_exception.dart test/widget_test.dart`：通过，`Formatted 6 files (0 changed)`。
+- `/Users/deng/development/flutter/bin/flutter analyze`：通过，`No issues found!`。
+- `/Users/deng/development/flutter/bin/flutter test`：通过，`All tests passed!`。
+- `rg -n "演示环境|演示验证码|mocked_code|mockedCode|自动填入 123456|当前演示" mobile-app/lib mobile-app/test`：通过，无匹配。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实短信供应商仍未接入，当前服务端 `dev_noop` 不保证真实短信送达；本轮按边界不接短信 SDK。
+
+### 5. 风险或阻塞
+
+- 服务端不返回明文验证码后，开发环境如果没有真实短信供应商，用户无法从 App 或接口响应中看到验证码；排查需依赖后台短信验证码排查页。
+- 若后续服务端错误码或频控返回结构扩展出剩余秒数，移动端需再按 OpenAPI 展示更精确的等待时间。
+
+### 6. 下一步建议
+
+1. 服务端接入真实短信供应商后，移动端无需改 SDK，只继续消费发送和登录接口。
+2. 若产品需要更明确的频控剩余时间，服务端可在频控错误响应中增加用户可见的剩余等待秒数字段。
+
+## 2026-05-19 服务端短信验证码安全底座对移动端影响
+
+### 1. 新完成内容
+
+- 服务端已移除固定验证码 `123456` 登录校验，`POST /api/v1/auth/sms/send` 改为生成随机验证码并只保存 hash。
+- `POST /api/v1/auth/sms/send` 响应不再返回 `mocked_code`，新增 `sent`、`expires_in_seconds`、`resend_in_seconds`、`provider_code` 等字段。
+- `POST /api/v1/auth/login/sms` 会真实校验验证码状态，支持过期、已使用、错误次数过多和频控错误码。
+- 本轮未修改 mobile-app 源码。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 服务端实现和验证见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 89, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- mobile-app 登录页仍需移除固定验证码展示、自动填充和 `mocked_code` 读取。
+- 真实短信供应商尚未接入，当前 `dev_noop` 不会真实送达短信。
+
+### 5. 风险或阻塞
+
+- 移动端未适配前，用户无法从发送验证码响应中获得调试验证码。
+- 后续接入真实短信供应商前，生产环境不能依赖 `dev_noop` 对外提供短信送达。
+
+### 6. 下一步建议
+
+1. mobile-app 按 OpenAPI 调整验证码发送响应模型，移除 `mocked_code` 字段。
+2. 登录页改为用户手动输入短信验证码，并按新错误码展示过期、错误次数过多和发送频控提示。
+
 ## 2026-05-19 移动端通知与消息配置闭环收口
 
 ### 1. 新完成内容

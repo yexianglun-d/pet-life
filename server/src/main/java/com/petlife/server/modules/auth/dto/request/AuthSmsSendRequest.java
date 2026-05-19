@@ -2,6 +2,7 @@ package com.petlife.server.modules.auth.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 /**
  * 验证码发送请求。
@@ -15,6 +16,7 @@ public record AuthSmsSendRequest(
     String mobile,
 
     @NotBlank(message = "业务场景不能为空")
+    @Size(max = 30, message = "业务场景不能超过 30 个字符")
     String scene
 ) {
 }
