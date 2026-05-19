@@ -8,6 +8,8 @@ public class UpdateCommunityPostCommand {
     private Long postId;
     private String title;
     private String content;
+    private Long topicId;
+    private String mediaListJson;
     private String cityCode;
     private String visibility;
     private String reviewStatus;
@@ -34,6 +36,22 @@ public class UpdateCommunityPostCommand {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public Long getTopicId() {
+        return topicId;
+    }
+
+    public void setTopicId(Long topicId) {
+        this.topicId = topicId;
+    }
+
+    public String getMediaListJson() {
+        return mediaListJson;
+    }
+
+    public void setMediaListJson(String mediaListJson) {
+        this.mediaListJson = mediaListJson;
     }
 
     public String getCityCode() {

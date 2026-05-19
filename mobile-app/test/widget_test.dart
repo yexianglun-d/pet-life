@@ -636,6 +636,31 @@ class _FakePetLifeRepository implements PetLifeRepository {
   }
 
   @override
+  Future<CommunityPostSnapshot> createCommunityPost(
+    CommunityPostDraft draft,
+  ) async {
+    return CommunityPostSnapshot(
+      postId: '70002',
+      postType: draft.postType,
+      title: draft.title ?? '新的社区分享',
+      content: draft.content,
+      cityCode: draft.cityCode,
+      visibility: draft.visibility,
+      mediaAssetIds: draft.mediaAssetIds,
+      likeCount: 0,
+      commentCount: 0,
+      favoriteCount: 0,
+      liked: false,
+      favorited: false,
+      author: const CommunityAuthorSnapshot(
+        userId: '10001',
+        nickname: 'Momo',
+      ),
+      createdAt: DateTime(2026, 4, 22, 15),
+    );
+  }
+
+  @override
   Future<CommunityPostSnapshot> getCommunityPost(String postId) async {
     return const CommunityPostSnapshot(
       postId: '70001',
@@ -659,6 +684,60 @@ class _FakePetLifeRepository implements PetLifeRepository {
         petType: 'cat',
         breed: 'British Shorthair',
       ),
+    );
+  }
+
+  @override
+  Future<CommunityTopicDetailSnapshot> getCommunityTopic(String topicId) async {
+    return CommunityTopicDetailSnapshot(
+      topic: CommunityTopicSnapshot(
+        topicId: topicId,
+        topicName: '猫咪适应期',
+        topicDesc: '记录毛孩子慢慢熟悉家的过程。',
+      ),
+      posts: await listCommunityFeed(),
+    );
+  }
+
+  @override
+  Future<CommunityQuestionDetailSnapshot> getCommunityQuestion(
+    String questionId,
+  ) async {
+    return CommunityQuestionDetailSnapshot(
+      question: (await getCommunityPost(questionId)).copyWith(
+        postType: 'qa',
+        title: '猫咪刚到家总躲起来怎么办？',
+      ),
+      answers: await listCommunityComments(questionId),
+    );
+  }
+
+  @override
+  Future<CommunityFollowStatusSnapshot> getCommunityFollowStatus(
+    String userId,
+  ) async {
+    return CommunityFollowStatusSnapshot(
+      followedUserId: userId,
+      following: false,
+    );
+  }
+
+  @override
+  Future<CommunityFollowStatusSnapshot> followCommunityUser(
+      String userId) async {
+    return CommunityFollowStatusSnapshot(
+      followedUserId: userId,
+      following: true,
+    );
+  }
+
+  @override
+  Future<CommunityFollowStatusSnapshot> unfollowCommunityUser(
+    String userId,
+  ) async {
+    return CommunityFollowStatusSnapshot(
+      followedUserId: userId,
+      following: false,
     );
   }
 

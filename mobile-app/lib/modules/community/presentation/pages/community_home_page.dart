@@ -4,6 +4,10 @@ import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_post_detail_page.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/pages/community_post_editor_page.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/pages/community_question_detail_page.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/pages/community_topic_page.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_post_card.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 
@@ -90,7 +94,35 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
   Future<void> _openPostDetail(CommunityPostSnapshot post) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => CommunityPostDetailPage(postId: post.postId),
+        builder: (_) => post.postType == 'qa'
+            ? CommunityQuestionDetailPage(questionId: post.postId)
+            : CommunityPostDetailPage(postId: post.postId),
+      ),
+    );
+  }
+
+  Future<void> _openPublisher() async {
+    final CommunityPostSnapshot? createdPost =
+        await Navigator.of(context).push<CommunityPostSnapshot>(
+      MaterialPageRoute<CommunityPostSnapshot>(
+        builder: (_) => const CommunityPostEditorPage(),
+      ),
+    );
+    if (!mounted || createdPost == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedTab = createdPost.postType == 'qa' ? 'qa' : 'recommended';
+      _postsByTab.remove(_selectedTab);
+    });
+    await _loadFeed(forceRefresh: true);
+  }
+
+  Future<void> _openTopic(CommunityTopicSnapshot topic) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CommunityTopicPage(topicId: topic.topicId),
       ),
     );
   }
@@ -110,6 +142,7 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
           _CommunityHeroSection(
             selectedTab: _selectedTab,
             postCount: currentPosts.length,
+            onCreatePost: _openPublisher,
           ),
           const SizedBox(height: 16),
           PageSection(
@@ -178,9 +211,10 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
           .map(
             (CommunityPostSnapshot post) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _CommunityPostCard(
+              child: CommunityPostCard(
                 post: post,
                 onTap: () => _openPostDetail(post),
+                onTopicTap: _openTopic,
               ),
             ),
           )
@@ -193,10 +227,12 @@ class _CommunityHeroSection extends StatelessWidget {
   const _CommunityHeroSection({
     required this.selectedTab,
     required this.postCount,
+    required this.onCreatePost,
   });
 
   final String selectedTab;
   final int postCount;
+  final VoidCallback onCreatePost;
 
   @override
   Widget build(BuildContext context) {
@@ -246,123 +282,17 @@ class _CommunityHeroSection extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onCreatePost,
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text('发布社区内容'),
+            ),
+          ),
         ],
       ),
-    );
-  }
-}
-
-class _CommunityPostCard extends StatelessWidget {
-  const _CommunityPostCard({
-    required this.post,
-    required this.onTap,
-  });
-
-  final CommunityPostSnapshot post;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
-      child: CompanionCard(
-        radius: 24,
-        padding: const EdgeInsets.all(16),
-        color: AppThemePalette.surfaceRaised,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: AppThemePalette.warmTint,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Center(
-                    child: Text(
-                      post.author.nickname.isEmpty
-                          ? '宠'
-                          : post.author.nickname.substring(0, 1),
-                      style: textTheme.titleMedium?.copyWith(
-                        color: AppThemePalette.primaryDeep,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${post.author.nickname}${post.pet == null ? '' : ' · ${post.pet!.petName}'}',
-                        style: textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatFeedTime(post.publishedAt ?? post.createdAt),
-                        style: textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                if (post.liked)
-                  const Icon(
-                    Icons.favorite_rounded,
-                    color: AppThemePalette.primaryDeep,
-                    size: 18,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              post.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              post.content,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _FeedChip(label: '点赞 ${post.likeCount}'),
-                _FeedChip(label: '评论 ${post.commentCount}'),
-                _FeedChip(label: '收藏 ${post.favoriteCount}'),
-                if (post.sourceDailyLogId != null)
-                  const _FeedChip(label: '来自萌宠日常'),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FeedChip extends StatelessWidget {
-  const _FeedChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return CompanionPill(
-      label: label,
-      backgroundColor: AppThemePalette.surface,
     );
   }
 }
@@ -413,15 +343,6 @@ class _CommunityTab {
 
   final String key;
   final String label;
-}
-
-String _formatFeedTime(DateTime? value) {
-  if (value == null) {
-    return '刚刚';
-  }
-  final DateTime localValue = value.toLocal();
-  return '${localValue.month.toString().padLeft(2, '0')}-${localValue.day.toString().padLeft(2, '0')} '
-      '${localValue.hour.toString().padLeft(2, '0')}:${localValue.minute.toString().padLeft(2, '0')}';
 }
 
 String _labelOf(String tabKey) {

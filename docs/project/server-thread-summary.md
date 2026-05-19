@@ -7,6 +7,94 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用“核心可用”等阶段性表述。
 
+## 2026-05-19 社区用户增长闭环服务端能力补齐
+
+### 新完成内容
+
+- 新增独立社区帖子发布接口 `POST /api/v1/community/posts`，不再只依赖萌宠日常同步社区。
+- 社区帖子读模型扩展话题、媒体资产 ID、媒体资产元数据和审核状态；萌宠日常同步社区时同步日常媒体资产 ID。
+- `GET /api/v1/community/feed` 补齐 `recommended`、`following`、`city`、`qa` 四类真实服务端流。
+- 新增社区帖子详情、话题页、问答详情、关注、取消关注和关注状态接口。
+- 新增后台社区内容治理接口：
+  - `GET /api/v1/admin/community/posts`
+  - `GET /api/v1/admin/community/posts/{postId}`
+  - `PATCH /api/v1/admin/community/posts/{postId}/status`
+  - `GET /api/v1/admin/community/questions`
+  - `GET /api/v1/admin/community/questions/{questionId}`
+  - `PATCH /api/v1/admin/community/questions/{questionId}/status`
+- 后台治理下架 / 恢复统一更新 `community_posts.review_status`，并写入 `audit_logs`；审核审计日志查询已支持 `community_post`、`community_question` 目标类型。
+- 新增服务端测试覆盖独立发布、详情、关注、话题、问答、后台治理、审计写入和权限边界。
+
+### 新增/修改文件
+
+- 新增服务端文件：
+  - `server/src/main/java/com/petlife/server/modules/community/controller/AdminCommunityController.java`
+  - `server/src/main/java/com/petlife/server/modules/community/domain/entity/CommunityTopicEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/community/dto/request/CreateCommunityPostRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/community/dto/request/AdminUpdateCommunityContentStatusRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/community/dto/response/CommunityFollowStatusResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/community/dto/response/CommunityQuestionDetailResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/community/dto/response/CommunityTopicDetailResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/community/dto/response/CommunityTopicResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/community/persistence/command/CreateUserFollowCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/community/persistence/command/DeleteUserFollowCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/community/persistence/command/UpdateCommunityPostReviewStatusCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/community/persistence/dataobject/CommunityTopicDataObject.java`
+- 修改服务端文件：
+  - `server/src/main/java/com/petlife/server/common/response/ResponseCode.java`
+  - `server/src/main/java/com/petlife/server/config/GlobalExceptionHandler.java`
+  - `server/src/main/java/com/petlife/server/modules/admin/persistence/AuditLogPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/admin/service/AuditLogApplicationService.java`
+  - `server/src/main/java/com/petlife/server/modules/community/controller/CommunityController.java`
+  - `server/src/main/java/com/petlife/server/modules/community/converter/CommunityPostConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/community/domain/entity/CommunityPostEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/community/dto/response/CommunityPostResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/community/persistence/CommunityPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/community/persistence/command/CreateCommunityPostCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/community/persistence/command/UpdateCommunityPostCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/community/persistence/dataobject/CommunityPostDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/community/service/CommunityApplicationService.java`
+  - `server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+- 修改文档：
+  - `docs/api/petlife-openapi.yaml`
+  - `docs/technical/02-api-and-events.md`
+  - `docs/project/01-current-delivery-status.md`
+  - `docs/project/02-feature-completion-checklist.md`
+  - `docs/project/04-admin-web-api-gap-list.md`
+  - `docs/project/server-thread-summary.md`
+  - `docs/project/admin-web-thread-summary.md`
+  - `docs/project/mobile-app-thread-summary.md`
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`
+  - 结果：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`
+  - 结果：通过，`Tests run: 77, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`
+  - 结果：通过。
+- `git diff --check`
+  - 结果：通过。
+
+### 未完成事项
+
+- mobile-app 尚未接入社区独立发布页、话题页、问答详情页和关注 / 取消关注交互。
+- admin-web 尚未接入社区帖子治理、问答治理、下架/恢复和治理审计查看页面。
+- 真实第三方内容审核仍未接入；本轮不接第三方审核，不新增自动审核任务。
+- 对象存储云厂商适配器、推送通道、真实短信和地图能力仍未完成。
+
+### 风险或阻塞
+
+- 独立社区帖子媒体只允许引用 `biz_type=community` 的已上传图片或视频；移动端接入发布页时不能复用日常或健康附件 asset_id。
+- 下架/恢复接口只接受动作 `take_down` / `restore`，前端不能直接提交 `review_status`。
+- 当前用户侧发布由服务端写入 `review_status=approved`，后台人工治理负责后续下架/恢复；若后续接入第三方审核，需要重新定义发布后的审核态流转。
+
+### 下一步建议
+
+1. mobile-app 按 OpenAPI 接入社区发布页、话题页、问答详情页和关注交互。
+2. admin-web 按 OpenAPI 接入社区帖子治理、问答治理和审计查看页面。
+3. 服务端后续按缺口清单推进通知模板管理、通知发送配置和第三方审核设计。
+
 ## 2026-05-18 后台真实账号、治理写能力与首页聚合补齐
 
 ### 新完成内容

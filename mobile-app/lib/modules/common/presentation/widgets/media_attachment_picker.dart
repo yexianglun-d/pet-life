@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/config/app_api_config.dart';
 import 'package:petlife_mobile_app/shared/domain/models/media_asset_snapshot.dart';
@@ -232,9 +233,7 @@ class _MediaAttachmentPickerState extends State<MediaAttachmentPicker> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    showCompanionErrorFeedback(context, message);
   }
 
   void _openPreview(_PickedMediaAsset item) {

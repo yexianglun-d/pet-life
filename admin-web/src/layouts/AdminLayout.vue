@@ -8,6 +8,8 @@
       <el-menu :default-active="activePath" router class="admin-layout__menu">
         <el-menu-item index="/dashboard">控制台</el-menu-item>
         <el-menu-item index="/moderation">审核中心</el-menu-item>
+        <el-menu-item index="/community-posts">社区帖子</el-menu-item>
+        <el-menu-item index="/community-questions">问答治理</el-menu-item>
         <el-menu-item index="/users">用户管理</el-menu-item>
         <el-menu-item index="/families">家庭管理</el-menu-item>
         <el-menu-item index="/pets">宠物档案</el-menu-item>
@@ -27,7 +29,7 @@
       <el-header class="admin-layout__header">
         <div>
           <div class="admin-layout__header-title">运营与治理中心</div>
-          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 社区审核 / 健康档案 / 萌宠日常 / 时间轴 / 提醒 / 服务管理</div>
+          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 社区审核 / 社区治理 / 健康档案 / 萌宠日常 / 时间轴 / 提醒 / 服务管理</div>
         </div>
         <div class="admin-layout__header-actions">
           <div class="admin-layout__operator">{{ operatorName }}</div>
@@ -101,6 +103,7 @@ const handleLogout = async () => {
   flex: 1;
   border-right: none;
   background: transparent;
+  overflow-y: auto;
 }
 
 .admin-layout__aside-note {

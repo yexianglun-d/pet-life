@@ -1,3 +1,5 @@
+import 'package:petlife_mobile_app/shared/domain/models/media_asset_snapshot.dart';
+
 /// 社区帖子快照。
 class CommunityPostSnapshot {
   const CommunityPostSnapshot({
@@ -12,6 +14,10 @@ class CommunityPostSnapshot {
     required this.liked,
     required this.favorited,
     required this.author,
+    this.topic,
+    this.mediaAssetIds = const <String>[],
+    this.mediaAssets = const <MediaAssetSnapshot>[],
+    this.reviewStatus = 'approved',
     this.sourceDailyLogId,
     this.cityCode,
     this.publishedAt,
@@ -31,6 +37,10 @@ class CommunityPostSnapshot {
   final int favoriteCount;
   final bool liked;
   final bool favorited;
+  final CommunityTopicSnapshot? topic;
+  final List<String> mediaAssetIds;
+  final List<MediaAssetSnapshot> mediaAssets;
+  final String reviewStatus;
   final DateTime? publishedAt;
   final DateTime? createdAt;
   final CommunityAuthorSnapshot author;
@@ -49,6 +59,10 @@ class CommunityPostSnapshot {
     int? favoriteCount,
     bool? liked,
     bool? favorited,
+    CommunityTopicSnapshot? topic,
+    List<String>? mediaAssetIds,
+    List<MediaAssetSnapshot>? mediaAssets,
+    String? reviewStatus,
     DateTime? publishedAt,
     DateTime? createdAt,
     CommunityAuthorSnapshot? author,
@@ -67,12 +81,39 @@ class CommunityPostSnapshot {
       favoriteCount: favoriteCount ?? this.favoriteCount,
       liked: liked ?? this.liked,
       favorited: favorited ?? this.favorited,
+      topic: topic ?? this.topic,
+      mediaAssetIds: mediaAssetIds ?? this.mediaAssetIds,
+      mediaAssets: mediaAssets ?? this.mediaAssets,
+      reviewStatus: reviewStatus ?? this.reviewStatus,
       publishedAt: publishedAt ?? this.publishedAt,
       createdAt: createdAt ?? this.createdAt,
       author: author ?? this.author,
       pet: pet ?? this.pet,
     );
   }
+}
+
+/// 社区发帖草稿。
+class CommunityPostDraft {
+  const CommunityPostDraft({
+    required this.postType,
+    required this.content,
+    required this.mediaAssetIds,
+    required this.visibility,
+    this.petId,
+    this.topicId,
+    this.title,
+    this.cityCode,
+  });
+
+  final String postType;
+  final String content;
+  final List<String> mediaAssetIds;
+  final String visibility;
+  final String? petId;
+  final String? topicId;
+  final String? title;
+  final String? cityCode;
 }
 
 /// 社区作者快照。
@@ -103,6 +144,38 @@ class CommunityPetSnapshot {
   final String? breed;
 }
 
+/// 社区话题快照。
+class CommunityTopicSnapshot {
+  const CommunityTopicSnapshot({
+    required this.topicId,
+    required this.topicName,
+    this.topicDesc,
+    this.cityCode,
+    this.status,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String topicId;
+  final String topicName;
+  final String? topicDesc;
+  final String? cityCode;
+  final int? status;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+}
+
+/// 社区话题详情快照。
+class CommunityTopicDetailSnapshot {
+  const CommunityTopicDetailSnapshot({
+    required this.topic,
+    required this.posts,
+  });
+
+  final CommunityTopicSnapshot topic;
+  final List<CommunityPostSnapshot> posts;
+}
+
 /// 社区评论快照。
 class CommunityCommentSnapshot {
   const CommunityCommentSnapshot({
@@ -118,4 +191,26 @@ class CommunityCommentSnapshot {
   final String content;
   final CommunityAuthorSnapshot author;
   final DateTime? createdAt;
+}
+
+/// 社区问答详情快照。
+class CommunityQuestionDetailSnapshot {
+  const CommunityQuestionDetailSnapshot({
+    required this.question,
+    required this.answers,
+  });
+
+  final CommunityPostSnapshot question;
+  final List<CommunityCommentSnapshot> answers;
+}
+
+/// 当前用户对社区作者的关注状态。
+class CommunityFollowStatusSnapshot {
+  const CommunityFollowStatusSnapshot({
+    required this.followedUserId,
+    required this.following,
+  });
+
+  final String followedUserId;
+  final bool following;
 }

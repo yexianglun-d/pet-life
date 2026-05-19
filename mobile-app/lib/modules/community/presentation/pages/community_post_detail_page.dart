@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/pages/community_topic_page.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_author_follow_button.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_media_preview_grid.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_report_draft.dart';
@@ -109,14 +113,16 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
       setState(() {
         _post = updatedPost;
       });
+      showCompanionSuccessFeedback(
+        context,
+        updatedPost.liked ? '已点赞' : '已取消点赞',
+      );
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -148,14 +154,16 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
       setState(() {
         _post = updatedPost;
       });
+      showCompanionSuccessFeedback(
+        context,
+        updatedPost.favorited ? '已收藏' : '已取消收藏',
+      );
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -260,14 +268,13 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
           commentCount: (_post?.commentCount ?? 0) + 1,
         );
       });
+      showCompanionSuccessFeedback(context, '评论已发布');
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -391,17 +398,13 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('举报已提交，我们会尽快核查。')),
-      );
+      showCompanionSuccessFeedback(context, '举报已提交，我们会尽快核查');
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showCompanionErrorFeedback(context, error.toString());
     } finally {
       if (mounted) {
         setState(() {
@@ -409,6 +412,14 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
         });
       }
     }
+  }
+
+  Future<void> _openTopic(CommunityTopicSnapshot topic) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CommunityTopicPage(topicId: topic.topicId),
+      ),
+    );
   }
 
   @override
@@ -476,6 +487,7 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
               onToggleLike: _toggleLike,
               onToggleFavorite: _toggleFavorite,
               onComment: _openCommentComposer,
+              onTopicTap: _openTopic,
             ),
             const SizedBox(height: 16),
             _CommunityCommentsSection(
@@ -509,6 +521,7 @@ class _CommunityPostDetailCard extends StatelessWidget {
     required this.onToggleLike,
     required this.onToggleFavorite,
     required this.onComment,
+    required this.onTopicTap,
   });
 
   final CommunityPostSnapshot post;
@@ -518,10 +531,12 @@ class _CommunityPostDetailCard extends StatelessWidget {
   final VoidCallback onToggleLike;
   final VoidCallback onToggleFavorite;
   final VoidCallback onComment;
+  final ValueChanged<CommunityTopicSnapshot> onTopicTap;
 
   @override
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
+    final CommunityTopicSnapshot? topic = post.topic;
 
     return CompanionCard(
       padding: const EdgeInsets.all(20),
@@ -537,10 +552,21 @@ class _CommunityPostDetailCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CompanionPill(
-            label: post.sourceDailyLogId == null ? '社区内容' : '来自萌宠日常',
-            icon: Icons.forum_outlined,
-            backgroundColor: AppThemePalette.surface,
+          Row(
+            children: [
+              CompanionPill(
+                label: post.sourceDailyLogId == null ? '社区内容' : '来自萌宠日常',
+                icon: Icons.forum_outlined,
+                backgroundColor: AppThemePalette.surface,
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: CommunityAuthorFollowButton(author: post.author),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Text(post.title, style: textTheme.titleLarge),
@@ -555,11 +581,31 @@ class _CommunityPostDetailCard extends StatelessWidget {
             const SizedBox(height: 8),
             _InfoChip(label: '${post.pet!.petName} · ${post.pet!.petType}'),
           ],
+          if (topic != null) ...[
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () => onTopicTap(topic),
+              borderRadius: BorderRadius.circular(999),
+              child: CompanionPill(
+                label: '# ${topic.topicName}',
+                icon: Icons.tag_rounded,
+                backgroundColor: AppThemePalette.surface,
+                foregroundColor: AppThemePalette.primaryDeep,
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Text(
             post.content,
             style: textTheme.bodyLarge?.copyWith(height: 1.7),
           ),
+          if (post.mediaAssets.isNotEmpty || post.mediaAssetIds.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            CommunityMediaPreviewGrid(
+              mediaAssets: post.mediaAssets,
+              mediaAssetIds: post.mediaAssetIds,
+            ),
+          ],
           const SizedBox(height: 20),
           Wrap(
             spacing: 8,

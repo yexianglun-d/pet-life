@@ -588,12 +588,80 @@ class NetworkPetLifeRepository implements PetLifeRepository {
   }
 
   @override
+  Future<CommunityPostSnapshot> createCommunityPost(
+      CommunityPostDraft draft) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.postData(
+        '/api/v1/community/posts',
+        body: _toCommunityPostBody(draft),
+      ),
+      context: '社区发帖响应',
+    );
+    return _toCommunityPostSnapshot(data);
+  }
+
+  @override
   Future<CommunityPostSnapshot> getCommunityPost(String postId) async {
     final Map<String, dynamic> data = _asMap(
       await _apiClient.getData('/api/v1/community/posts/$postId'),
       context: '社区帖子详情',
     );
     return _toCommunityPostSnapshot(data);
+  }
+
+  @override
+  Future<CommunityTopicDetailSnapshot> getCommunityTopic(String topicId) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/community/topics/$topicId'),
+      context: '社区话题详情',
+    );
+    return _toCommunityTopicDetailSnapshot(data);
+  }
+
+  @override
+  Future<CommunityQuestionDetailSnapshot> getCommunityQuestion(
+    String questionId,
+  ) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/community/questions/$questionId'),
+      context: '社区问答详情',
+    );
+    return _toCommunityQuestionDetailSnapshot(data);
+  }
+
+  @override
+  Future<CommunityFollowStatusSnapshot> getCommunityFollowStatus(
+    String userId,
+  ) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.getData('/api/v1/community/users/$userId/follow-status'),
+      context: '社区关注状态',
+    );
+    return _toCommunityFollowStatusSnapshot(data);
+  }
+
+  @override
+  Future<CommunityFollowStatusSnapshot> followCommunityUser(
+      String userId) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.postData(
+        '/api/v1/community/users/$userId/follow',
+        body: const <String, Object?>{},
+      ),
+      context: '关注社区用户响应',
+    );
+    return _toCommunityFollowStatusSnapshot(data);
+  }
+
+  @override
+  Future<CommunityFollowStatusSnapshot> unfollowCommunityUser(
+    String userId,
+  ) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.deleteData('/api/v1/community/users/$userId/follow'),
+      context: '取消关注社区用户响应',
+    );
+    return _toCommunityFollowStatusSnapshot(data);
   }
 
   @override
@@ -1073,10 +1141,9 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       reminders: _asMapList(payload['reminders'], context: '首页提醒列表')
           .map(_toReminderSnapshot)
           .toList(),
-      healthRecords:
-          _asMapList(payload['health_records'], context: '首页健康记录列表')
-              .map(_toHealthRecordSnapshot)
-              .toList(),
+      healthRecords: _asMapList(payload['health_records'], context: '首页健康记录列表')
+          .map(_toHealthRecordSnapshot)
+          .toList(),
       dailyLogs: _asMapList(payload['daily_logs'], context: '首页日常列表')
           .map(_toDailyLogSnapshot)
           .toList(),
@@ -1234,6 +1301,7 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     final Map<String, dynamic> author =
         _asMap(payload['author'], context: '社区作者');
     final Object? petPayload = payload['pet'];
+    final Object? topicPayload = payload['topic'];
 
     return CommunityPostSnapshot(
       postId: _readString(payload, 'post_id'),
@@ -1248,11 +1316,19 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       favoriteCount: _readInt(payload, 'favorite_count'),
       liked: _readBool(payload, 'liked'),
       favorited: _readBool(payload, 'favorited'),
+      topic: topicPayload == null
+          ? null
+          : _toCommunityTopicSnapshot(
+              _asMap(topicPayload, context: '社区话题'),
+            ),
+      mediaAssetIds: _asNullableStringList(payload['media_asset_ids']),
+      mediaAssets: _toCommunityMediaAssets(payload['media_assets']),
+      reviewStatus: _readString(payload, 'review_status'),
       publishedAt: _readNullableDateTime(payload, 'published_at'),
       createdAt: _readNullableDateTime(payload, 'created_at'),
       author: CommunityAuthorSnapshot(
         userId: _readString(author, 'user_id'),
-        nickname: _readString(author, 'nickname'),
+        nickname: _readNullableString(author, 'nickname') ?? '宠物家长',
         avatarUrl: _readNullableString(author, 'avatar_url'),
       ),
       pet: petPayload == null
@@ -1270,6 +1346,63 @@ class NetworkPetLifeRepository implements PetLifeRepository {
     );
   }
 
+  CommunityTopicSnapshot _toCommunityTopicSnapshot(
+      Map<String, dynamic> payload) {
+    return CommunityTopicSnapshot(
+      topicId: _readString(payload, 'topic_id'),
+      topicName: _readString(payload, 'topic_name'),
+      topicDesc: _readNullableString(payload, 'topic_desc'),
+      cityCode: _readNullableString(payload, 'city_code'),
+      status: _readNullableInt(payload, 'status'),
+      createdAt: _readNullableDateTime(payload, 'created_at'),
+      updatedAt: _readNullableDateTime(payload, 'updated_at'),
+    );
+  }
+
+  CommunityTopicDetailSnapshot _toCommunityTopicDetailSnapshot(
+    Map<String, dynamic> payload,
+  ) {
+    return CommunityTopicDetailSnapshot(
+      topic: _toCommunityTopicSnapshot(
+        _asMap(payload['topic'], context: '社区话题信息'),
+      ),
+      posts: _asMapList(payload['posts'], context: '话题帖子列表')
+          .map(_toCommunityPostSnapshot)
+          .toList(),
+    );
+  }
+
+  CommunityQuestionDetailSnapshot _toCommunityQuestionDetailSnapshot(
+    Map<String, dynamic> payload,
+  ) {
+    return CommunityQuestionDetailSnapshot(
+      question: _toCommunityPostSnapshot(
+        _asMap(payload['question'], context: '问答帖子信息'),
+      ),
+      answers: _asMapList(payload['answers'], context: '问答回答列表')
+          .map(_toCommunityCommentSnapshot)
+          .toList(),
+    );
+  }
+
+  CommunityFollowStatusSnapshot _toCommunityFollowStatusSnapshot(
+    Map<String, dynamic> payload,
+  ) {
+    return CommunityFollowStatusSnapshot(
+      followedUserId: _readString(payload, 'followed_user_id'),
+      following: _readBool(payload, 'following'),
+    );
+  }
+
+  List<MediaAssetSnapshot> _toCommunityMediaAssets(Object? value) {
+    if (value == null) {
+      return const <MediaAssetSnapshot>[];
+    }
+    return _asMapList(value, context: '社区媒体资产列表')
+        .map(_toMediaAssetSnapshot)
+        .toList();
+  }
+
   CommunityCommentSnapshot _toCommunityCommentSnapshot(
       Map<String, dynamic> payload) {
     final Map<String, dynamic> author =
@@ -1281,7 +1414,7 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       createdAt: _readNullableDateTime(payload, 'created_at'),
       author: CommunityAuthorSnapshot(
         userId: _readString(author, 'user_id'),
-        nickname: _readString(author, 'nickname'),
+        nickname: _readNullableString(author, 'nickname') ?? '宠物家长',
         avatarUrl: _readNullableString(author, 'avatar_url'),
       ),
     );
@@ -1687,6 +1820,23 @@ class NetworkPetLifeRepository implements PetLifeRepository {
   String _readTimeLabel(Map<String, dynamic> payload, String key) {
     final String value = _readString(payload, key);
     return value.length >= 5 ? value.substring(0, 5) : value;
+  }
+
+  Map<String, Object?> _toCommunityPostBody(CommunityPostDraft draft) {
+    return <String, Object?>{
+      if (draft.petId != null) 'pet_id': _toNumericId(draft.petId!),
+      if (draft.topicId != null) 'topic_id': _toNumericId(draft.topicId!),
+      'post_type': draft.postType,
+      if (draft.title != null) 'title': draft.title,
+      'content': draft.content,
+      'media_asset_ids': draft.mediaAssetIds,
+      if (draft.cityCode != null) 'city_code': draft.cityCode,
+      'visibility': draft.visibility,
+    };
+  }
+
+  Object _toNumericId(String id) {
+    return int.tryParse(id) ?? id;
   }
 
   Map<String, Object?> _toPetUpsertBody(PetUpsertDraft draft) {

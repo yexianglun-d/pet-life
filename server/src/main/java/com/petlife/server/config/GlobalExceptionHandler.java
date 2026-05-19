@@ -64,6 +64,8 @@ public class GlobalExceptionHandler {
                  REMINDER_TEMPLATE_NOT_FOUND,
                  DAILY_LOG_NOT_FOUND,
                  COMMUNITY_POST_NOT_FOUND,
+                 COMMUNITY_TOPIC_NOT_FOUND,
+                 COMMUNITY_QUESTION_NOT_FOUND,
                  MODERATION_REPORT_NOT_FOUND,
                  MEDIA_ASSET_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;

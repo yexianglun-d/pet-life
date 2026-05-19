@@ -2,10 +2,14 @@ package com.petlife.server.modules.community.controller;
 
 import com.petlife.server.common.response.ApiResponse;
 import com.petlife.server.modules.community.dto.request.CreateCommunityCommentRequest;
+import com.petlife.server.modules.community.dto.request.CreateCommunityPostRequest;
 import com.petlife.server.modules.community.dto.request.CreateCommunityReportRequest;
 import com.petlife.server.modules.community.dto.response.CommunityCommentResponse;
+import com.petlife.server.modules.community.dto.response.CommunityFollowStatusResponse;
 import com.petlife.server.modules.community.dto.response.CommunityPostResponse;
+import com.petlife.server.modules.community.dto.response.CommunityQuestionDetailResponse;
 import com.petlife.server.modules.community.dto.response.CommunityReportResponse;
+import com.petlife.server.modules.community.dto.response.CommunityTopicDetailResponse;
 import com.petlife.server.modules.community.service.CommunityApplicationService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -33,14 +37,32 @@ public class CommunityController {
 
     @GetMapping("/feed")
     public ApiResponse<List<CommunityPostResponse>> listFeed(
-        @RequestParam(value = "tab", required = false) String tab
+        @RequestParam(value = "tab", required = false) String tab,
+        @RequestParam(value = "city_code", required = false) String cityCode
     ) {
-        return ApiResponse.success(communityApplicationService.listFeed(tab));
+        return ApiResponse.success(communityApplicationService.listFeed(tab, cityCode));
+    }
+
+    @PostMapping("/posts")
+    public ApiResponse<CommunityPostResponse> createPost(
+        @Valid @RequestBody CreateCommunityPostRequest request
+    ) {
+        return ApiResponse.success(communityApplicationService.createPost(request));
     }
 
     @GetMapping("/posts/{postId}")
     public ApiResponse<CommunityPostResponse> getPost(@PathVariable Long postId) {
         return ApiResponse.success(communityApplicationService.getPost(postId));
+    }
+
+    @GetMapping("/topics/{topicId}")
+    public ApiResponse<CommunityTopicDetailResponse> getTopic(@PathVariable Long topicId) {
+        return ApiResponse.success(communityApplicationService.getTopic(topicId));
+    }
+
+    @GetMapping("/questions/{questionId}")
+    public ApiResponse<CommunityQuestionDetailResponse> getQuestion(@PathVariable Long questionId) {
+        return ApiResponse.success(communityApplicationService.getQuestion(questionId));
     }
 
     @GetMapping("/posts/{postId}/comments")
@@ -74,6 +96,21 @@ public class CommunityController {
     @DeleteMapping("/posts/{postId}/favorite")
     public ApiResponse<CommunityPostResponse> unfavoritePost(@PathVariable Long postId) {
         return ApiResponse.success(communityApplicationService.unfavoritePost(postId));
+    }
+
+    @PostMapping("/users/{userId}/follow")
+    public ApiResponse<CommunityFollowStatusResponse> followUser(@PathVariable Long userId) {
+        return ApiResponse.success(communityApplicationService.followUser(userId));
+    }
+
+    @DeleteMapping("/users/{userId}/follow")
+    public ApiResponse<CommunityFollowStatusResponse> unfollowUser(@PathVariable Long userId) {
+        return ApiResponse.success(communityApplicationService.unfollowUser(userId));
+    }
+
+    @GetMapping("/users/{userId}/follow-status")
+    public ApiResponse<CommunityFollowStatusResponse> getFollowStatus(@PathVariable Long userId) {
+        return ApiResponse.success(communityApplicationService.getFollowStatus(userId));
     }
 
     @PostMapping("/posts/{postId}/report")

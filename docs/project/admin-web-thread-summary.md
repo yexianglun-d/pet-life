@@ -7,6 +7,95 @@
 - 若功能状态变化，必须同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 所有状态按完整交付标准记录，不使用阶段性跑通或“核心可用”口径。
 
+## 2026-05-19 社区内容治理页面接入
+
+### 1. 新完成内容
+
+- 新增社区帖子治理页，接入真实后台帖子列表、详情、下架、恢复接口。
+- 新增问答治理页，接入真实后台问答列表、详情、下架、恢复接口。
+- 两个治理页均支持列表筛选、详情抽屉、作者/宠物/话题/互动数据展示。
+- 接入 `GET /api/v1/admin/moderation/audit-logs`，分别展示 `community_post` 与 `community_question` 治理审计记录。
+- 后台侧栏和路由新增 `社区帖子`、`问答治理` 入口，页面沿用 hero、summary、panel 风格。
+
+### 2. 新增/修改文件
+
+- 新增：`admin-web/src/shared/api/adminCommunityApi.ts`
+- 新增：`admin-web/src/views/community/CommunityPostGovernanceView.vue`
+- 新增：`admin-web/src/views/community/CommunityQuestionGovernanceView.vue`
+- 修改：`admin-web/src/router/index.ts`
+- 修改：`admin-web/src/layouts/AdminLayout.vue`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- `npm run type-check`：通过。
+- `npm run build`：通过；Vite 仍提示主 chunk 超过 500 kB，这是当前后台工程既有打包体积警告，不影响构建结果。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 社区用户端发布页、话题页、问答详情页仍未接入。
+- 第三方内容审核仍未接入。
+- 通知模板管理、通知发送配置仍待服务端定义模型和接口。
+
+### 5. 风险或阻塞
+
+- 社区治理写操作依赖管理员登录态与 `X-Admin-Operator`，后续如果扩展 RBAC，需要补按钮级权限。
+- 当前治理页只提供下架/恢复，不包含编辑内容、封禁作者或自动审核策略。
+
+### 6. 下一步建议
+
+1. 继续等待服务端补齐通知模板与通知渠道配置接口后接入后台通知配置。
+2. 移动端线程补齐社区发布页、话题页和问答详情页。
+
+## 2026-05-19 社区内容治理接口可接入
+
+### 1. 新完成内容
+
+- 服务端已补齐后台社区内容治理接口，并同步到 `docs/api/petlife-openapi.yaml`：
+  - `GET /api/v1/admin/community/posts`
+  - `GET /api/v1/admin/community/posts/{postId}`
+  - `PATCH /api/v1/admin/community/posts/{postId}/status`
+  - `GET /api/v1/admin/community/questions`
+  - `GET /api/v1/admin/community/questions/{questionId}`
+  - `PATCH /api/v1/admin/community/questions/{questionId}/status`
+- 审核审计日志接口已扩展支持 `target_type=community_post` 和 `target_type=community_question`。
+- 本轮未修改 admin-web 源码，社区内容治理页面仍待后续接入。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 服务端实现文件见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 77, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- admin-web 构建未执行：本轮没有修改 admin-web 源码。
+
+### 4. 未完成事项
+
+- admin-web 尚未接入社区帖子治理、问答治理、下架/恢复和治理审计查看页面。
+- 通知模板管理、通知发送配置仍待服务端定义模型和接口。
+
+### 5. 风险或阻塞
+
+- 社区治理页面只能使用本轮进入 OpenAPI 的真实接口，不应本地 mock 内容或治理状态。
+- 下架/恢复只提交动作 `take_down` / `restore`，不要让前端直接提交 `review_status`。
+
+### 6. 下一步建议
+
+1. 按 OpenAPI 增加社区治理 API 类型和请求函数。
+2. 新增社区帖子治理和问答治理页面，支持筛选、详情、下架/恢复和审计日志查看。
+
 ## 2026-05-18 后台真实登录与治理操作入口接入
 
 ### 1. 新完成内容

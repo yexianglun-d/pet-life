@@ -168,6 +168,7 @@ class PhaseOneApiTests {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='提醒模板表'
             """);
         ensureCommunityReportAdminNotesColumn();
+        ensureCommunityClosedLoopSchema();
         ensureAdminAccount();
     }
 
@@ -184,6 +185,54 @@ class PhaseOneApiTests {
                 ALTER TABLE community_reports
                 ADD COLUMN admin_notes VARCHAR(500) DEFAULT NULL COMMENT '管理员处理备注' AFTER processed_by
                 """);
+        }
+    }
+
+    private void ensureCommunityClosedLoopSchema() {
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS community_topics (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              topic_name VARCHAR(100) NOT NULL COMMENT '话题名称',
+              topic_desc VARCHAR(500) DEFAULT NULL COMMENT '话题说明',
+              city_code VARCHAR(32) DEFAULT NULL COMMENT '城市编码',
+              status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-启用 0-停用',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              PRIMARY KEY (id),
+              KEY idx_community_topics_city_status (city_code, status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='社区话题表'
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS user_follows (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              follower_user_id BIGINT UNSIGNED NOT NULL COMMENT '关注者用户 ID',
+              followed_user_id BIGINT UNSIGNED NOT NULL COMMENT '被关注用户 ID',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              PRIMARY KEY (id),
+              UNIQUE KEY uk_user_follows_pair (follower_user_id, followed_user_id),
+              KEY idx_user_follows_followed (followed_user_id, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户关注关系表'
+            """);
+        ensureCommunityPostColumn(
+            "topic_id",
+            "ALTER TABLE community_posts ADD COLUMN topic_id BIGINT UNSIGNED DEFAULT NULL COMMENT '话题 ID' AFTER pet_id"
+        );
+        ensureCommunityPostColumn(
+            "media_list",
+            "ALTER TABLE community_posts ADD COLUMN media_list JSON DEFAULT NULL COMMENT '媒体资产 ID 列表' AFTER content"
+        );
+    }
+
+    private void ensureCommunityPostColumn(String columnName, String alterSql) {
+        Integer columnCount = jdbcTemplate.queryForObject("""
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'community_posts'
+              AND COLUMN_NAME = ?
+            """, Integer.class, columnName);
+        if (columnCount != null && columnCount == 0) {
+            jdbcTemplate.execute(alterSql);
         }
     }
 
@@ -2056,6 +2105,271 @@ class PhaseOneApiTests {
     }
 
     @Test
+    void shouldPublishIndependentCommunityPostAndReadTopicQuestionDetails() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String answerAuthorizationHeader = authorizationHeader("13900000000");
+        String petId = currentPetId(authorizationHeader);
+        String topicId = createCommunityTopic("新手养宠讨论-" + System.nanoTime());
+        String mediaAssetId = uploadMediaAsset(
+            authorizationHeader,
+            "community",
+            "community-growth.png",
+            MediaType.IMAGE_PNG
+        );
+
+        MvcResult postResult = mockMvc.perform(post("/api/v1/community/posts")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "pet_id": %s,
+                      "topic_id": %s,
+                      "post_type": "image_text",
+                      "title": "第一次独立发布社区帖子",
+                      "content": "这是一条不依赖萌宠日常同步的社区帖子。",
+                      "media_asset_ids": ["%s"],
+                      "city_code": "310000",
+                      "visibility": "public"
+                    }
+                    """.formatted(petId, topicId, mediaAssetId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.title", is("第一次独立发布社区帖子")))
+            .andExpect(jsonPath("$.data.source_daily_log_id", nullValue()))
+            .andExpect(jsonPath("$.data.topic.topic_id", is(topicId)))
+            .andExpect(jsonPath("$.data.media_asset_ids[0]", is(mediaAssetId)))
+            .andExpect(jsonPath("$.data.media_assets[0].asset_id", is(mediaAssetId)))
+            .andExpect(jsonPath("$.data.review_status", is("approved")))
+            .andReturn();
+
+        String postId = JsonPath.read(postResult.getResponse().getContentAsString(), "$.data.post_id");
+
+        mockMvc.perform(get("/api/v1/community/posts/%s".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.post_id", is(postId)))
+            .andExpect(jsonPath("$.data.content", is("这是一条不依赖萌宠日常同步的社区帖子。")))
+            .andExpect(jsonPath("$.data.media_assets[0].asset_id", is(mediaAssetId)));
+
+        mockMvc.perform(get("/api/v1/community/topics/%s".formatted(topicId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.topic.topic_id", is(topicId)))
+            .andExpect(jsonPath("$.data.posts[?(@.post_id == '%s')].title".formatted(postId),
+                is(List.of("第一次独立发布社区帖子"))));
+
+        String questionId = createIndependentCommunityPost(
+            authorizationHeader,
+            petId,
+            topicId,
+            "qa",
+            "幼猫第一次换粮应该怎么过渡？",
+            "准备从幼猫粮换到全阶段粮，想确认过渡周期。"
+        );
+
+        mockMvc.perform(post("/api/v1/community/posts/%s/comments".formatted(questionId))
+                .header(HttpHeaders.AUTHORIZATION, answerAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "建议至少 7 天逐步增加新粮比例，并观察软便情况。"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/community/questions/%s".formatted(questionId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.question.post_id", is(questionId)))
+            .andExpect(jsonPath("$.data.question.post_type", is("qa")))
+            .andExpect(jsonPath("$.data.answers[0].content", is("建议至少 7 天逐步增加新粮比例，并观察软便情况。")));
+    }
+
+    @Test
+    void shouldFollowUnfollowAndReadFollowingFeed() throws Exception {
+        String authorAuthorizationHeader = authorizationHeader("13600000000");
+        String followerAuthorizationHeader = authorizationHeader("13700000000");
+        String authorUserId = currentUserId(authorAuthorizationHeader);
+        String authorPetId = currentPetId(authorAuthorizationHeader);
+        String topicId = createCommunityTopic("关注流测试-" + System.nanoTime());
+        String postId = createIndependentCommunityPost(
+            authorAuthorizationHeader,
+            authorPetId,
+            topicId,
+            "image_text",
+            "关注流里的独立帖子",
+            "关注作者后应该能在 following 信息流看到这条内容。"
+        );
+
+        mockMvc.perform(get("/api/v1/community/users/%s/follow-status".formatted(authorUserId))
+                .header(HttpHeaders.AUTHORIZATION, followerAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.followed_user_id", is(authorUserId)))
+            .andExpect(jsonPath("$.data.following", is(false)));
+
+        mockMvc.perform(post("/api/v1/community/users/%s/follow".formatted(authorUserId))
+                .header(HttpHeaders.AUTHORIZATION, followerAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.following", is(true)));
+
+        mockMvc.perform(get("/api/v1/community/feed?tab=following")
+                .header(HttpHeaders.AUTHORIZATION, followerAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.post_id == '%s')].title".formatted(postId),
+                is(List.of("关注流里的独立帖子"))));
+
+        mockMvc.perform(delete("/api/v1/community/users/%s/follow".formatted(authorUserId))
+                .header(HttpHeaders.AUTHORIZATION, followerAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.following", is(false)));
+
+        mockMvc.perform(get("/api/v1/community/users/%s/follow-status".formatted(authorUserId))
+                .header(HttpHeaders.AUTHORIZATION, followerAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.following", is(false)));
+    }
+
+    @Test
+    void shouldGovernCommunityPostsAndQuestionsFromAdmin() throws Exception {
+        String authorizationHeader = authorizationHeader("13500000000");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        String adminOperator = "community-governance-admin";
+        String petId = currentPetId(authorizationHeader);
+        String topicId = createCommunityTopic("社区治理测试-" + System.nanoTime());
+        String postId = createIndependentCommunityPost(
+            authorizationHeader,
+            petId,
+            topicId,
+            "image_text",
+            "后台治理普通帖子",
+            "这条普通帖子用于验证后台下架和恢复。"
+        );
+        String questionId = createIndependentCommunityPost(
+            authorizationHeader,
+            petId,
+            topicId,
+            "qa",
+            "后台治理问答帖",
+            "这条问答用于验证后台问答治理。"
+        );
+
+        mockMvc.perform(get("/api/v1/admin/community/posts?review_status=approved&topic_id=%s".formatted(topicId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.post_id == '%s')].title".formatted(postId),
+                is(List.of("后台治理普通帖子"))));
+
+        mockMvc.perform(get("/api/v1/admin/community/posts/%s".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.post_id", is(postId)))
+            .andExpect(jsonPath("$.data.review_status", is("approved")));
+
+        mockMvc.perform(patch("/api/v1/admin/community/posts/%s/status".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", adminOperator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "action": "take_down",
+                      "admin_notes": "内容与社区规则不符"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.review_status", is("rejected")));
+
+        mockMvc.perform(get("/api/v1/community/posts/%s".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code", is("COMMUNITY_POST_NOT_FOUND")));
+
+        mockMvc.perform(patch("/api/v1/admin/community/posts/%s/status".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", adminOperator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "action": "restore",
+                      "admin_notes": "复核后恢复展示"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.review_status", is("approved")));
+
+        mockMvc.perform(get("/api/v1/community/posts/%s".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.post_id", is(postId)));
+
+        mockMvc.perform(get("/api/v1/admin/community/questions?keyword=问答")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.post_id == '%s')].post_type".formatted(questionId), is(List.of("qa"))));
+
+        mockMvc.perform(get("/api/v1/admin/community/questions/%s".formatted(questionId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.question.post_id", is(questionId)));
+
+        mockMvc.perform(patch("/api/v1/admin/community/questions/%s/status".formatted(questionId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", adminOperator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "action": "take_down",
+                      "admin_notes": "问答内容不适合展示"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.review_status", is("rejected")));
+
+        mockMvc.perform(get("/api/v1/community/questions/%s".formatted(questionId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/v1/admin/moderation/audit-logs?operator_id=%s&target_type=community_post"
+                .formatted(adminOperator))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.action == 'community_post_take_down')].target_id", is(List.of(postId))))
+            .andExpect(jsonPath("$.data[?(@.action == 'community_post_restore')].target_id", is(List.of(postId))));
+
+        mockMvc.perform(get("/api/v1/admin/moderation/audit-logs?operator_id=%s&target_type=community_question"
+                .formatted(adminOperator))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.action == 'community_question_take_down')].target_id",
+                is(List.of(questionId))));
+    }
+
+    @Test
+    void shouldRejectCommunityClosedLoopPermissionBoundary() throws Exception {
+        String authorizationHeader = authorizationHeader();
+        String currentUserId = currentUserId(authorizationHeader);
+
+        mockMvc.perform(post("/api/v1/community/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "post_type": "image_text",
+                      "content": "未登录不允许发布社区帖子"
+                    }
+                    """))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(get("/api/v1/admin/community/posts")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(post("/api/v1/community/users/%s/follow".formatted(currentUserId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message", is("不能关注自己")));
+    }
+
+    @Test
     void shouldGetUpdateAndDeleteDailyLog() throws Exception {
         String authorizationHeader = authorizationHeader();
         String petId = currentPetId(authorizationHeader);
@@ -3360,6 +3674,47 @@ class PhaseOneApiTests {
             .andReturn();
 
         return JsonPath.read(reportResult.getResponse().getContentAsString(), "$.data.report_id");
+    }
+
+    private String createCommunityTopic(String topicName) {
+        jdbcTemplate.update("""
+            INSERT INTO community_topics (
+              topic_name, topic_desc, city_code, status, created_at, updated_at
+            ) VALUES (
+              ?, '用于接口自动化验证的社区话题', '310000', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
+            """, topicName);
+        Long topicId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        return topicId.toString();
+    }
+
+    private String createIndependentCommunityPost(
+        String authorizationHeader,
+        String petId,
+        String topicId,
+        String postType,
+        String title,
+        String content
+    ) throws Exception {
+        MvcResult postResult = mockMvc.perform(post("/api/v1/community/posts")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "pet_id": %s,
+                      "topic_id": %s,
+                      "post_type": "%s",
+                      "title": "%s",
+                      "content": "%s",
+                      "media_asset_ids": [],
+                      "city_code": "310000",
+                      "visibility": "public"
+                    }
+                    """.formatted(petId, topicId, postType, title, content)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        return JsonPath.read(postResult.getResponse().getContentAsString(), "$.data.post_id");
     }
 
     private ProviderFixture createServiceProviderWithSlot(

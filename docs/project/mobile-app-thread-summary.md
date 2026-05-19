@@ -7,6 +7,112 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-19 移动端社区用户闭环接入
+
+### 1. 新完成内容
+
+- 社区首页新增独立发帖入口，发布成功后按帖子类型刷新推荐或问答流。
+- 新增独立社区发布页，接入 `POST /api/v1/community/posts`，支持图文、视频、问答、经验类型、公开 / 关注可见、关联宠物、同城 city_code 和 `biz_type=community` 媒体上传。
+- 新增话题页，接入 `GET /api/v1/community/topics/{topicId}`，展示话题信息、话题帖子列表，并支持从话题页携带 `topic_id` 参与发布。
+- 新增问答详情页，接入 `GET /api/v1/community/questions/{questionId}`，展示问题、回答列表，并通过评论接口发布回答。
+- 帖子详情页补齐话题入口、媒体预览、关注 / 取消关注和统一互动成功/错误反馈。
+- 社区推荐、关注、同城、问答 tab 已与帖子详情、问答详情、话题页和发布页打通；问答类型内容进入问答详情，其余内容进入帖子详情。
+- 社区媒体展示新增真实 `media_assets.access_url` 图片/视频预览，不使用本地 mock 或假数据。
+
+### 2. 新增/修改文件
+
+- 新增：`mobile-app/lib/modules/community/presentation/pages/community_post_editor_page.dart`
+- 新增：`mobile-app/lib/modules/community/presentation/pages/community_topic_page.dart`
+- 新增：`mobile-app/lib/modules/community/presentation/pages/community_question_detail_page.dart`
+- 新增：`mobile-app/lib/modules/community/presentation/widgets/community_media_preview_grid.dart`
+- 新增：`mobile-app/lib/modules/community/presentation/widgets/community_post_card.dart`
+- 新增：`mobile-app/lib/modules/community/presentation/widgets/community_author_follow_button.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/pages/community_home_page.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/pages/community_post_detail_page.dart`
+- 修改：`mobile-app/lib/shared/domain/models/community_post_snapshot.dart`
+- 修改：`mobile-app/lib/shared/repository/petlife_repository.dart`
+- 修改：`mobile-app/lib/shared/repository/network_petlife_repository.dart`
+- 修改：`mobile-app/lib/modules/common/presentation/widgets/media_attachment_picker.dart`
+- 修改：`mobile-app/test/widget_test.dart`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/03-ui-closure-checklist.md`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+
+### 3. 验证命令与结果
+
+- `cd mobile-app && /Users/deng/development/flutter/bin/dart format ...`
+  - 结果：通过。
+- `cd mobile-app && /Users/deng/development/flutter/bin/flutter analyze`
+  - 结果：通过，`No issues found!`。
+- `cd mobile-app && /Users/deng/development/flutter/bin/flutter test`
+  - 结果：通过，`All tests passed!`。
+- `git diff --check`
+  - 结果：通过。
+
+### 4. 未完成事项
+
+- 第三方内容审核仍未接入，由服务端或第三方能力线程继续推进。
+- 当前 OpenAPI 没有话题列表 / 话题搜索接口；移动端本轮只从服务端返回的帖子话题入口进入话题页，或从话题页发布时携带 `topic_id`，不构造本地话题假列表。
+
+### 5. 风险或阻塞
+
+- 发布页媒体上传必须使用 `biz_type=community`，服务端会校验 asset_id 归属和业务类型。
+- `review_status` 只作为服务端返回展示字段读取，移动端发布时不提交审核态。
+- 若产品后续要求用户在发帖页主动选择或搜索话题，需要服务端补充话题列表 / 搜索 OpenAPI。
+
+### 6. 下一步建议
+
+1. 服务端补充话题列表 / 搜索接口后，移动端可在发布页加入真实话题选择器。
+2. 第三方内容审核接入后，移动端可按 `review_status` 增加更细的审核中、驳回原因和重新编辑入口。
+
+## 2026-05-19 服务端社区闭环能力补齐待移动端接入
+
+### 1. 新完成内容
+
+- 服务端已补齐移动端社区后续页面所需接口：
+  - `POST /api/v1/community/posts`
+  - `GET /api/v1/community/posts/{postId}`
+  - `POST /api/v1/community/users/{userId}/follow`
+  - `DELETE /api/v1/community/users/{userId}/follow`
+  - `GET /api/v1/community/users/{userId}/follow-status`
+  - `GET /api/v1/community/topics/{topicId}`
+  - `GET /api/v1/community/questions/{questionId}`
+- `GET /api/v1/community/feed` 已支持 `recommended`、`following`、`city`、`qa` 四类真实服务端流。
+- 社区帖子响应新增 `topic`、`media_asset_ids`、`media_assets`、`review_status` 字段；既有 `post_id`、`author`、`pet`、`like_count`、`comment_count`、`favorite_count`、`liked`、`favorited` 保持可用。
+- 本轮未修改 mobile-app 源码。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/technical/02-api-and-events.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 服务端实现文件见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 77, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- mobile-app 分析与测试未执行：本轮没有修改 mobile-app 源码。
+
+### 4. 未完成事项
+
+- mobile-app 尚未接入社区独立发布页、话题页、问答详情页和关注 / 取消关注交互。
+- 第三方内容审核和推送通道仍未接入，不阻塞当前用户端社区读取与发布接口。
+
+### 5. 风险或阻塞
+
+- 独立发布的媒体必须先通过 `biz_type=community` 上传，不能复用日常或健康附件 asset_id。
+- 用户端不能提交 `review_status`，帖子审核态由服务端控制。
+
+### 6. 下一步建议
+
+1. 按 OpenAPI 更新移动端社区数据模型，兼容新增 `topic` 与媒体元数据字段。
+2. 接入发布页、话题页、问答详情页和关注交互，所有数据走真实服务端接口。
+
 ## 2026-05-18 首页专用聚合接口接入
 
 ### 1. 新完成内容

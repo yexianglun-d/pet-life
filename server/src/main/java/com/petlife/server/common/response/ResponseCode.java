@@ -27,6 +27,8 @@ public enum ResponseCode {
     REMINDER_TEMPLATE_NOT_FOUND("REMINDER_TEMPLATE_NOT_FOUND", "reminder template does not exist"),
     DAILY_LOG_NOT_FOUND("DAILY_LOG_NOT_FOUND", "daily log does not exist"),
     COMMUNITY_POST_NOT_FOUND("COMMUNITY_POST_NOT_FOUND", "community post does not exist"),
+    COMMUNITY_TOPIC_NOT_FOUND("COMMUNITY_TOPIC_NOT_FOUND", "community topic does not exist"),
+    COMMUNITY_QUESTION_NOT_FOUND("COMMUNITY_QUESTION_NOT_FOUND", "community question does not exist"),
     MODERATION_REPORT_NOT_FOUND("MODERATION_REPORT_NOT_FOUND", "moderation report does not exist"),
     NOTIFICATION_NOT_FOUND("NOTIFICATION_NOT_FOUND", "notification does not exist"),
     MEDIA_ASSET_NOT_FOUND("MEDIA_ASSET_NOT_FOUND", "media asset does not exist"),

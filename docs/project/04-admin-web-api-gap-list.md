@@ -55,6 +55,14 @@
 - 审核治理能力已同步到 `docs/api/petlife-openapi.yaml`：
   - `PATCH /api/v1/admin/moderation/reports/{reportId}` 支持 `admin_notes` 入库与回显
   - `GET /api/v1/admin/moderation/audit-logs`
+- 社区内容治理能力已同步到 `docs/api/petlife-openapi.yaml`：
+  - `GET /api/v1/admin/community/posts`
+  - `GET /api/v1/admin/community/posts/{postId}`
+  - `PATCH /api/v1/admin/community/posts/{postId}/status`
+  - `GET /api/v1/admin/community/questions`
+  - `GET /api/v1/admin/community/questions/{questionId}`
+  - `PATCH /api/v1/admin/community/questions/{questionId}/status`
+  - `GET /api/v1/admin/moderation/audit-logs` 已支持 `community_post`、`community_question` 审计目标
 - 系统提醒查询能力已同步到 `docs/api/petlife-openapi.yaml`：
   - `GET /api/v1/admin/reminders`
   - `GET /api/v1/admin/reminders/{reminderId}`
@@ -73,9 +81,10 @@
 - 宠物主档接口已接入宠物档案查询页，支持真实查询、详情查看和问题数据修复。
 - 系统提醒查询接口已接入系统提醒查询页，仅支持真实查询和详情查看。
 - 提醒模板管理接口已接入提醒模板管理页，支持真实列表、筛选、详情、创建、编辑和启停。
+- 社区内容治理接口已接入社区帖子治理页和问答治理页，支持真实列表筛选、详情查看、下架/恢复和治理审计查询。
 - 写治理能力已使用服务端状态机、权限边界和审计动作接口，不使用前端本地 mock。
 
-## 待服务端线程补齐
+## 待后续补齐或接入
 
 | 清单项 | 后台页面目标 | 需要补齐的管理端接口 |
 | --- | --- | --- |

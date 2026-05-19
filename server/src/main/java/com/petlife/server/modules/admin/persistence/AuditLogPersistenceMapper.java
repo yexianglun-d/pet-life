@@ -71,7 +71,7 @@ public interface AuditLogPersistenceMapper {
           user_agent AS userAgent,
           created_at AS createdAt
         FROM audit_logs
-        WHERE target_type = 'moderation_report'
+        WHERE target_type IN ('moderation_report', 'community_post', 'community_question')
           AND (#{operatorId} IS NULL OR operator_id = #{operatorId})
           AND (#{targetType} IS NULL OR target_type = #{targetType})
           AND (#{action} IS NULL OR action = #{action})

@@ -620,16 +620,21 @@
 
 ## 6.1 获取社区流
 
-`GET /community/feed?tab=recommended`
+`GET /community/feed?tab=recommended|following|city|qa&city_code=310000`
 
 返回卡片字段：
 
 - `post_id`
 - `author`
 - `pet`
+- `topic`
 - `title`
 - `content`
 - `source_daily_log_id`
+- `media_asset_ids`
+- `media_assets`
+- `visibility`
+- `review_status`
 - `like_count`
 - `comment_count`
 - `favorite_count`
@@ -637,14 +642,44 @@
 - `favorited`
 - `published_at`
 
-## 6.2 创建社区帖子
+说明：
 
-当前批次不开放独立发布接口。
+- `recommended` 返回公开且 `approved` 的推荐流。
+- `following` 返回当前用户已关注作者的公开/粉丝可见帖子。
+- `city` 支持 `city_code` 查询，缺省时使用当前用户城市。
+- `qa` 返回当前用户可见的问答帖。
 
-真实发布来源：
+## 6.2 独立发布社区帖子
 
-- 萌宠日常创建/更新时，若 `visibility=public` 且 `sync_to_community=true`，系统会自动生成或更新社区帖子
-- 当前社区帖子类型固定为 `experience`
+`POST /community/posts`
+
+请求关键字段：
+
+```json
+{
+  "pet_id": 10001,
+  "topic_id": 20001,
+  "post_type": "image_text",
+  "title": "第一次独立发布社区帖子",
+  "content": "这是一条不依赖萌宠日常同步的社区帖子。",
+  "media_asset_ids": ["90001"],
+  "city_code": "310000",
+  "visibility": "public"
+}
+```
+
+规则：
+
+- `post_type` 支持 `image_text`、`video`、`qa`、`experience`，缺省为 `image_text`。
+- `qa` 类型必须传 `title`；普通帖子标题缺省时由正文截断生成。
+- `media_asset_ids` 仅允许引用当前用户已上传完成、`biz_type=community`、媒体类型为图片或视频的资产，最多 9 个。
+- 关联宠物时会校验当前用户是否有该宠物访问权；关联话题时只允许使用启用话题。
+- 本阶段不接第三方审核，发布后由服务端写入 `review_status=approved`，客户端不能提交审核状态；后台治理接口可下架或恢复。
+
+萌宠日常仍可同步社区：
+
+- 萌宠日常创建/更新时，若 `visibility=public` 且 `sync_to_community=true`，系统会自动生成或更新社区帖子。
+- 日常同步帖子类型为 `experience`，并同步日常媒体资产 ID 供社区详情预览。
 
 ## 6.3 获取帖子详情
 
@@ -710,6 +745,32 @@
 ## 6.10 获取话题详情流
 
 `GET /community/topics/{topic_id}`
+
+返回启用话题信息和话题下当前用户可见帖子列表。
+
+## 6.11 获取问答详情
+
+`GET /community/questions/{question_id}`
+
+返回问答帖详情与回答列表。当前回答复用社区评论承载。
+
+## 6.12 关注用户
+
+`POST /community/users/{user_id}/follow`
+
+规则：
+
+- 不能关注自己。
+- 被关注用户必须存在且为正常状态。
+- 重复关注返回已关注状态，不重复写关系。
+
+## 6.13 取消关注用户
+
+`DELETE /community/users/{user_id}/follow`
+
+## 6.14 查询关注状态
+
+`GET /community/users/{user_id}/follow-status`
 
 ## 7. 服务与预约接口
 
@@ -1155,7 +1216,7 @@
 
 - `GET /api/v1/admin/moderation/reports?status=pending|processed|rejected|all`
 - `PATCH /api/v1/admin/moderation/reports/{report_id}`
-- `GET /api/v1/admin/moderation/audit-logs?operator_id=risk-admin&target_type=moderation_report&action=moderation_report_confirm_violation`
+- `GET /api/v1/admin/moderation/audit-logs?operator_id=risk-admin&target_type=moderation_report|community_post|community_question&action=moderation_report_confirm_violation`
 
 `PATCH /api/v1/admin/moderation/reports/{report_id}` 请求关键字段：
 
@@ -1174,6 +1235,32 @@
 - 当前阶段处理人通过请求头 `X-Admin-Operator` 回写，用于后台操作审计标识
 - 处理动作会写入 `audit_logs`，目标类型为 `moderation_report`，动作值为 `moderation_report_confirm_violation` 或 `moderation_report_dismiss_report`
 
+当前已落地的后台社区内容治理接口：
+
+- `GET /api/v1/admin/community/posts?post_type=image_text&review_status=approved&visibility=public&author_user_id=20001&topic_id=30001&keyword=日常`
+- `GET /api/v1/admin/community/posts/{post_id}`
+- `PATCH /api/v1/admin/community/posts/{post_id}/status`
+- `GET /api/v1/admin/community/questions?review_status=approved&visibility=public&author_user_id=20001&topic_id=30001&keyword=换粮`
+- `GET /api/v1/admin/community/questions/{question_id}`
+- `PATCH /api/v1/admin/community/questions/{question_id}/status`
+
+`PATCH /api/v1/admin/community/posts/{post_id}/status` 与 `PATCH /api/v1/admin/community/questions/{question_id}/status` 请求关键字段：
+
+```json
+{
+  "action": "take_down",
+  "admin_notes": "内容与社区规则不符"
+}
+```
+
+补充：
+
+- `action=take_down`：目标内容 `review_status` 改为 `rejected`，用户侧帖子详情、话题流、问答详情和信息流不再可见。
+- `action=restore`：目标内容 `review_status` 改为 `approved`，恢复用户侧可见。
+- 普通帖子治理写入 `audit_logs.target_type=community_post`，动作值为 `community_post_take_down` 或 `community_post_restore`。
+- 问答治理写入 `audit_logs.target_type=community_question`，动作值为 `community_question_take_down` 或 `community_question_restore`。
+- 当前不接第三方内容审核，不新增自动审核任务；后台治理是人工下架/恢复能力。
+
 当前已落地的后台内容查询接口：
 
 - `GET /api/v1/admin/health-records?record_type=examination&pet_id=10001&operator_user_id=20001&keyword=体重`
@@ -1188,7 +1275,7 @@
 - 健康记录返回 `health_record`、`pet`、`operator`；`health_record.attachment_assets` 可直接用于后台预览附件。
 - 萌宠日常返回 `daily_log`、`pet`、`author`；`daily_log.media_assets` 可直接用于后台预览图片或视频。
 - 时间轴事件返回 `timeline_event`、`pet`、`source_status`，其中 `source_status` 支持 `active`、`deleted`、`missing`、`unsupported`，用于排查派生事件与源记录是否一致。
-- 当前内容查询接口为后台只读治理能力，不引入删除、恢复或修复写操作；后续如要做数据修复，需先定义问题类型、状态机与审计动作。
+- 健康、日常、时间轴内容查询接口为后台只读排查能力，不引入删除、恢复或修复写操作；社区内容治理已提供独立下架/恢复接口并写审计。
 
 当前已落地的后台提醒接口：
 
@@ -1464,5 +1551,5 @@
 
 1. `preview` 和 `submit` 分离，尤其是订单和预约。
 2. 文件上传走对象存储直传，业务接口只接收 `asset_id`。
-3. 所有公开内容都必须经过审核态，不允许客户端直写“已发布”。
+3. 所有公开内容的审核态必须由服务端控制，不允许客户端直写“已发布”或任意审核状态。
 4. 所有状态迁移由服务端控制，前端只提交动作，不直接提交目标状态。

@@ -14,6 +14,8 @@ public class CreateCommunityPostCommand {
     private String title;
     private String content;
     private Long sourceDailyLogId;
+    private Long topicId;
+    private String mediaListJson;
     private String cityCode;
     private String visibility;
     private String reviewStatus;
@@ -73,6 +75,22 @@ public class CreateCommunityPostCommand {
 
     public void setSourceDailyLogId(Long sourceDailyLogId) {
         this.sourceDailyLogId = sourceDailyLogId;
+    }
+
+    public Long getTopicId() {
+        return topicId;
+    }
+
+    public void setTopicId(Long topicId) {
+        this.topicId = topicId;
+    }
+
+    public String getMediaListJson() {
+        return mediaListJson;
+    }
+
+    public void setMediaListJson(String mediaListJson) {
+        this.mediaListJson = mediaListJson;
     }
 
     public String getCityCode() {

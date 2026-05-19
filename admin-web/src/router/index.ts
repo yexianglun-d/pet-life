@@ -2,6 +2,8 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import { ADMIN_ACCESS_TOKEN_KEY } from '@/shared/constants/adminSession';
 import LoginView from '@/views/auth/LoginView.vue';
+import CommunityPostGovernanceView from '@/views/community/CommunityPostGovernanceView.vue';
+import CommunityQuestionGovernanceView from '@/views/community/CommunityQuestionGovernanceView.vue';
 import DailyLogContentView from '@/views/content/DailyLogContentView.vue';
 import HealthRecordReviewView from '@/views/content/HealthRecordReviewView.vue';
 import TimelineEventDebugView from '@/views/content/TimelineEventDebugView.vue';
@@ -38,6 +40,16 @@ const routes: RouteRecordRaw[] = [
         path: 'moderation',
         name: 'moderation',
         component: ModerationView
+      },
+      {
+        path: 'community-posts',
+        name: 'communityPosts',
+        component: CommunityPostGovernanceView
+      },
+      {
+        path: 'community-questions',
+        name: 'communityQuestions',
+        component: CommunityQuestionGovernanceView
       },
       {
         path: 'users',

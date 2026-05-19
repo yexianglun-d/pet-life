@@ -39,7 +39,11 @@ public class AuditLogApplicationService {
         "service_appointment",
         "provider_review"
     );
-    private static final Set<String> SUPPORTED_MODERATION_TARGET_TYPES = Set.of("moderation_report");
+    private static final Set<String> SUPPORTED_MODERATION_TARGET_TYPES = Set.of(
+        "moderation_report",
+        "community_post",
+        "community_question"
+    );
 
     private final AuditLogPersistenceMapper auditLogPersistenceMapper;
     private final AuditLogConverter auditLogConverter;

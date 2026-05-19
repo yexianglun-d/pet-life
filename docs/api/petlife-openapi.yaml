@@ -685,6 +685,209 @@ components:
           type: string
           format: date-time
 
+    CreateCommunityPostRequest:
+      type: object
+      required:
+        - content
+      properties:
+        pet_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: 关联宠物 ID
+        topic_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: 关联话题 ID
+        post_type:
+          type: string
+          enum: [image_text, video, qa, experience]
+          default: image_text
+        title:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: 问答帖必填；普通帖为空时由正文自动生成
+        content:
+          type: string
+          maxLength: 5000
+        media_asset_ids:
+          type: array
+          maxItems: 9
+          items:
+            type: string
+        city_code:
+          type: string
+          nullable: true
+        visibility:
+          type: string
+          enum: [public, follower]
+          default: public
+
+    CommunityAuthor:
+      type: object
+      properties:
+        user_id:
+          type: string
+        nickname:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          nullable: true
+
+    CommunityPet:
+      type: object
+      nullable: true
+      properties:
+        pet_id:
+          type: string
+        pet_name:
+          type: string
+        pet_type:
+          type: string
+        breed:
+          type: string
+          nullable: true
+
+    CommunityTopic:
+      type: object
+      nullable: true
+      properties:
+        topic_id:
+          type: string
+        topic_name:
+          type: string
+        topic_desc:
+          type: string
+          nullable: true
+        city_code:
+          type: string
+          nullable: true
+        status:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CommunityPost:
+      type: object
+      properties:
+        post_id:
+          type: string
+        post_type:
+          type: string
+          enum: [image_text, video, qa, experience]
+        title:
+          type: string
+        content:
+          type: string
+        source_daily_log_id:
+          type: string
+          nullable: true
+        topic:
+          $ref: '#/components/schemas/CommunityTopic'
+        media_asset_ids:
+          type: array
+          items:
+            type: string
+        media_assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaAsset'
+        city_code:
+          type: string
+          nullable: true
+        visibility:
+          type: string
+          enum: [public, follower]
+        review_status:
+          type: string
+          enum: [pending_review, approved, rejected]
+        like_count:
+          type: integer
+        comment_count:
+          type: integer
+        favorite_count:
+          type: integer
+        liked:
+          type: boolean
+        favorited:
+          type: boolean
+        published_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        author:
+          $ref: '#/components/schemas/CommunityAuthor'
+        pet:
+          $ref: '#/components/schemas/CommunityPet'
+
+    CommunityTopicDetail:
+      type: object
+      properties:
+        topic:
+          $ref: '#/components/schemas/CommunityTopic'
+        posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommunityPost'
+
+    CommunityComment:
+      type: object
+      properties:
+        comment_id:
+          type: string
+        post_id:
+          type: string
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        author:
+          $ref: '#/components/schemas/CommunityAuthor'
+
+    CommunityQuestionDetail:
+      type: object
+      properties:
+        question:
+          $ref: '#/components/schemas/CommunityPost'
+        answers:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommunityComment'
+
+    CommunityFollowStatus:
+      type: object
+      properties:
+        followed_user_id:
+          type: string
+        following:
+          type: boolean
+
+    AdminUpdateCommunityContentStatusRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum: [take_down, restore]
+        admin_notes:
+          type: string
+          maxLength: 500
+          nullable: true
+
     TimelineEvent:
       type: object
       properties:
@@ -2600,10 +2803,58 @@ paths:
             enum: [recommended, following, city, qa]
             default: recommended
           description: Tab 类型
+        - name: city_code
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 同城流城市编码；缺省时使用当前用户城市
       responses:
         '200':
           description: 获取成功
-          
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CommunityPost'
+
+  /community/posts:
+    post:
+      tags:
+        - 社区 (Community)
+      summary: 独立发布社区帖子
+      description: |
+        用户独立发布社区帖子，不依赖萌宠日常同步。
+
+        **说明**:
+        - 支持 image_text、video、qa、experience
+        - media_asset_ids 仅允许引用当前用户已上传完成且 biz_type=community 的图片或视频
+        - 当前不接第三方审核，发布后进入 approved；后台治理可下架或恢复
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommunityPostRequest'
+      responses:
+        '200':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityPost'
+
   /community/posts/{postId}:
     get:
       tags:
@@ -2626,7 +2877,70 @@ paths:
       responses:
         '200':
           description: 获取成功
-          
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityPost'
+
+  /community/topics/{topicId}:
+    get:
+      tags:
+        - 社区 (Community)
+      summary: 获取话题页
+      description: 获取启用话题信息及话题下当前用户可见帖子列表。
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 话题 ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityTopicDetail'
+
+  /community/questions/{questionId}:
+    get:
+      tags:
+        - 社区 (Community)
+      summary: 获取问答详情
+      description: 获取问答帖详情与回答列表，当前回答复用帖子评论承载。
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 问答帖子 ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityQuestionDetail'
+
   /community/posts/{postId}/comments:
     get:
       tags:
@@ -2790,6 +3104,85 @@ paths:
       responses:
         '200':
           description: 举报成功
+
+  /community/users/{userId}/follow:
+    post:
+      tags:
+        - 社区 (Community)
+      summary: 关注用户
+      description: 关注指定用户，不能关注自己。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 被关注用户 ID
+      responses:
+        '200':
+          description: 关注成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityFollowStatus'
+    delete:
+      tags:
+        - 社区 (Community)
+      summary: 取消关注用户
+      description: 取消关注指定用户。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 被关注用户 ID
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityFollowStatus'
+
+  /community/users/{userId}/follow-status:
+    get:
+      tags:
+        - 社区 (Community)
+      summary: 获取关注状态
+      description: 获取当前用户对指定用户的关注状态。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 被关注用户 ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityFollowStatus'
           
   # ==================== 服务中心模块 ====================
   /services/home:
@@ -4273,6 +4666,246 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/AdminTimelineEvent'
+
+  # ==================== 管理端 - 社区治理模块 ====================
+  /admin/community/posts:
+    get:
+      tags:
+        - 后台内容 (Admin Content)
+      summary: 后台社区帖子列表
+      description: 查询社区帖子，支持按类型、审核状态、可见性、作者、话题和关键词筛选。
+      parameters:
+        - name: post_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [image_text, video, qa, experience]
+        - name: review_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending_review, approved, rejected]
+        - name: visibility
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [public, follower]
+        - name: author_user_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: topic_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CommunityPost'
+
+  /admin/community/posts/{postId}:
+    get:
+      tags:
+        - 后台内容 (Admin Content)
+      summary: 后台社区帖子详情
+      description: 获取社区帖子详情，包含已下架内容。
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityPost'
+
+  /admin/community/posts/{postId}/status:
+    patch:
+      tags:
+        - 后台内容 (Admin Content)
+      summary: 后台帖子下架或恢复
+      description: |
+        对社区帖子执行下架或恢复，并写入 audit_logs。
+
+        **动作**:
+        - take_down: review_status=rejected
+        - restore: review_status=approved
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateCommunityContentStatusRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityPost'
+
+  /admin/community/questions:
+    get:
+      tags:
+        - 后台内容 (Admin Content)
+      summary: 后台问答内容列表
+      description: 查询 post_type=qa 的问答内容，支持审核状态、可见性、作者、话题和关键词筛选。
+      parameters:
+        - name: review_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending_review, approved, rejected]
+        - name: visibility
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [public, follower]
+        - name: author_user_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: topic_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CommunityPost'
+
+  /admin/community/questions/{questionId}:
+    get:
+      tags:
+        - 后台内容 (Admin Content)
+      summary: 后台问答详情
+      description: 获取问答帖详情与回答列表，包含已下架内容。
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityQuestionDetail'
+
+  /admin/community/questions/{questionId}/status:
+    patch:
+      tags:
+        - 后台内容 (Admin Content)
+      summary: 后台问答下架或恢复
+      description: 对问答内容执行下架或恢复，并写入 audit_logs。
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateCommunityContentStatusRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityPost'
           
   # ==================== 管理端 - 审核模块 ====================
   /admin/moderation/reports:
@@ -4357,7 +4990,7 @@ paths:
       tags:
         - 审核 (Moderation)
       summary: 获取审核审计日志
-      description: 获取举报处理相关审计日志，当前目标类型固定支持 moderation_report。
+      description: 获取举报处理与后台社区内容治理相关审计日志。
       parameters:
         - name: operator_id
           in: query
@@ -4370,14 +5003,20 @@ paths:
           required: false
           schema:
             type: string
-            enum: [moderation_report]
+            enum: [moderation_report, community_post, community_question]
           description: 审计目标类型
         - name: action
           in: query
           required: false
           schema:
             type: string
-            enum: [moderation_report_confirm_violation, moderation_report_dismiss_report]
+            enum:
+              - moderation_report_confirm_violation
+              - moderation_report_dismiss_report
+              - community_post_take_down
+              - community_post_restore
+              - community_question_take_down
+              - community_question_restore
           description: 审计动作
       responses:
         '200':

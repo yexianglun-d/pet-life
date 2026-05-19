@@ -10,6 +10,10 @@ import java.time.LocalDateTime;
  * @param title 标题
  * @param content 正文
  * @param sourceDailyLogId 来源萌宠日常 ID
+ * @param topicId 话题 ID
+ * @param topicName 话题名称
+ * @param topicDesc 话题说明
+ * @param mediaListJson 媒体资产 JSON
  * @param cityCode 城市编码
  * @param visibility 可见性
  * @param reviewStatus 审核状态
@@ -34,6 +38,10 @@ public record CommunityPostDataObject(
     String title,
     String content,
     Long sourceDailyLogId,
+    Long topicId,
+    String topicName,
+    String topicDesc,
+    String mediaListJson,
     String cityCode,
     String visibility,
     String reviewStatus,
