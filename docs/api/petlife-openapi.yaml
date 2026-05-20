@@ -136,6 +136,10 @@ components:
         provider_code:
           type: string
           example: "amap"
+        required_config_key:
+          type: string
+          example: "PETLIFE_AMAP_WEB_SERVICE_KEY"
+          description: 必需环境变量名，不返回 Key 明文
         configured:
           type: boolean
           description: 是否已配置 Web 服务 Key
@@ -6503,6 +6507,7 @@ paths:
 
         **说明**:
         - 不返回任何 Key 明文
+        - 返回 required_config_key 用于提示后端必需环境变量名
         - configured=false 时，地理编码和逆地理编码接口会返回 MAP_CONFIGURATION_MISSING
       responses:
         '200':

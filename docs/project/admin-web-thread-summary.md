@@ -7,6 +7,93 @@
 - 若功能状态变化，必须同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 所有状态按完整交付标准记录，不使用阶段性跑通或“核心可用”口径。
 
+## 2026-05-20 地图收口服务端补修同步
+
+### 1. 新完成内容
+
+- 服务端已修复地图收口验收反馈中的服务端缺口：增量 SQL 可补齐缺失的 `idx_service_providers_coordinate_source`，地图配置状态响应新增 `required_config_key=PETLIFE_AMAP_WEB_SERVICE_KEY`，高德 geocode / reverse-geocode 解析增强真实响应兼容。
+- 本轮未修改 admin-web 源码。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/technical/02-api-and-events.md`
+- 修改：`docs/technical/12-amap-location-foundation.sql`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/05-test-plan-and-report.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -Dtest=AmapWebServiceClientTests,AmapLocationApplicationServiceTests test`：通过，`Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`。
+- 使用远程 MySQL 配置运行服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 103, Failures: 0, Errors: 0, Skipped: 0`。
+- OpenAPI YAML 解析：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- admin-web 端到端地图排查页仍需真实高德 Web Key、最新服务端实例和服务商坐标数据。
+
+### 5. 风险或阻塞
+
+- 如果运行实例未重启到最新服务端代码，后台地图接口仍可能表现为旧路由不可用。
+
+### 6. 下一步建议
+
+1. 服务端实例重启并注入真实 Key 后，后台重新验收配置状态、地址解析、坐标反查和坐标保存。
+
+## 2026-05-20 地图排查页验收问题修正
+
+### 1. 新完成内容
+
+- 已读取 `docs/project/05-test-plan-and-report.md` 中“地图上线收口验收反馈”，本轮只修复后台地图排查页验收发现的展示与交互问题，不扩展新功能。
+- 修正地图配置状态展示，区分 `读取中`、`读取失败`、`待确认`、`已配置`、`未配置`，不再把配置未加载或加载失败误显示为 `未配置`。
+- 地址解析和坐标反查统一使用地图配置状态判断；配置读取中、读取失败、未配置时给出对应提示，避免误导为前端已持有或可绕过 Web 服务 Key。
+- 继续保持页面不展示假地图、不持有或展示真实 Key、不接 Web JS 地图 SDK。
+
+### 2. 新增/修改文件
+
+- 修改：`admin-web/src/views/service/ServiceMapDebugView.vue`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/03-ui-closure-checklist.md`
+
+### 3. 验证命令与结果
+
+- `npm run type-check`：通过。
+- `npm run build`：通过；Vite 仍提示主 chunk 超过 500 kB，这是当前后台工程既有打包体积警告，不影响构建结果。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实地址解析、坐标反查、坐标保存端到端验收仍依赖服务端注入真实 `PETLIFE_AMAP_WEB_SERVICE_KEY` 和测试库服务商坐标数据。
+- 后台仍未接 Web JS 地图、地图选点或真实路线距离排查。
+
+### 5. 风险或阻塞
+
+- 测试线程已记录：测试库索引、8080 最新服务实例、真实 Key、带坐标服务商数据和真机环境仍未完全就绪，地图上线收口尚不能按通过口径提交。
+- `config=false`、配置加载失败和真实高德接口不可用都只能由页面展示真实状态，admin-web 不做前端兜底模拟。
+
+### 6. 下一步建议
+
+1. 服务端注入真实 Key、补齐测试库服务商坐标数据后，重新验收地图配置、地址解析、坐标反查和坐标保存。
+2. 若后续要做后台地图选点或路线距离排查，先明确 Web JS Key 管理和新增后台接口边界。
+
+## 2026-05-20 地图上线收口测试反馈待办
+
+### 1. 测试结论
+
+- 不建议作为“地图上线收口验收通过”提交。
+- admin-web 的 `npm run type-check && npm run build` 通过，地图排查页代码检查通过，但真实地址解析、坐标反查和坐标保存仍依赖真实 Key 与服务商数据，尚未完成端到端验收。
+
+### 2. 后台端待处理
+
+- 等服务端注入真实 `PETLIFE_AMAP_WEB_SERVICE_KEY`、测试库补齐服务商坐标数据后，重新验收地图排查页。
+- 验收地图配置状态、地址解析、坐标反查、服务商坐标保存。
+- 页面继续保持不展示假地图、不持有或展示真实 Key。
+- 验收完成后同步更新 `docs/project/05-test-plan-and-report.md`、`docs/project/03-ui-closure-checklist.md` 和 `docs/project/04-admin-web-api-gap-list.md`。
+
 ## 2026-05-20 服务商地图坐标维护与地图能力排查页面接入
 
 ### 1. 新完成内容

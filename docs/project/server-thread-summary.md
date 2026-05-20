@@ -7,6 +7,89 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用“核心可用”等阶段性表述。
 
+## 2026-05-20 地图收口服务端补修
+
+### 新完成内容
+
+- 按测试线程输出修复地图收口服务端缺口，不扩展新地图能力。
+- `docs/technical/12-amap-location-foundation.sql` 改为可重复执行脚本，按字段和索引分别探测，修复“字段已存在但 `idx_service_providers_coordinate_source` 索引缺失”的部分迁移状态。
+- 服务端测试初始化补齐 `idx_service_providers_coordinate_source` 兼容逻辑，并新增测试断言索引存在。
+- `GET /api/v1/admin/map/config` 响应新增 `required_config_key=PETLIFE_AMAP_WEB_SERVICE_KEY`，配置缺失和配置正常两种状态都有明确响应且不返回 Key 明文。
+- 高德 Web 服务适配层补充真实响应兼容：逆地理编码 `city` 为数组时归一为空值；地理编码非法 `location` 不抛底层格式异常；高德错误返回携带 `info/infocode`。
+- 新增单元测试覆盖配置缺失、配置正常、geocode mock 解析、reverse-geocode 数组字段兼容、非法 location 和高德错误码透出。
+
+### 新增/修改文件
+
+- 修改服务端文件：
+  - `server/src/main/java/com/petlife/server/modules/location/domain/entity/AmapConfigStatusEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/location/dto/response/AmapConfigStatusResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/location/converter/AmapLocationConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/location/service/AmapLocationApplicationService.java`
+  - `server/src/main/java/com/petlife/server/modules/location/service/provider/AmapWebServiceClient.java`
+  - `server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+  - `server/src/test/java/com/petlife/server/modules/location/service/provider/AmapWebServiceClientTests.java`
+- 新增服务端测试文件：
+  - `server/src/test/java/com/petlife/server/modules/location/service/AmapLocationApplicationServiceTests.java`
+- 修改文档：
+  - `docs/technical/12-amap-location-foundation.sql`
+  - `docs/technical/02-api-and-events.md`
+  - `docs/api/petlife-openapi.yaml`
+  - `docs/project/server-thread-summary.md`
+  - `docs/project/05-test-plan-and-report.md`
+  - `docs/project/02-feature-completion-checklist.md`
+  - `docs/project/01-current-delivery-status.md`
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`
+  - 结果：通过。
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -Dtest=AmapWebServiceClientTests,AmapLocationApplicationServiceTests test`
+  - 结果：通过，`Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`。
+- 使用远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`
+  - 结果：通过，`Tests run: 103, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`
+  - 结果：通过。
+- `git diff --check`
+  - 结果：通过。
+- 高德 Web 服务 Key 默认值检查
+  - 结果：通过，未发现提交的真实 Key 或默认 Key。
+
+### 未完成事项
+
+- 不提交真实高德 Web 服务 Key；真实 `PETLIFE_AMAP_WEB_SERVICE_KEY` 注入后的 geocode / reverse-geocode 仍需环境侧验收。
+- 8080 运行实例是否为最新代码需要运行环境重启确认。
+- 测试库仍需要可验证 `distance_meters` 与 `sort=distance` 的服务商数据。
+- Android/iOS 真机定位、权限和外部导航验收属于移动端设备环境，服务端本轮不处理。
+
+### 风险或阻塞
+
+- 增量 SQL 已支持部分迁移修复，但生产/测试库是否执行仍取决于部署流程。
+- 高德异常信息会透出 `info/infocode`，用于后台排查；不会返回 Key 或签名信息。
+
+### 下一步建议
+
+1. 用最新服务端代码重启验收实例，避免旧 8080 进程继续返回静态资源错误。
+2. 注入真实 `PETLIFE_AMAP_WEB_SERVICE_KEY` 后重新验收 `config`、`geocode`、`reverse-geocode`。
+3. 准备带坐标服务商数据后，通过真实 HTTP 验证 `distance_meters` 与 `sort=distance`。
+
+## 2026-05-20 地图上线收口测试反馈待办
+
+### 测试结论
+
+- 不建议作为“地图上线收口验收通过”提交。
+- 服务端自动化测试通过，但上线验收缺少真实高德 Web Key 注入、最新实例重启和真实服务商距离排序数据。
+
+### 服务端待处理
+
+- 已补修 `docs/technical/12-amap-location-foundation.sql` 和测试库兼容逻辑，确保部分迁移状态可补齐 `idx_service_providers_coordinate_source`。
+- 用最新代码重启服务实例，避免 8080 继续跑旧版本导致 `/api/v1/admin/map/config` 返回静态资源错误。
+- 注入真实 `PETLIFE_AMAP_WEB_SERVICE_KEY` 后重新验收：
+  - `GET /api/v1/admin/map/config`
+  - `GET /api/v1/admin/map/geocode`
+  - `GET /api/v1/admin/map/reverse-geocode`
+- 准备带坐标的服务商测试数据，通过真实 HTTP 验证 `distance_meters` 与 `sort=distance`。
+- 补充或更新 `docs/project/05-test-plan-and-report.md` 的地图收口结论。
+
 ## 2026-05-20 高德 Web 服务与服务商定位底座
 
 ### 新完成内容

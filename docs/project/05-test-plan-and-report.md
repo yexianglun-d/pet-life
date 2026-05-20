@@ -28,6 +28,7 @@
 - 服务中心：城市开通配置、医院/洗护服务商、服务项目、时段、待确认预约、已完成预约、已取消预约、评价。
 - 通知：站内通知、消息模板、通知渠道配置、outbox 成功/失败样本。
 - 内容审核与 Push 底座：审核任务覆盖 `pending`、人工 `approved`、人工 `rejected`，并明确 `dev_noop` 与 `manual` 均不代表真实第三方审核；Push 数据覆盖设备 token、`dev_noop` pending 任务、pending 投递记录和 `notification_switch_off` skipped 排查记录。
+- 地图与定位：当前代码已覆盖高德 Web 服务底座、后台地图配置/地理编码/逆地理编码接口、服务商坐标维护、`distance_meters`、`sort=distance`、移动端高德定位 SDK 和外部地图导航入口；上线收口验收仍需补齐真实 Key、真实数据和真机验证。
 - 后台：后台账号、后台会话、审计日志、社区治理记录。
 - 预留模块：商城和设备链路提供结构性样本，并在数据内容中标识 `该功能待完善`。
 
@@ -42,6 +43,7 @@
 - 内容审核任务底座、公开流审核过滤、人工通过、人工拒绝、后台审核任务查询与详情。
 - 服务城市配置、服务商、服务项目、预约、取消、完成、评价与后台运营查询。
 - 站内通知、消息模板、通知渠道配置、Push token 注册/解绑、Push 任务和投递排查底座。
+- 高德 Web 服务底座、服务商坐标维护、服务商距离返回/排序、移动端定位 SDK 和外部地图导航入口。
 - 后台账号、后台会话、审计日志基础查询。
 
 ## 当前预留/待完善功能清单
@@ -50,7 +52,8 @@
 - 对象存储云厂商上传适配器与 CDN：该功能待完善。
 - 第三方内容审核接入：该功能待完善。
 - Push 推送通知通道：该功能待完善。
-- 地图定位、导航、距离排序：该功能待完善。
+- 地图上线收口验收：真实高德 Web Key 注入、测试库坐标索引补齐、真实服务商距离排序数据、Android/iOS 真机定位权限和外部导航验收待完成。
+- 地图增强项：App 内嵌地图、后台 Web JS 地图选点、真实路线距离/导航耗时待产品和 Key 策略明确后再做。
 - 商城模块：当前预留，该功能待完善。
 - 设备联动模块：当前预留，该功能待完善。
 - 完整监控告警、outbox 补偿、发布级审计加固：该功能待完善。
@@ -85,6 +88,50 @@
   - 结果：通过，`No issues found!`。
 - `rg -n "review_status = 'approved'|notification_switch|dev_noop|manual|content_snapshot|device_token" server/src/main/java admin-web/src mobile-app/lib docs/api/petlife-openapi.yaml`
   - 结果：静态证据显示用户侧社区公开查询过滤 `approved`；后台审核任务页展示 `content_snapshot`、`callback_payload` 并标注 `dev_noop/manual` 边界；Push 排查页不展示设备 token 原文，只展示 `device_token_id`；服务端 Push provider 当前 `dispatchEnabled=false`。
+
+## 2026-05-20 地图上线收口验收反馈
+
+结论：不建议作为“地图上线收口验收通过”提交。代码侧和构建侧大部分通过，但测试库迁移不完整、真实高德 Key 未注入、真机验收未执行，且本文件原先仍把已完成的地图代码能力整体标为“该功能待完善”。
+
+已通过项：
+- `admin-web`：`npm run type-check && npm run build` 通过，仅有 Vite chunk 体积警告。
+- `mobile-app`：`flutter analyze && flutter test && flutter build apk --debug` 通过，debug APK 已生成。
+- 根目录：`git diff --check` 通过，测试线程反馈时工作区干净。
+- `server`：在补齐测试库环境变量后 `mvn test` 通过，`Tests run: 97, Failures: 0, Errors: 0, Skipped: 0`。
+- 安全检查：全仓搜索未发现真实高德 Android / iOS / Web Key，只发现环境变量名、占位符、URI Scheme 和默认高德服务域名。
+- 后台代码检查：地图排查页明确不展示假地图、不展示 Key，并包含配置状态、地址解析、坐标反查、坐标保存入口。
+- 移动端代码检查：Android Key 通过 Gradle manifest placeholder 注入，Dart 侧通过 `String.fromEnvironment` 读取 Android/iOS Key；外部高德 App 拉起和 Web fallback 已实现。
+
+未通过项：
+- `docs/technical/12-amap-location-foundation.sql` 未能确认已完整执行；测试库中 `coordinate_source`、`coordinate_updated_at` 字段存在，但 `idx_service_providers_coordinate_source` 索引缺失。
+- 当前 8080 上的 IDEA 运行实例不是最新地图代码版本，`/api/v1/admin/map/config` 返回 `No static resource api/v1/admin/map/config`；临时在 18080 启动当前代码后地图路由才可用。
+- 18080 当前代码实例未注入 `PETLIFE_AMAP_WEB_SERVICE_KEY`，`GET /api/v1/admin/map/config` 返回 `configured=false`，`geocode` 和 `reverse-geocode` 返回 `MAP_CONFIGURATION_MISSING`，未完成真实高德 Web 服务调用验收。
+- `/api/v1/providers?latitude=&longitude=&sort=distance` 实际 HTTP 调用返回 200 OK，但测试库当前服务商列表为空，无法用真实数据验证 `distance_meters` 与 `sort=distance`。
+- `flutter devices` 未发现 Android/iOS 真机或模拟器；定位授权、拒绝、永久拒绝、系统定位关闭、外部高德导航拉起均未完成真机验收。
+
+需要三端补修：
+- 服务端：补执行或修复迁移，确保 `idx_service_providers_coordinate_source` 在测试库存在；用最新代码重启服务实例，避免 8080 继续跑旧版本。
+- 服务端：注入真实 `PETLIFE_AMAP_WEB_SERVICE_KEY` 后重新验收 `config`、`geocode`、`reverse-geocode`。
+- 服务端/数据：测试库需要有带坐标的服务商数据，才能通过真实 HTTP 验证 `distance_meters` 与 `sort=distance`。
+- 移动端：注入 `AMAP_ANDROID_KEY`、`AMAP_IOS_KEY` 并连接 Android/iOS 真机或模拟器，补完权限、定位失败、外部导航拉起验收。
+- 后台端：页面代码和构建通过，但真实地址解析、坐标反查、坐标保存仍依赖真实 Key 和服务商数据，当前未完成端到端验收。
+
+## 2026-05-20 地图收口服务端补修
+
+已修复项：
+
+- `docs/technical/12-amap-location-foundation.sql` 已改为按列和索引分别探测的可重复执行脚本；可修复字段已存在但 `idx_service_providers_coordinate_source` 缺失的部分迁移状态。
+- `PhaseOneApiTests` 启动时会检查并补建 `idx_service_providers_coordinate_source`，并新增断言确保测试库索引存在。
+- `GET /api/v1/admin/map/config` 响应新增 `required_config_key=PETLIFE_AMAP_WEB_SERVICE_KEY`，配置缺失和配置正常两种状态都有明确响应。
+- 高德 Web 服务适配层增强真实响应兼容：逆地理编码 `city` 为数组时可解析为空值；地理编码返回非法 `location` 时不抛底层格式异常；高德异常返回会带上 `info/infocode`。
+- 新增单元测试覆盖配置缺失、配置正常、geocode mock 解析、reverse-geocode 数组字段兼容、非法 location 和高德错误码透出。
+
+仍未通过项：
+
+- 当前线程不提交真实高德 Web 服务 Key，真实 `PETLIFE_AMAP_WEB_SERVICE_KEY` 注入后的 geocode / reverse-geocode 仍需环境侧验收。
+- 8080 运行实例是否为最新代码需要运行环境重启确认，代码层无法替代。
+- 测试库仍需要可验证距离排序的真实服务商数据。
+- Android/iOS 真机定位、权限和外部导航验收仍需移动端设备环境。
 
 ## 缺陷清单
 

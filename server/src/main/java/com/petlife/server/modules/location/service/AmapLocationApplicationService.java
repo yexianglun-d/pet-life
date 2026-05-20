@@ -26,6 +26,7 @@ public class AmapLocationApplicationService {
     private static final BigDecimal MIN_LONGITUDE = BigDecimal.valueOf(-180);
     private static final BigDecimal MAX_LONGITUDE = BigDecimal.valueOf(180);
     private static final double EARTH_RADIUS_METERS = 6371008.8D;
+    private static final String REQUIRED_CONFIG_KEY = "PETLIFE_AMAP_WEB_SERVICE_KEY";
 
     private final AmapWebServiceProperties properties;
     private final AmapWebServiceClient amapWebServiceClient;
@@ -44,6 +45,7 @@ public class AmapLocationApplicationService {
     public AmapConfigStatusResponse getConfigStatus() {
         return amapLocationConverter.toConfigStatusResponse(new AmapConfigStatusEntity(
             "amap",
+            REQUIRED_CONFIG_KEY,
             properties.isConfigured(),
             properties.getBaseUrl(),
             List.of("geocode", "reverse_geocode", "distance"),

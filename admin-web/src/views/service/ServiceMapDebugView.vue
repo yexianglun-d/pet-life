@@ -10,7 +10,7 @@
         <span class="pet-admin-chip">服务商 {{ providers.length }} 家</span>
         <span class="pet-admin-chip">已维护坐标 {{ locatedProviderCount }} 家</span>
         <span class="pet-admin-chip">缺坐标 {{ missingCoordinateCount }} 家</span>
-        <span class="pet-admin-chip">地图配置 {{ mapConfig?.configured ? '已配置' : '未配置' }}</span>
+        <span class="pet-admin-chip">地图配置 {{ mapConfigStatusLabel }}</span>
       </div>
     </div>
 
@@ -60,7 +60,7 @@
           <div>
             <dt>配置状态</dt>
             <dd>
-              <el-tag :type="mapConfig.configured ? 'success' : 'warning'">
+              <el-tag :type="mapConfigStatusTagType">
                 {{ mapConfig.configured ? 'Web 服务 Key 已配置' : 'Web 服务 Key 未配置' }}
               </el-tag>
             </dd>
@@ -83,6 +83,9 @@
             <dd>{{ mapConfig.message }}</dd>
           </div>
         </dl>
+        <div v-else class="service-map-empty-inline">
+          {{ mapConfigLoading ? '正在读取地图配置状态' : '地图配置状态暂不可用，请刷新重试' }}
+        </div>
       </article>
 
       <article class="pet-admin-panel">
@@ -274,7 +277,7 @@
             <el-button
               type="primary"
               :loading="geocodeLoading"
-              :disabled="!mapConfig?.configured"
+              :disabled="!mapServiceReady"
               @click="handleGeocode"
             >
               地址转坐标
@@ -284,8 +287,8 @@
             </el-button>
           </div>
           <el-alert
-            v-if="!mapConfig?.configured"
-            title="地图 Web 服务 Key 未配置，无法使用地理编码辅助"
+            v-if="mapServiceUnavailableReason"
+            :title="mapServiceUnavailableReason"
             type="warning"
             show-icon
             class="service-map-inline-alert"
@@ -406,6 +409,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
 
 type ElementTagType = 'success' | 'warning' | 'danger' | 'info' | 'primary';
+type MapConfigStatus = 'loading' | 'error' | 'unknown' | 'configured' | 'missing';
 
 interface LocationFormState {
   address: string;
@@ -474,11 +478,59 @@ const amapCoordinateCount = computed(
   () => providers.value.filter((provider) => provider.coordinate_source === 'amap').length
 );
 const distanceCapabilityReady = computed(
-  () => Boolean(mapConfig.value?.configured && mapConfig.value.capabilities.includes('distance'))
+  () => Boolean(mapServiceReady.value && mapConfig.value?.capabilities.includes('distance'))
 );
 const canReverseLocationForm = computed(
-  () => locationForm.latitude !== null && locationForm.longitude !== null && Boolean(mapConfig.value?.configured)
+  () => locationForm.latitude !== null && locationForm.longitude !== null && mapServiceReady.value
 );
+const mapConfigStatus = computed<MapConfigStatus>(() => {
+  if (mapConfigLoading.value && !mapConfig.value) {
+    return 'loading';
+  }
+  if (mapConfigErrorMessage.value && !mapConfig.value) {
+    return 'error';
+  }
+  if (!mapConfig.value) {
+    return 'unknown';
+  }
+  return mapConfig.value.configured ? 'configured' : 'missing';
+});
+const mapConfigStatusLabel = computed(() => {
+  const labelMap: Record<MapConfigStatus, string> = {
+    loading: '读取中',
+    error: '读取失败',
+    unknown: '待确认',
+    configured: '已配置',
+    missing: '未配置'
+  };
+  return labelMap[mapConfigStatus.value];
+});
+const mapConfigStatusTagType = computed<ElementTagType>(() => {
+  const tagTypeMap: Record<MapConfigStatus, ElementTagType> = {
+    loading: 'info',
+    error: 'danger',
+    unknown: 'info',
+    configured: 'success',
+    missing: 'warning'
+  };
+  return tagTypeMap[mapConfigStatus.value];
+});
+const mapServiceReady = computed(() => mapConfig.value?.configured === true);
+const mapServiceUnavailableReason = computed(() => {
+  if (mapServiceReady.value) {
+    return '';
+  }
+  if (mapConfigLoading.value && !mapConfig.value) {
+    return '正在读取地图配置状态，读取完成后才能使用地理编码或坐标反查';
+  }
+  if (mapConfigErrorMessage.value && !mapConfig.value) {
+    return '地图配置状态加载失败，请刷新配置后再使用地理编码或坐标反查';
+  }
+  if (mapConfig.value && !mapConfig.value.configured) {
+    return '地图 Web 服务 Key 未配置，无法使用地理编码或坐标反查';
+  }
+  return '地图配置状态未确认，无法使用地理编码或坐标反查';
+});
 const summaryCards = computed(() => [
   {
     title: '坐标覆盖',
@@ -554,6 +606,10 @@ function openLocationDrawer(provider: ServiceProviderSnapshot) {
 }
 
 async function handleGeocode() {
+  if (!mapServiceReady.value) {
+    ElMessage.warning(mapServiceUnavailableReason.value || '请先确认地图服务已配置');
+    return;
+  }
   if (!geocodeForm.address.trim()) {
     ElMessage.warning('请输入需要解析的地址');
     return;
@@ -589,8 +645,12 @@ function applyGeocodeResult() {
 }
 
 async function handleReverseGeocode() {
-  if (!canReverseLocationForm.value || locationForm.latitude === null || locationForm.longitude === null) {
-    ElMessage.warning('请先填写合法经纬度，并确认地图服务已配置');
+  if (locationForm.latitude === null || locationForm.longitude === null) {
+    ElMessage.warning('请先填写合法经纬度');
+    return;
+  }
+  if (!mapServiceReady.value) {
+    ElMessage.warning(mapServiceUnavailableReason.value || '请先确认地图服务已配置');
     return;
   }
   reverseGeocodeLoading.value = true;
@@ -820,6 +880,16 @@ function formatDateTime(value: string) {
 
 .service-map-error {
   margin-bottom: 16px;
+}
+
+.service-map-empty-inline {
+  padding: 16px;
+  border: 1px solid var(--pet-admin-line);
+  border-radius: 16px;
+  background: var(--pet-admin-surface-soft);
+  color: var(--pet-admin-muted);
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .service-map-table {

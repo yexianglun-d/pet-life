@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -390,6 +391,12 @@ class PhaseOneApiTests {
                 ADD COLUMN coordinate_updated_at DATETIME DEFAULT NULL COMMENT '坐标更新时间' AFTER coordinate_source
                 """);
         }
+        if (!tableIndexExists("service_providers", "idx_service_providers_coordinate_source")) {
+            jdbcTemplate.execute("""
+                CREATE INDEX idx_service_providers_coordinate_source
+                ON service_providers (coordinate_source, coordinate_updated_at)
+                """);
+        }
     }
 
     private boolean tableColumnExists(String tableName, String columnName) {
@@ -401,6 +408,17 @@ class PhaseOneApiTests {
               AND COLUMN_NAME = ?
             """, Integer.class, tableName, columnName);
         return columnCount != null && columnCount > 0;
+    }
+
+    private boolean tableIndexExists(String tableName, String indexName) {
+        Integer indexCount = jdbcTemplate.queryForObject("""
+            SELECT COUNT(*)
+            FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ?
+              AND INDEX_NAME = ?
+            """, Integer.class, tableName, indexName);
+        return indexCount != null && indexCount > 0;
     }
 
     private void ensureCommunityReportAdminNotesColumn() {
@@ -3646,6 +3664,11 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data[0].coordinate_source", is("amap")))
             .andExpect(jsonPath("$.data[0].distance_meters").isNumber())
             .andExpect(jsonPath("$.data[1].provider_id", is(farProvider.providerId())));
+    }
+
+    @Test
+    void shouldEnsureServiceProviderCoordinateIndexForPartialMigration() {
+        assertTrue(tableIndexExists("service_providers", "idx_service_providers_coordinate_source"));
     }
 
     @Test

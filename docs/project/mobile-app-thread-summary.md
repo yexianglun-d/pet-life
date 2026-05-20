@@ -7,6 +7,100 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-20 地图收口服务端补修同步
+
+### 1. 新完成内容
+
+- 服务端已修复地图收口验收反馈中的服务端缺口：测试库可补齐服务商坐标索引，地图配置状态响应明确 `required_config_key=PETLIFE_AMAP_WEB_SERVICE_KEY`，高德真实响应解析更稳。
+- 本轮未修改 mobile-app 源码。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/technical/02-api-and-events.md`
+- 修改：`docs/technical/12-amap-location-foundation.sql`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/05-test-plan-and-report.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -Dtest=AmapWebServiceClientTests,AmapLocationApplicationServiceTests test`：通过，`Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`。
+- 使用远程 MySQL 配置运行服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 103, Failures: 0, Errors: 0, Skipped: 0`。
+- OpenAPI YAML 解析：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- Android/iOS 真机定位、权限和外部导航验收仍未执行。
+
+### 5. 风险或阻塞
+
+- 服务端仍不提交真实高德 Web Key；移动端仍需使用移动端自己的 Android/iOS Key，不能复用服务端 Web Key。
+
+### 6. 下一步建议
+
+1. 服务端真实 Key 与服务商坐标数据就绪后，再联动移动端真机验收服务商距离展示和外部导航。
+
+## 2026-05-20 移动端地图收口验收反馈修正
+
+### 1. 新完成内容
+
+- 已读取 `docs/project/05-test-plan-and-report.md` 的地图上线收口验收反馈；本轮只处理 mobile-app 相关问题，不修改 server / admin-web。
+- 补充 `mobile-app/README.md` 高德 Android / iOS Key 本地注入说明，明确 Android Gradle manifest placeholder 与 Dart `--dart-define` 的运行方式，不提交真实 Key。
+- 定位服务在当前平台缺少 `AMAP_ANDROID_KEY` 或 `AMAP_IOS_KEY` 时，直接展示“地图定位还没有完成本地 Key 配置”，不先触发系统定位权限弹窗，未授权或未配置均不阻塞服务商浏览。
+- 外部导航拉起补充异常兜底：高德 App scheme 拉起失败或系统拒绝时继续尝试高德网页导航，网页导航也失败时返回失败态并由页面展示统一反馈。
+
+### 2. 新增/修改文件
+
+- 修改：`mobile-app/README.md`
+- 修改：`mobile-app/lib/shared/location/petlife_location_service.dart`
+- 修改：`mobile-app/lib/shared/location/service_map_launcher.dart`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- `/Users/deng/development/flutter/bin/dart format --set-exit-if-changed lib/shared/location/petlife_location_service.dart lib/shared/location/service_map_launcher.dart`：通过，`Formatted 2 files (0 changed)`。
+- `/Users/deng/development/flutter/bin/flutter analyze`：通过，`No issues found!`。
+- `/Users/deng/development/flutter/bin/flutter test`：通过，`All tests passed!`。
+- `/Users/deng/development/flutter/bin/flutter build apk --debug`：通过，生成 `build/app/outputs/flutter-apk/app-debug.apk`。
+- `/Users/deng/development/flutter/bin/flutter devices`：当前仅发现 macOS、Mac Designed for iPad、Chrome，未发现 Android/iOS 真机或模拟器。
+- `rg -n "AMAP|amap|高德|Key" mobile-app/README.md mobile-app/android mobile-app/ios mobile-app/lib mobile-app/pubspec.yaml`：未发现提交真实高德 Key，仅保留环境变量名、占位说明、依赖名和 URL scheme。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 仍未发现 Android/iOS 真机或模拟器，本轮无法补完真实定位授权、拒绝、永久拒绝、系统定位关闭和外部导航拉起的设备验收。
+- 不接 App 内嵌地图，不接真实路线距离，不扩展地图选点或后台地图能力。
+
+### 5. 风险或阻塞
+
+- 真机验收仍依赖本地注入真实 `AMAP_ANDROID_KEY`、`AMAP_IOS_KEY`，以及可用 Android/iOS 设备或模拟器。
+- 高德网页导航 fallback 依赖设备可打开外部浏览器或系统可处理 https 链接；若系统层面禁止外部链接，只能展示失败反馈。
+
+### 6. 下一步建议
+
+1. 连接 Android / iOS 真机或模拟器，并按 `mobile-app/README.md` 注入真实 Key 后重新验收定位和导航。
+2. 真机验收通过后，再同步更新 `docs/project/05-test-plan-and-report.md` 的地图上线收口结论。
+
+## 2026-05-20 地图上线收口测试反馈待办
+
+### 1. 测试结论
+
+- 不建议作为“地图上线收口验收通过”提交。
+- mobile-app 的 `flutter analyze`、`flutter test`、`flutter build apk --debug` 均通过，但未发现 Android/iOS 真机或模拟器，定位权限和外部导航未完成设备验收。
+
+### 2. 移动端待处理
+
+- 注入真实 `AMAP_ANDROID_KEY`、`AMAP_IOS_KEY` 后，在 Android/iOS 真机或模拟器执行验收。
+- 验收定位权限授权、拒绝、永久拒绝、系统定位关闭和定位失败状态。
+- 验收服务商距离展示、按距离排序、无坐标服务商展示。
+- 验收外部高德 App 导航拉起和 Web 导航 fallback。
+- 验收完成后同步更新 `docs/project/05-test-plan-and-report.md`、`docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
+
 ## 2026-05-20 服务端确认服务商距离参数与字段
 
 ### 1. 新完成内容

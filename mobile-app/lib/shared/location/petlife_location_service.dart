@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:csp_amap_flutter_location/amap_flutter_location.dart';
 import 'package:csp_amap_flutter_location/amap_location_option.dart';
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:petlife_mobile_app/shared/location/petlife_location_models.dart';
 
@@ -14,6 +15,13 @@ class PetLifeLocationService {
   Future<PetLifeLocationResult> requestCurrentLocation({
     Duration timeout = const Duration(seconds: 15),
   }) async {
+    if (!_hasCurrentPlatformKey) {
+      return const PetLifeLocationResult(
+        status: PetLifeLocationStatus.keyMissing,
+        message: '地图定位还没有完成本地 Key 配置，可继续浏览服务商。',
+      );
+    }
+
     final ServiceStatus serviceStatus =
         await Permission.locationWhenInUse.serviceStatus;
     if (serviceStatus == ServiceStatus.disabled) {
@@ -97,6 +105,14 @@ class PetLifeLocationService {
       return currentStatus;
     }
     return Permission.locationWhenInUse.request();
+  }
+
+  bool get _hasCurrentPlatformKey {
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => _androidKey.trim().isNotEmpty,
+      TargetPlatform.iOS => _iosKey.trim().isNotEmpty,
+      _ => false,
+    };
   }
 
   PetLifeLocationResult _toLocationResult(Map<String, Object> payload) {

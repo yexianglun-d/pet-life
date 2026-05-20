@@ -10,16 +10,24 @@ class ServiceMapLauncher {
       return false;
     }
 
-    final Uri? nativeUri = _buildNativeAmapUri(provider);
-    if (nativeUri != null &&
-        await launchUrl(nativeUri, mode: LaunchMode.externalApplication)) {
-      return true;
+    try {
+      final Uri? nativeUri = _buildNativeAmapUri(provider);
+      if (nativeUri != null &&
+          await launchUrl(nativeUri, mode: LaunchMode.externalApplication)) {
+        return true;
+      }
+    } catch (_) {
+      // 高德 App 未安装或系统拒绝自定义 scheme 时，继续尝试网页地图。
     }
 
-    return launchUrl(
-      _buildAmapWebUri(provider),
-      mode: LaunchMode.externalApplication,
-    );
+    try {
+      return launchUrl(
+        _buildAmapWebUri(provider),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      return false;
+    }
   }
 
   Uri? _buildNativeAmapUri(ServiceProviderSnapshot provider) {

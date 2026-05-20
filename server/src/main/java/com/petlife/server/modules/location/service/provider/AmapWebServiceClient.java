@@ -9,6 +9,7 @@ import com.petlife.server.modules.location.domain.entity.AmapReverseGeocodeEntit
 import com.petlife.server.modules.location.domain.entity.GeoPointEntity;
 import com.petlife.server.modules.location.service.AmapWebServiceProperties;
 import java.math.BigDecimal;
+import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -143,9 +144,14 @@ public class AmapWebServiceClient {
     private void ensureAmapSuccess(JsonNode response) {
         if (response == null || !SUCCESS_STATUS.equals(response.path("status").asText())) {
             String info = response == null ? null : nullableText(response.path("info"));
+            String infoCode = response == null ? null : nullableText(response.path("infocode"));
+            String message = info == null ? "高德地图服务返回异常" : "高德地图服务返回异常：" + info;
+            if (infoCode != null) {
+                message = message + " (" + infoCode + ")";
+            }
             throw new BusinessException(
                 ResponseCode.MAP_PROVIDER_REQUEST_FAILED,
-                info == null ? "高德地图服务返回异常" : "高德地图服务返回异常：" + info
+                message
             );
         }
     }
@@ -164,7 +170,11 @@ public class AmapWebServiceClient {
         if (parts.length != 2) {
             return null;
         }
-        return new GeoPointEntity(new BigDecimal(parts[1]), new BigDecimal(parts[0]));
+        try {
+            return new GeoPointEntity(new BigDecimal(parts[1]), new BigDecimal(parts[0]));
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private String toAmapLocation(GeoPointEntity point) {
@@ -177,7 +187,13 @@ public class AmapWebServiceClient {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return null;
         }
-        String text = node.asText();
+        String text;
+        if (node.isArray()) {
+            Iterator<JsonNode> elements = node.elements();
+            text = elements.hasNext() ? elements.next().asText() : null;
+        } else {
+            text = node.asText();
+        }
         return text == null || text.isBlank() || "[]".equals(text) ? null : text;
     }
 

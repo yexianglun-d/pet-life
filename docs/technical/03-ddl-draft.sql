@@ -530,6 +530,8 @@ CREATE TABLE IF NOT EXISTS `service_providers` (
   `address` VARCHAR(255) DEFAULT NULL COMMENT '地址',
   `latitude` DECIMAL(10,6) DEFAULT NULL COMMENT '纬度',
   `longitude` DECIMAL(10,6) DEFAULT NULL COMMENT '经度',
+  `coordinate_source` VARCHAR(20) DEFAULT NULL COMMENT '坐标来源：manual/amap',
+  `coordinate_updated_at` DATETIME DEFAULT NULL COMMENT '坐标更新时间',
   `contact_phone` VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
   `business_hours` VARCHAR(255) DEFAULT NULL COMMENT '营业时间',
   `rating_avg` DECIMAL(3,2) DEFAULT NULL COMMENT '平均评分',
@@ -541,7 +543,8 @@ CREATE TABLE IF NOT EXISTS `service_providers` (
   `deleted_at` DATETIME DEFAULT NULL COMMENT '软删除时间',
   PRIMARY KEY (`id`),
   KEY `idx_service_providers_type_city_status` (`provider_type`, `city_code`, `status`),
-  KEY `idx_service_providers_location` (`city_code`, `latitude`, `longitude`)
+  KEY `idx_service_providers_location` (`city_code`, `latitude`, `longitude`),
+  KEY `idx_service_providers_coordinate_source` (`coordinate_source`, `coordinate_updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='服务商表';
 
 CREATE TABLE IF NOT EXISTS `provider_service_items` (

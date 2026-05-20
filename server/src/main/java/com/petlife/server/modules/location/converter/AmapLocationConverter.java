@@ -17,6 +17,7 @@ public class AmapLocationConverter {
     public AmapConfigStatusResponse toConfigStatusResponse(AmapConfigStatusEntity entity) {
         return new AmapConfigStatusResponse(
             entity.providerCode(),
+            entity.requiredConfigKey(),
             entity.configured(),
             entity.baseUrl(),
             entity.capabilities(),

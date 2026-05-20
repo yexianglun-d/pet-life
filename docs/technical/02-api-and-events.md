@@ -1633,8 +1633,8 @@ DDL 说明：
 说明：
 
 - 高德 Web 服务 Key 仅通过 `PETLIFE_AMAP_WEB_SERVICE_KEY` 注入，不提交到代码、文档或测试数据。
-- `GET /api/v1/admin/map/config` 只返回 `configured`、`base_url` 和能力列表，不返回 Key。
-- 地理编码、逆地理编码通过服务端 HTTP Client 调用高德 Web 服务；配置缺失时返回 `MAP_CONFIGURATION_MISSING`。
+- `GET /api/v1/admin/map/config` 返回 `required_config_key=PETLIFE_AMAP_WEB_SERVICE_KEY`、`configured`、`base_url` 和能力列表，不返回 Key 明文。
+- 地理编码、逆地理编码通过服务端 HTTP Client 调用高德 Web 服务；配置缺失时返回 `MAP_CONFIGURATION_MISSING`，高德返回异常时返回 `MAP_PROVIDER_REQUEST_FAILED` 并带上高德 `info/infocode`。
 - 高德 Web 服务适配层已包含距离接口封装；用户端服务商目录目前使用本地直线距离做排序，真实路径距离和导航不在本轮范围。
 - 本轮不接地图 SDK，不实现前端地图组件，不实现真实导航。
 

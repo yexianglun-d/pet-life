@@ -7,6 +7,7 @@ import java.util.List;
  */
 public record AmapConfigStatusResponse(
     String providerCode,
+    String requiredConfigKey,
     boolean configured,
     String baseUrl,
     List<String> capabilities,
