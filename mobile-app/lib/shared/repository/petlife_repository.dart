@@ -218,6 +218,9 @@ abstract interface class PetLifeRepository {
   Future<List<ServiceProviderSnapshot>> listServiceProviders({
     String? providerType,
     String? cityCode,
+    double? latitude,
+    double? longitude,
+    String? sort,
   });
 
   Future<ServiceProviderSnapshot> getServiceProvider(String providerId);

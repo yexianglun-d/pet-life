@@ -54,3 +54,9 @@ petlife:
       endpoint: ${PETLIFE_MEDIA_STORAGE_ENDPOINT:}
       region: ${PETLIFE_MEDIA_STORAGE_REGION:}
       max-file-size-bytes: ${PETLIFE_MEDIA_MAX_FILE_SIZE_BYTES:20971520}
+  amap:
+    web-service:
+      key: ${PETLIFE_AMAP_WEB_SERVICE_KEY:}
+      base-url: ${PETLIFE_AMAP_WEB_SERVICE_BASE_URL:https://restapi.amap.com}
+      connect-timeout-ms: ${PETLIFE_AMAP_WEB_SERVICE_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${PETLIFE_AMAP_WEB_SERVICE_READ_TIMEOUT_MS:5000}

@@ -24,6 +24,7 @@
         <el-menu-item index="/notification-channels">通知渠道</el-menu-item>
         <el-menu-item index="/push-deliveries">Push 投递</el-menu-item>
         <el-menu-item index="/service-providers">服务商管理</el-menu-item>
+        <el-menu-item index="/service-map">地图排查</el-menu-item>
         <el-menu-item index="/system-config">系统配置</el-menu-item>
       </el-menu>
       <div class="admin-layout__aside-note">
@@ -34,7 +35,7 @@
       <el-header class="admin-layout__header">
         <div>
           <div class="admin-layout__header-title">运营与治理中心</div>
-          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 审核任务 / 社区治理 / 健康档案 / 萌宠日常 / 时间轴 / 提醒 / 通知 / Push 排查 / 服务管理</div>
+          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 审核任务 / 社区治理 / 健康档案 / 萌宠日常 / 时间轴 / 提醒 / 通知 / Push 排查 / 服务管理 / 地图排查</div>
         </div>
         <div class="admin-layout__header-actions">
           <div class="admin-layout__operator">{{ operatorName }}</div>

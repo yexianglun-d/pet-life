@@ -7,6 +7,102 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用“核心可用”等阶段性表述。
 
+## 2026-05-20 高德 Web 服务与服务商定位底座
+
+### 新完成内容
+
+- 新增高德 Web 服务配置读取，使用 `PETLIFE_AMAP_WEB_SERVICE_KEY` 注入，不提交真实 Key。
+- 新增高德 HTTP Client 适配层，覆盖地理编码、逆地理编码和距离接口封装；配置缺失时返回 `MAP_CONFIGURATION_MISSING`，供应商请求异常返回 `MAP_PROVIDER_REQUEST_FAILED`。
+- 新增后台地图运营接口：
+  - `GET /api/v1/admin/map/config`
+  - `GET /api/v1/admin/map/geocode`
+  - `GET /api/v1/admin/map/reverse-geocode`
+- 新增服务商坐标维护接口：
+  - `PATCH /api/v1/admin/service/providers/{providerId}/location`
+- 服务商列表 `GET /api/v1/providers` 支持 `latitude`、`longitude` 和 `sort=distance`，返回 `distance_meters`；当前按已维护坐标计算直线距离，不伪装真实导航路线距离。
+- 新增 `docs/technical/12-amap-location-foundation.sql`，补充服务商坐标来源和坐标更新时间字段草案。
+- 补充测试覆盖配置缺失、适配层 Mock HTTP、服务商坐标维护、服务商距离返回和距离排序。
+
+### 新增/修改文件
+
+- 新增服务端文件：
+  - `server/src/main/java/com/petlife/server/modules/location/controller/AdminMapController.java`
+  - `server/src/main/java/com/petlife/server/modules/location/config/AmapWebServiceClientConfig.java`
+  - `server/src/main/java/com/petlife/server/modules/location/converter/AmapLocationConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/location/domain/entity/AmapConfigStatusEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/location/domain/entity/AmapDistanceEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/location/domain/entity/AmapGeocodeEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/location/domain/entity/AmapReverseGeocodeEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/location/domain/entity/GeoPointEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/location/dto/request/AdminGeocodeRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/location/dto/response/AmapConfigStatusResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/location/dto/response/AmapGeocodeResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/location/dto/response/AmapReverseGeocodeResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/location/service/AmapLocationApplicationService.java`
+  - `server/src/main/java/com/petlife/server/modules/location/service/AmapWebServiceProperties.java`
+  - `server/src/main/java/com/petlife/server/modules/location/service/provider/AmapWebServiceClient.java`
+  - `server/src/main/java/com/petlife/server/modules/service/dto/request/AdminUpdateProviderLocationRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/service/persistence/command/UpdateServiceProviderLocationCommand.java`
+  - `server/src/test/java/com/petlife/server/modules/location/service/provider/AmapWebServiceClientTests.java`
+  - `docs/technical/12-amap-location-foundation.sql`
+- 修改服务端文件：
+  - `server/src/main/resources/application.yml`
+  - `server/src/main/java/com/petlife/server/common/response/ResponseCode.java`
+  - `server/src/main/java/com/petlife/server/config/GlobalExceptionHandler.java`
+  - `server/src/main/java/com/petlife/server/modules/service/controller/ServiceCenterController.java`
+  - `server/src/main/java/com/petlife/server/modules/service/controller/AdminServiceCenterController.java`
+  - `server/src/main/java/com/petlife/server/modules/service/converter/ServiceProviderConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/service/domain/entity/ServiceProviderEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/service/dto/request/AdminUpsertServiceProviderRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/service/dto/response/ServiceProviderResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/service/persistence/ServiceCenterPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/service/persistence/command/UpsertServiceProviderCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/service/persistence/dataobject/ServiceProviderDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/service/service/ServiceCenterApplicationService.java`
+  - `server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+- 修改文档：
+  - `docs/api/petlife-openapi.yaml`
+  - `docs/technical/02-api-and-events.md`
+  - `docs/project/server-thread-summary.md`
+  - `docs/project/admin-web-thread-summary.md`
+  - `docs/project/mobile-app-thread-summary.md`
+  - `docs/project/04-admin-web-api-gap-list.md`
+  - `docs/project/02-feature-completion-checklist.md`
+  - `docs/project/01-current-delivery-status.md`
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`
+  - 结果：通过。
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests test`
+  - 结果：通过测试编译。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`
+  - 结果：通过，`Tests run: 97, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`
+  - 结果：通过。
+- `git diff --check`
+  - 结果：通过。
+- `matches=$(rg -n --fixed-strings 'key: ${PETLIFE_AMAP_WEB_SERVICE_KEY:' server/src/main/resources docs/api docs/technical || true); bad=$(printf "%s\n" "$matches" | rg -v --fixed-strings 'PETLIFE_AMAP_WEB_SERVICE_KEY:}' || true); if [ -n "$bad" ]; then printf "%s\n" "$bad"; exit 1; else echo "no amap key default found"; fi`
+  - 结果：通过，未发现高德 Web 服务 Key 默认值。
+
+### 未完成事项
+
+- 未接高德地图前端 SDK、App 内嵌地图和导航。
+- 未提交真实高德 Web 服务 Key；地理编码/逆地理编码在 Key 缺失时会明确失败。
+- 服务商列表当前返回直线距离，不代表真实路线距离或导航耗时。
+
+### 风险或阻塞
+
+- 后台地图辅助接口依赖环境变量 `PETLIFE_AMAP_WEB_SERVICE_KEY`；未配置时只能查看配置状态，不能调用 geocode/regeo。
+- 服务商坐标质量依赖后台维护，未维护坐标的服务商不会返回距离。
+- 真实路线距离、导航和地图选点需要后续明确前端 SDK Key、合规提示和路线距离契约。
+
+### 下一步建议
+
+1. admin-web 接入地图配置状态、地理编码辅助和服务商坐标维护页面。
+2. mobile-app 若切换服务端距离排序，按 OpenAPI 传入用户授权后的经纬度并消费 `distance_meters`。
+3. 后续如要真实路线距离，先明确高德 distance 类型、批量上限、缓存策略和降级口径。
+
 ## 2026-05-20 内容审核底座 + Push 推送底座
 
 ### 新完成内容

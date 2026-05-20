@@ -11,6 +11,7 @@ import com.petlife.server.modules.service.dto.response.ServiceHomeResponse;
 import com.petlife.server.modules.service.dto.response.ServiceProviderResponse;
 import com.petlife.server.modules.service.service.ServiceCenterApplicationService;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -47,9 +48,14 @@ public class ServiceCenterController {
     @GetMapping("/providers")
     public ApiResponse<List<ServiceProviderResponse>> listProviders(
         @RequestParam(value = "provider_type", required = false) String providerType,
-        @RequestParam(value = "city_code", required = false) String cityCode
+        @RequestParam(value = "city_code", required = false) String cityCode,
+        @RequestParam(value = "latitude", required = false) BigDecimal latitude,
+        @RequestParam(value = "longitude", required = false) BigDecimal longitude,
+        @RequestParam(value = "sort", required = false) String sort
     ) {
-        return ApiResponse.success(serviceCenterApplicationService.listProviders(providerType, cityCode));
+        return ApiResponse.success(
+            serviceCenterApplicationService.listProviders(providerType, cityCode, latitude, longitude, sort)
+        );
     }
 
     @GetMapping("/providers/{providerId}")

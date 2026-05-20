@@ -10,6 +10,7 @@
         <span class="pet-admin-chip">消息模板</span>
         <span class="pet-admin-chip">通知渠道</span>
         <span class="pet-admin-chip">Push 投递</span>
+        <span class="pet-admin-chip">地图排查</span>
         <span class="pet-admin-chip">验证码排查</span>
         <span class="pet-admin-chip">功能开通状态</span>
         <span class="pet-admin-chip">预留模块边界</span>
@@ -25,6 +26,17 @@
     </div>
 
     <div class="pet-admin-grid pet-admin-grid--two system-panels">
+      <article class="pet-admin-panel">
+        <h2 class="pet-admin-panel__title">服务与地图入口</h2>
+        <p class="pet-admin-panel__description">
+          服务商资料、城市开通、服务资源和地图坐标分开维护。地图页面只接服务端 Web 服务接口，不加载前端地图 SDK。
+        </p>
+        <div class="system-entry-actions">
+          <el-button type="primary" @click="router.push({ name: 'serviceProviders' })">服务商管理</el-button>
+          <el-button @click="router.push({ name: 'serviceMap' })">地图坐标排查</el-button>
+        </div>
+      </article>
+
       <article class="pet-admin-panel">
         <h2 class="pet-admin-panel__title">通知配置入口</h2>
         <p class="pet-admin-panel__description">
@@ -61,6 +73,11 @@ const systemCards = [
     title: '通知与消息',
     description: '负责站内信、短信和 Push 模板内容、渠道配置与投递排查。',
     highlight: '已接入'
+  },
+  {
+    title: '服务地图',
+    description: '维护服务商坐标，排查高德 Web 服务配置与距离能力。',
+    highlight: '排查入口'
   },
   {
     title: '验证码安全',

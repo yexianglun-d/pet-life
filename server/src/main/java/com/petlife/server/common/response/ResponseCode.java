@@ -40,6 +40,8 @@ public enum ResponseCode {
     MESSAGE_TEMPLATE_NOT_FOUND("MESSAGE_TEMPLATE_NOT_FOUND", "message template does not exist"),
     NOTIFICATION_CHANNEL_NOT_FOUND("NOTIFICATION_CHANNEL_NOT_FOUND", "notification channel does not exist"),
     PUSH_DEVICE_TOKEN_NOT_FOUND("PUSH_DEVICE_TOKEN_NOT_FOUND", "push device token does not exist"),
+    MAP_CONFIGURATION_MISSING("MAP_CONFIGURATION_MISSING", "map provider configuration is missing"),
+    MAP_PROVIDER_REQUEST_FAILED("MAP_PROVIDER_REQUEST_FAILED", "map provider request failed"),
     MEDIA_ASSET_NOT_FOUND("MEDIA_ASSET_NOT_FOUND", "media asset does not exist"),
     SERVICE_PROVIDER_NOT_FOUND("SERVICE_PROVIDER_NOT_FOUND", "service provider does not exist"),
     SERVICE_APPOINTMENT_NOT_FOUND("SERVICE_APPOINTMENT_NOT_FOUND", "service appointment does not exist"),

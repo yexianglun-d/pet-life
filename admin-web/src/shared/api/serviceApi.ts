@@ -7,6 +7,7 @@ export type ProviderScheduleSlotStatus = 'open' | 'closed' | 'full';
 export type ServiceAppointmentStatus = 'pending_confirm' | 'confirmed' | 'completed' | 'canceled';
 export type ProviderReviewStatus = 'visible' | 'hidden';
 export type ServiceCityOpenedFilter = 'all' | 'opened' | 'closed';
+export type ServiceProviderCoordinateSource = 'manual' | 'amap';
 export type ServiceAuditTargetType =
   | 'service_city'
   | 'service_provider'
@@ -60,6 +61,8 @@ export interface ServiceProviderSnapshot {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  coordinate_source: ServiceProviderCoordinateSource | null;
+  distance_meters: number | null;
   contact_phone: string | null;
   business_hours: string | null;
   rating_avg: number | null;
@@ -146,6 +149,60 @@ export interface ServiceAuditLogListFilters {
   action?: string;
 }
 
+export interface AmapConfigStatusSnapshot {
+  provider_code: string;
+  configured: boolean;
+  base_url: string;
+  capabilities: string[];
+  message: string;
+}
+
+export interface AmapGeocodeResultSnapshot {
+  matched: boolean;
+  address: string;
+  formatted_address: string | null;
+  country: string | null;
+  province: string | null;
+  city: string | null;
+  district: string | null;
+  city_code: string | null;
+  adcode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  level: string | null;
+}
+
+export interface AmapReverseGeocodeResultSnapshot {
+  matched: boolean;
+  formatted_address: string | null;
+  country: string | null;
+  province: string | null;
+  city: string | null;
+  district: string | null;
+  township: string | null;
+  city_code: string | null;
+  adcode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface AdminGeocodeFilters {
+  address: string;
+  city?: string;
+}
+
+export interface AdminReverseGeocodeFilters {
+  latitude: number;
+  longitude: number;
+}
+
+export interface UpdateServiceProviderLocationPayload {
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  coordinate_source: ServiceProviderCoordinateSource;
+}
+
 export interface ServiceCityConfigListFilters {
   cityCode?: string;
   opened?: ServiceCityOpenedFilter;
@@ -166,6 +223,7 @@ export interface UpsertServiceProviderPayload {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  coordinate_source?: ServiceProviderCoordinateSource | null;
   contact_phone: string | null;
   business_hours: string | null;
   rating_avg: number | null;
@@ -213,6 +271,28 @@ export function listServiceProviders(filters: ServiceProviderListFilters = {}) {
   );
 }
 
+export function getAdminMapConfig() {
+  return adminRequest<AmapConfigStatusSnapshot>('/api/v1/admin/map/config');
+}
+
+export function geocodeAdminAddress(filters: AdminGeocodeFilters) {
+  const searchParams = new URLSearchParams();
+  appendFilter(searchParams, 'address', filters.address);
+  appendFilter(searchParams, 'city', filters.city);
+  return adminRequest<AmapGeocodeResultSnapshot>(
+    `/api/v1/admin/map/geocode${resolveQueryString(searchParams)}`
+  );
+}
+
+export function reverseGeocodeAdminCoordinate(filters: AdminReverseGeocodeFilters) {
+  const searchParams = new URLSearchParams();
+  searchParams.set('latitude', String(filters.latitude));
+  searchParams.set('longitude', String(filters.longitude));
+  return adminRequest<AmapReverseGeocodeResultSnapshot>(
+    `/api/v1/admin/map/reverse-geocode${resolveQueryString(searchParams)}`
+  );
+}
+
 export function listServiceCityConfigs(filters: ServiceCityConfigListFilters = {}) {
   const searchParams = new URLSearchParams();
   appendFilter(searchParams, 'city_code', filters.cityCode);
@@ -243,6 +323,16 @@ export function createServiceProvider(payload: UpsertServiceProviderPayload) {
 
 export function updateServiceProvider(providerId: string, payload: UpsertServiceProviderPayload) {
   return adminRequest<ServiceProviderSnapshot>(`/api/v1/admin/service/providers/${providerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateServiceProviderLocation(
+  providerId: string,
+  payload: UpdateServiceProviderLocationPayload
+) {
+  return adminRequest<ServiceProviderSnapshot>(`/api/v1/admin/service/providers/${providerId}/location`, {
     method: 'PATCH',
     body: JSON.stringify(payload)
   });

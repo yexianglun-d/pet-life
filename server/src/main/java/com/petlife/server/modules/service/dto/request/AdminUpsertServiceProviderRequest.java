@@ -20,6 +20,8 @@ public record AdminUpsertServiceProviderRequest(
     String address,
     BigDecimal latitude,
     BigDecimal longitude,
+    @Size(max = 20, message = "坐标来源长度不能超过 20 个字符")
+    String coordinateSource,
     @Size(max = 20, message = "联系电话长度不能超过 20 个字符")
     String contactPhone,
     @Size(max = 255, message = "营业时间长度不能超过 255 个字符")

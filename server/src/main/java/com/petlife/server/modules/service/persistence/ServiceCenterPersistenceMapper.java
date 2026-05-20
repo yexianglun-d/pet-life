@@ -5,6 +5,7 @@ import com.petlife.server.modules.service.persistence.command.CreateProviderRevi
 import com.petlife.server.modules.service.persistence.command.CreateServiceAppointmentCommand;
 import com.petlife.server.modules.service.persistence.command.UpdateProviderReviewStatusCommand;
 import com.petlife.server.modules.service.persistence.command.UpdateServiceAppointmentStatusCommand;
+import com.petlife.server.modules.service.persistence.command.UpdateServiceProviderLocationCommand;
 import com.petlife.server.modules.service.persistence.command.UpsertProviderScheduleSlotCommand;
 import com.petlife.server.modules.service.persistence.command.UpsertProviderServiceItemCommand;
 import com.petlife.server.modules.service.persistence.command.UpsertServiceCityConfigCommand;
@@ -110,6 +111,7 @@ public interface ServiceCenterPersistenceMapper {
           address AS address,
           latitude AS latitude,
           longitude AS longitude,
+          coordinate_source AS coordinateSource,
           contact_phone AS contactPhone,
           business_hours AS businessHours,
           rating_avg AS ratingAvg,
@@ -140,6 +142,7 @@ public interface ServiceCenterPersistenceMapper {
           address AS address,
           latitude AS latitude,
           longitude AS longitude,
+          coordinate_source AS coordinateSource,
           contact_phone AS contactPhone,
           business_hours AS businessHours,
           rating_avg AS ratingAvg,
@@ -172,6 +175,7 @@ public interface ServiceCenterPersistenceMapper {
           address AS address,
           latitude AS latitude,
           longitude AS longitude,
+          coordinate_source AS coordinateSource,
           contact_phone AS contactPhone,
           business_hours AS businessHours,
           rating_avg AS ratingAvg,
@@ -201,6 +205,7 @@ public interface ServiceCenterPersistenceMapper {
           address AS address,
           latitude AS latitude,
           longitude AS longitude,
+          coordinate_source AS coordinateSource,
           contact_phone AS contactPhone,
           business_hours AS businessHours,
           rating_avg AS ratingAvg,
@@ -219,10 +224,12 @@ public interface ServiceCenterPersistenceMapper {
     @Insert("""
         INSERT INTO service_providers (
           provider_type, provider_name, city_code, address, latitude, longitude,
+          coordinate_source, coordinate_updated_at,
           contact_phone, business_hours, rating_avg, review_count, status,
           created_at, updated_at
         ) VALUES (
           #{providerType}, #{providerName}, #{cityCode}, #{address}, #{latitude}, #{longitude},
+          #{coordinateSource}, CASE WHEN #{latitude} IS NULL OR #{longitude} IS NULL THEN NULL ELSE CURRENT_TIMESTAMP END,
           #{contactPhone}, #{businessHours}, #{ratingAvg}, #{reviewCount}, #{status},
           CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
@@ -238,6 +245,11 @@ public interface ServiceCenterPersistenceMapper {
             address = #{address},
             latitude = #{latitude},
             longitude = #{longitude},
+            coordinate_source = #{coordinateSource},
+            coordinate_updated_at = CASE
+              WHEN #{latitude} IS NULL OR #{longitude} IS NULL THEN NULL
+              ELSE CURRENT_TIMESTAMP
+            END,
             contact_phone = #{contactPhone},
             business_hours = #{businessHours},
             rating_avg = #{ratingAvg},
@@ -248,6 +260,19 @@ public interface ServiceCenterPersistenceMapper {
           AND deleted_at IS NULL
         """)
     int updateProvider(UpsertServiceProviderCommand command);
+
+    @Update("""
+        UPDATE service_providers
+        SET address = COALESCE(#{address}, address),
+            latitude = #{latitude},
+            longitude = #{longitude},
+            coordinate_source = #{coordinateSource},
+            coordinate_updated_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{providerId}
+          AND deleted_at IS NULL
+        """)
+    int updateProviderLocation(UpdateServiceProviderLocationCommand command);
 
     @Select("""
         SELECT

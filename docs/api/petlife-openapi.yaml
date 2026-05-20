@@ -87,6 +87,8 @@ tags:
     description: 健康记录、萌宠日常与时间轴查询 (管理端)
   - name: 后台服务 (Admin Service)
     description: 服务商、预约管理 (管理端)
+  - name: 后台地图 (Admin Map)
+    description: 高德 Web 服务配置状态与地理编码辅助 (管理端)
 
 components:
   securitySchemes:
@@ -127,6 +129,130 @@ components:
           type: string
           example: "trace_id_123"
           description: 请求追踪 ID
+
+    AmapConfigStatus:
+      type: object
+      properties:
+        provider_code:
+          type: string
+          example: "amap"
+        configured:
+          type: boolean
+          description: 是否已配置 Web 服务 Key
+        base_url:
+          type: string
+          example: "https://restapi.amap.com"
+        capabilities:
+          type: array
+          items:
+            type: string
+          example: [geocode, reverse_geocode, distance]
+        message:
+          type: string
+          description: 配置状态说明
+
+    AmapGeocodeResult:
+      type: object
+      properties:
+        matched:
+          type: boolean
+        address:
+          type: string
+        formatted_address:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        province:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        district:
+          type: string
+          nullable: true
+        city_code:
+          type: string
+          nullable: true
+        adcode:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+        level:
+          type: string
+          nullable: true
+
+    AmapReverseGeocodeResult:
+      type: object
+      properties:
+        matched:
+          type: boolean
+        formatted_address:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        province:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        district:
+          type: string
+          nullable: true
+        township:
+          type: string
+          nullable: true
+        city_code:
+          type: string
+          nullable: true
+        adcode:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+
+    AdminUpdateProviderLocationRequest:
+      type: object
+      required:
+        - latitude
+        - longitude
+      properties:
+        address:
+          type: string
+          maxLength: 255
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        coordinate_source:
+          type: string
+          enum: [manual, amap]
+          default: manual
 
     AdminAccount:
       type: object
@@ -3766,6 +3892,7 @@ paths:
         **说明**:
         - provider_type 支持 hospital、boarding、grooming、training
         - 响应会返回服务项目和近期可预约时段摘要
+        - 传入 latitude + longitude 时返回 distance_meters；sort=distance 时按距离升序排序
       parameters:
         - name: provider_type
           in: query
@@ -3787,9 +3914,27 @@ paths:
             type: string
             enum: [distance, rating]
           description: 排序方式
+        - name: latitude
+          in: query
+          required: false
+          schema:
+            type: number
+            format: double
+            minimum: -90
+            maximum: 90
+          description: 用户当前位置纬度
+        - name: longitude
+          in: query
+          required: false
+          schema:
+            type: number
+            format: double
+            minimum: -180
+            maximum: 180
+          description: 用户当前位置经度
       responses:
         '200':
-          description: 获取成功
+          description: 获取成功；服务商响应新增 coordinate_source 与 distance_meters（未传位置时为 null）
           
   /providers/{providerId}:
     get:
@@ -6348,6 +6493,106 @@ paths:
           description: 获取成功
           
   # ==================== 管理端 - 服务中心模块 ====================
+  /admin/map/config:
+    get:
+      tags:
+        - 后台地图 (Admin Map)
+      summary: 查询地图配置状态
+      description: |
+        查询高德 Web 服务底座配置状态。
+
+        **说明**:
+        - 不返回任何 Key 明文
+        - configured=false 时，地理编码和逆地理编码接口会返回 MAP_CONFIGURATION_MISSING
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AmapConfigStatus'
+
+  /admin/map/geocode:
+    get:
+      tags:
+        - 后台地图 (Admin Map)
+      summary: 高德地理编码辅助
+      description: 根据地址调用高德 Web 服务返回经纬度候选，供后台维护服务商坐标。
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+          description: 待解析地址
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+          description: 城市编码或城市名
+      responses:
+        '200':
+          description: 解析成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AmapGeocodeResult'
+        '503':
+          description: 高德 Web 服务 Key 未配置
+
+  /admin/map/reverse-geocode:
+    get:
+      tags:
+        - 后台地图 (Admin Map)
+      summary: 高德逆地理编码辅助
+      description: 根据经纬度调用高德 Web 服务返回地址信息，供后台核对服务商坐标。
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: -90
+            maximum: 90
+          description: 纬度
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: -180
+            maximum: 180
+          description: 经度
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AmapReverseGeocodeResult'
+        '503':
+          description: 高德 Web 服务 Key 未配置
+
   /admin/service/cities:
     get:
       tags:
@@ -6492,6 +6737,11 @@ paths:
                   format: double
                   example: 121.4737
                   description: 经度
+                coordinate_source:
+                  type: string
+                  enum: [manual, amap]
+                  example: "amap"
+                  description: 坐标来源
                 contact_phone:
                   type: string
                   example: "021-12345678"
@@ -6555,6 +6805,36 @@ paths:
                   type: string
                   enum: [online, rest, offline]
                   description: 状态
+      responses:
+        '200':
+          description: 更新成功
+
+  /admin/service/providers/{providerId}/location:
+    patch:
+      tags:
+        - 后台服务 (Admin Service)
+      summary: 维护服务商坐标（管理端）
+      description: |
+        维护服务商地址、经纬度与坐标来源。
+
+        **说明**:
+        - latitude/longitude 为必填，服务端校验合法范围
+        - coordinate_source 支持 manual、amap
+        - 本接口只写入服务商坐标，不触发外部地图服务调用；地址解析由后台地图 geocode 辅助接口完成
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 服务商 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateProviderLocationRequest'
       responses:
         '200':
           description: 更新成功

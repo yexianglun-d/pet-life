@@ -836,13 +836,15 @@ DDL 说明：
 
 ## 7.2 获取服务商列表
 
-`GET /providers?provider_type=hospital&city_code=310000&sort=distance`
+`GET /providers?provider_type=hospital&city_code=310000&latitude=31.2304&longitude=121.4737&sort=distance`
 
 说明：
 
 - `provider_type` 支持 `hospital`、`boarding`、`grooming`、`training`
 - 响应会返回服务项目和近期可预约时段摘要
 - 城市未开通时返回空列表，不展示后台已维护但尚未开放的服务商
+- `latitude` 与 `longitude` 同时传入时，服务端基于已维护的高德坐标返回 `distance_meters`
+- `sort=distance` 必须传入用户经纬度，按直线距离升序排序；不调用高德真实路线服务，避免用户目录受外部服务波动影响
 
 ## 7.3 获取服务商详情
 
@@ -1494,6 +1496,7 @@ DDL 说明：
 - `GET /api/v1/admin/service/providers?provider_type=hospital&city_code=310000&status=online`
 - `POST /api/v1/admin/service/providers`
 - `PATCH /api/v1/admin/service/providers/{provider_id}`
+- `PATCH /api/v1/admin/service/providers/{provider_id}/location`
 - `POST /api/v1/admin/service/providers/{provider_id}/items`
 - `PATCH /api/v1/admin/service/providers/{provider_id}/items/{service_item_id}`
 - `POST /api/v1/admin/service/providers/{provider_id}/slots`
@@ -1526,11 +1529,23 @@ DDL 说明：
   "address": "上海市徐汇区宠物友好路 88 号",
   "latitude": 31.218,
   "longitude": 121.402,
+  "coordinate_source": "manual",
   "contact_phone": "021-12345678",
   "business_hours": "09:00-20:00",
   "rating_avg": 4.8,
   "review_count": 16,
   "status": "online"
+}
+```
+
+`PATCH /api/v1/admin/service/providers/{provider_id}/location` 请求关键字段：
+
+```json
+{
+  "address": "上海市徐汇区宠物友好路 88 号",
+  "latitude": 31.218,
+  "longitude": 121.402,
+  "coordinate_source": "amap"
 }
 ```
 
@@ -1599,12 +1614,29 @@ DDL 说明：
 - `provider_type` 和 `appointment_type` 当前支持 `hospital`、`boarding`、`grooming`、`training`。
 - 城市开通状态由 `service_city_configs.opened` 控制；关闭城市不会删除服务商、项目、时段和历史预约。
 - 服务商状态支持 `online`、`rest`、`offline`；只有用户端可预约链路会把 `online` 视为可创建预约。
+- 服务商坐标来源支持 `manual`、`amap`；后台坐标维护写入 `service_provider_location_update` 审计动作。
 - 服务项目状态支持 `active`、`inactive`。
 - 时段状态支持 `open`、`closed`、`full`；后台降低时段名额时，如果已预约数不小于新名额，开放状态会自动归一为 `full`。
 - 后台将预约从 `pending_confirm` 或 `confirmed` 调整为 `canceled` 时，会释放对应时段名额并同步服务预约时间轴事件。
 - 已取消预约不能从后台恢复为非取消状态，需重新创建预约，避免库存和用户操作链路被反向篡改。
 - 评价状态支持 `visible`、`hidden`；后台隐藏或恢复评价后会重新计算服务商评分均值与评价数。
 - 城市、服务商、服务项目、预约时段、预约状态和评价状态的后台写操作都会写入 `audit_logs`。
+
+## 11.8 后台地图与定位接口
+
+当前已落地的后台地图接口：
+
+- `GET /api/v1/admin/map/config`
+- `GET /api/v1/admin/map/geocode?address=上海市徐汇区宠物友好路88号&city=310000`
+- `GET /api/v1/admin/map/reverse-geocode?latitude=31.218&longitude=121.402`
+
+说明：
+
+- 高德 Web 服务 Key 仅通过 `PETLIFE_AMAP_WEB_SERVICE_KEY` 注入，不提交到代码、文档或测试数据。
+- `GET /api/v1/admin/map/config` 只返回 `configured`、`base_url` 和能力列表，不返回 Key。
+- 地理编码、逆地理编码通过服务端 HTTP Client 调用高德 Web 服务；配置缺失时返回 `MAP_CONFIGURATION_MISSING`。
+- 高德 Web 服务适配层已包含距离接口封装；用户端服务商目录目前使用本地直线距离做排序，真实路径距离和导航不在本轮范围。
+- 本轮不接地图 SDK，不实现前端地图组件，不实现真实导航。
 
 ## 12. 领域事件设计
 

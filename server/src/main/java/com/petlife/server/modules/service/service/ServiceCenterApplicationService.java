@@ -5,6 +5,8 @@ import com.petlife.server.common.response.ResponseCode;
 import com.petlife.server.modules.admin.domain.entity.AdminOperationContext;
 import com.petlife.server.modules.admin.service.AuditLogApplicationService;
 import com.petlife.server.modules.auth.security.CurrentUserContext;
+import com.petlife.server.modules.location.domain.entity.GeoPointEntity;
+import com.petlife.server.modules.location.service.AmapLocationApplicationService;
 import com.petlife.server.modules.notification.service.NotificationApplicationService;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
 import com.petlife.server.modules.service.converter.ServiceProviderConverter;
@@ -14,6 +16,7 @@ import com.petlife.server.modules.service.domain.entity.ProviderServiceItemEntit
 import com.petlife.server.modules.service.domain.entity.ServiceAppointmentEntity;
 import com.petlife.server.modules.service.domain.entity.ServiceCityConfigEntity;
 import com.petlife.server.modules.service.domain.entity.ServiceProviderEntity;
+import com.petlife.server.modules.service.dto.request.AdminUpdateProviderLocationRequest;
 import com.petlife.server.modules.service.dto.request.AdminUpdateProviderReviewStatusRequest;
 import com.petlife.server.modules.service.dto.request.AdminUpdateServiceAppointmentStatusRequest;
 import com.petlife.server.modules.service.dto.request.AdminUpsertServiceCityConfigRequest;
@@ -36,6 +39,7 @@ import com.petlife.server.modules.service.persistence.command.CreateProviderRevi
 import com.petlife.server.modules.service.persistence.command.CreateServiceAppointmentCommand;
 import com.petlife.server.modules.service.persistence.command.UpdateProviderReviewStatusCommand;
 import com.petlife.server.modules.service.persistence.command.UpdateServiceAppointmentStatusCommand;
+import com.petlife.server.modules.service.persistence.command.UpdateServiceProviderLocationCommand;
 import com.petlife.server.modules.service.persistence.command.UpsertProviderScheduleSlotCommand;
 import com.petlife.server.modules.service.persistence.command.UpsertProviderServiceItemCommand;
 import com.petlife.server.modules.service.persistence.command.UpsertServiceCityConfigCommand;
@@ -51,6 +55,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +89,9 @@ public class ServiceCenterApplicationService {
     private static final Set<String> SUPPORTED_SERVICE_ITEM_STATUSES = Set.of("active", "inactive");
     private static final Set<String> SUPPORTED_SLOT_STATUSES = Set.of("open", "closed", "full");
     private static final Set<String> SUPPORTED_REVIEW_STATUSES = Set.of("visible", "hidden");
+    private static final Set<String> SUPPORTED_COORDINATE_SOURCES = Set.of("manual", "amap");
+    private static final String PROVIDER_SORT_DISTANCE = "distance";
+    private static final String PROVIDER_SORT_RATING = "rating";
     private static final Map<String, ServiceCategoryDescriptor> CATEGORY_DESCRIPTORS = Map.of(
         "hospital", new ServiceCategoryDescriptor("宠物医院", "体检、疫苗、复诊和异常就医预约。"),
         "boarding", new ServiceCategoryDescriptor("寄养照看", "出行前安排寄养、接送和喂养说明。"),
@@ -103,6 +111,7 @@ public class ServiceCenterApplicationService {
     private static final String AUDIT_ACTION_SERVICE_CITY_UPSERT = "service_city_upsert";
     private static final String AUDIT_ACTION_SERVICE_PROVIDER_CREATE = "service_provider_create";
     private static final String AUDIT_ACTION_SERVICE_PROVIDER_UPDATE = "service_provider_update";
+    private static final String AUDIT_ACTION_SERVICE_PROVIDER_LOCATION_UPDATE = "service_provider_location_update";
     private static final String AUDIT_ACTION_PROVIDER_SERVICE_ITEM_CREATE = "provider_service_item_create";
     private static final String AUDIT_ACTION_PROVIDER_SERVICE_ITEM_UPDATE = "provider_service_item_update";
     private static final String AUDIT_ACTION_PROVIDER_SCHEDULE_SLOT_CREATE = "provider_schedule_slot_create";
@@ -117,6 +126,7 @@ public class ServiceCenterApplicationService {
     private final TimelineApplicationService timelineApplicationService;
     private final NotificationApplicationService notificationApplicationService;
     private final AuditLogApplicationService auditLogApplicationService;
+    private final AmapLocationApplicationService amapLocationApplicationService;
 
     public ServiceCenterApplicationService(
         ServiceCenterPersistenceMapper serviceCenterPersistenceMapper,
@@ -125,7 +135,8 @@ public class ServiceCenterApplicationService {
         ServiceProviderConverter serviceProviderConverter,
         TimelineApplicationService timelineApplicationService,
         NotificationApplicationService notificationApplicationService,
-        AuditLogApplicationService auditLogApplicationService
+        AuditLogApplicationService auditLogApplicationService,
+        AmapLocationApplicationService amapLocationApplicationService
     ) {
         this.serviceCenterPersistenceMapper = serviceCenterPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
@@ -134,6 +145,7 @@ public class ServiceCenterApplicationService {
         this.timelineApplicationService = timelineApplicationService;
         this.notificationApplicationService = notificationApplicationService;
         this.auditLogApplicationService = auditLogApplicationService;
+        this.amapLocationApplicationService = amapLocationApplicationService;
     }
 
     public ServiceHomeResponse getServiceHome(Long petId, String cityCode) {
@@ -170,7 +182,13 @@ public class ServiceCenterApplicationService {
         );
     }
 
-    public List<ServiceProviderResponse> listProviders(String providerType, String cityCode) {
+    public List<ServiceProviderResponse> listProviders(
+        String providerType,
+        String cityCode,
+        BigDecimal latitude,
+        BigDecimal longitude,
+        String sort
+    ) {
         Long currentUserId = CurrentUserContext.requireUserId();
         CityContext cityContext = resolveCityContext(currentUserId, cityCode);
         ServiceCityConfigEntity cityConfig = resolveCityConfig(cityContext);
@@ -178,7 +196,11 @@ public class ServiceCenterApplicationService {
             return List.of();
         }
         String normalizedProviderType = normalizeNullableProviderType(providerType);
-        return toProviderResponses(serviceCenterPersistenceMapper.listProviders(cityConfig.getCityCode(), normalizedProviderType));
+        GeoPointEntity userPoint = normalizeOptionalUserPoint(latitude, longitude);
+        String normalizedSort = normalizeProviderSort(sort, userPoint);
+        List<ServiceProviderDataObject> providers = serviceCenterPersistenceMapper
+            .listProviders(cityConfig.getCityCode(), normalizedProviderType);
+        return toProviderResponses(providers, userPoint, normalizedSort);
     }
 
     public ServiceProviderResponse getProviderDetail(Long providerId) {
@@ -323,6 +345,40 @@ public class ServiceCenterApplicationService {
                 "provider_name", command.getProviderName(),
                 "city_code", command.getCityCode(),
                 "status", command.getStatus()
+            )
+        );
+        return serviceProviderConverter.toProviderResponse(buildAdminProviderEntity(requireProvider(providerId)));
+    }
+
+    @Transactional
+    public ServiceProviderResponse updateAdminProviderLocation(
+        Long providerId,
+        AdminUpdateProviderLocationRequest request,
+        AdminOperationContext operationContext
+    ) {
+        requireProvider(providerId);
+        GeoPointEntity point = amapLocationApplicationService.normalizePoint(request.latitude(), request.longitude());
+        String coordinateSource = normalizeCoordinateSource(request.coordinateSource());
+        UpdateServiceProviderLocationCommand command = new UpdateServiceProviderLocationCommand();
+        command.setProviderId(providerId);
+        command.setAddress(normalizeNullableText(request.address()));
+        command.setLatitude(point.latitude());
+        command.setLongitude(point.longitude());
+        command.setCoordinateSource(coordinateSource);
+        int updatedRows = serviceCenterPersistenceMapper.updateProviderLocation(command);
+        if (updatedRows == 0) {
+            throw new BusinessException(ResponseCode.SERVICE_PROVIDER_NOT_FOUND);
+        }
+        auditAdminOperation(
+            operationContext,
+            AUDIT_TARGET_SERVICE_PROVIDER,
+            providerId.toString(),
+            AUDIT_ACTION_SERVICE_PROVIDER_LOCATION_UPDATE,
+            auditDetail(
+                "address", command.getAddress(),
+                "latitude", command.getLatitude(),
+                "longitude", command.getLongitude(),
+                "coordinate_source", command.getCoordinateSource()
             )
         );
         return serviceProviderConverter.toProviderResponse(buildAdminProviderEntity(requireProvider(providerId)));
@@ -660,8 +716,25 @@ public class ServiceCenterApplicationService {
     }
 
     private List<ServiceProviderResponse> toProviderResponses(List<ServiceProviderDataObject> providers) {
-        return providers.stream()
-            .map(provider -> buildProviderEntity(provider, null, 7))
+        return toProviderResponses(providers, null, PROVIDER_SORT_RATING);
+    }
+
+    private List<ServiceProviderResponse> toProviderResponses(
+        List<ServiceProviderDataObject> providers,
+        GeoPointEntity userPoint,
+        String sort
+    ) {
+        List<ServiceProviderDataObject> sortedProviders = providers;
+        if (PROVIDER_SORT_DISTANCE.equals(sort)) {
+            sortedProviders = providers.stream()
+                .sorted(Comparator.comparing(
+                    provider -> calculateDistanceMeters(userPoint, provider),
+                    Comparator.nullsLast(Integer::compareTo)
+                ))
+                .toList();
+        }
+        return sortedProviders.stream()
+            .map(provider -> buildProviderEntity(provider, null, 7, calculateDistanceMeters(userPoint, provider)))
             .map(serviceProviderConverter::toProviderResponse)
             .toList();
     }
@@ -670,6 +743,15 @@ public class ServiceCenterApplicationService {
         ServiceProviderDataObject provider,
         String appointmentType,
         int days
+    ) {
+        return buildProviderEntity(provider, appointmentType, days, null);
+    }
+
+    private ServiceProviderEntity buildProviderEntity(
+        ServiceProviderDataObject provider,
+        String appointmentType,
+        int days,
+        Integer distanceMeters
     ) {
         List<ProviderServiceItemEntity> serviceItems = serviceCenterPersistenceMapper
             .listServiceItemsByProviderId(provider.providerId())
@@ -688,7 +770,7 @@ public class ServiceCenterApplicationService {
             .filter(ProviderScheduleSlotEntity::isBookable)
             .limit(6)
             .toList();
-        return serviceProviderConverter.toProviderEntity(provider, serviceItems, availableSlots);
+        return serviceProviderConverter.toProviderEntity(provider, serviceItems, availableSlots, distanceMeters);
     }
 
     private void syncAppointmentDerivedModels(Long actorUserId, ServiceAppointmentEntity appointment) {
@@ -769,8 +851,10 @@ public class ServiceCenterApplicationService {
         command.setProviderName(normalizeRequiredText(request.providerName(), "服务商名称不能为空"));
         command.setCityCode(normalizeRequiredText(request.cityCode(), "城市编码不能为空"));
         command.setAddress(normalizeNullableText(request.address()));
-        command.setLatitude(request.latitude());
-        command.setLongitude(request.longitude());
+        GeoPointEntity point = normalizeOptionalProviderPoint(request.latitude(), request.longitude());
+        command.setLatitude(point == null ? null : point.latitude());
+        command.setLongitude(point == null ? null : point.longitude());
+        command.setCoordinateSource(point == null ? null : normalizeCoordinateSource(request.coordinateSource()));
         command.setContactPhone(normalizeNullableText(request.contactPhone()));
         command.setBusinessHours(normalizeNullableText(request.businessHours()));
         command.setRatingAvg(normalizeRating(request.ratingAvg()));
@@ -949,6 +1033,53 @@ public class ServiceCenterApplicationService {
             return null;
         }
         return normalizeProviderStatus(normalizedStatus);
+    }
+
+    private String normalizeProviderSort(String sort, GeoPointEntity userPoint) {
+        String normalizedSort = normalizeNullableText(sort);
+        if (normalizedSort == null) {
+            return userPoint == null ? PROVIDER_SORT_RATING : PROVIDER_SORT_DISTANCE;
+        }
+        if (!PROVIDER_SORT_DISTANCE.equals(normalizedSort) && !PROVIDER_SORT_RATING.equals(normalizedSort)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "服务商排序方式不支持");
+        }
+        if (PROVIDER_SORT_DISTANCE.equals(normalizedSort) && userPoint == null) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "按距离排序必须传入用户经纬度");
+        }
+        return normalizedSort;
+    }
+
+    private GeoPointEntity normalizeOptionalUserPoint(BigDecimal latitude, BigDecimal longitude) {
+        if (latitude == null && longitude == null) {
+            return null;
+        }
+        return amapLocationApplicationService.normalizePoint(latitude, longitude);
+    }
+
+    private GeoPointEntity normalizeOptionalProviderPoint(BigDecimal latitude, BigDecimal longitude) {
+        if (latitude == null && longitude == null) {
+            return null;
+        }
+        return amapLocationApplicationService.normalizePoint(latitude, longitude);
+    }
+
+    private String normalizeCoordinateSource(String coordinateSource) {
+        String normalizedSource = normalizeNullableText(coordinateSource);
+        if (normalizedSource == null) {
+            return "manual";
+        }
+        if (!SUPPORTED_COORDINATE_SOURCES.contains(normalizedSource)) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "坐标来源仅支持 manual 或 amap");
+        }
+        return normalizedSource;
+    }
+
+    private Integer calculateDistanceMeters(GeoPointEntity userPoint, ServiceProviderDataObject provider) {
+        if (userPoint == null || provider.latitude() == null || provider.longitude() == null) {
+            return null;
+        }
+        GeoPointEntity providerPoint = amapLocationApplicationService.normalizePoint(provider.latitude(), provider.longitude());
+        return amapLocationApplicationService.calculateStraightLineDistanceMeters(userPoint, providerPoint);
     }
 
     private String normalizeAppointmentType(String appointmentType) {

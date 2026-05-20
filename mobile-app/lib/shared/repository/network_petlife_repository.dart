@@ -811,12 +811,20 @@ class NetworkPetLifeRepository implements PetLifeRepository {
   Future<List<ServiceProviderSnapshot>> listServiceProviders({
     String? providerType,
     String? cityCode,
+    double? latitude,
+    double? longitude,
+    String? sort,
   }) async {
     final Uri uri = Uri(
       path: '/api/v1/providers',
       queryParameters: <String, String>{
         if (providerType != null) 'provider_type': providerType,
         if (cityCode != null) 'city_code': cityCode,
+        if (latitude != null && longitude != null) ...<String, String>{
+          'latitude': latitude.toStringAsFixed(6),
+          'longitude': longitude.toStringAsFixed(6),
+        },
+        if (sort != null) 'sort': sort,
       },
     );
     final List<Map<String, dynamic>> providers = _asMapList(
@@ -1536,6 +1544,10 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       address: _readNullableString(payload, 'address'),
       contactPhone: _readNullableString(payload, 'contact_phone'),
       businessHours: _readNullableString(payload, 'business_hours'),
+      latitude: _readNullableDouble(payload, 'latitude'),
+      longitude: _readNullableDouble(payload, 'longitude'),
+      coordinateSource: _readNullableString(payload, 'coordinate_source'),
+      distanceMeters: _readProviderDistanceMeters(payload),
       ratingAvg: _readNullableString(payload, 'rating_avg'),
       reviewCount: _readNullableInt(payload, 'review_count') ?? 0,
       status: _readString(payload, 'status'),
@@ -1799,6 +1811,32 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       return value;
     }
     return int.tryParse(value.toString());
+  }
+
+  double? _readNullableDouble(Map<String, dynamic> payload, String key) {
+    final Object? value = payload[key];
+    if (value == null) {
+      return null;
+    }
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse(value.toString());
+  }
+
+  int? _readProviderDistanceMeters(Map<String, dynamic> payload) {
+    final double? meters = _readNullableDouble(payload, 'distance_meters') ??
+        _readNullableDouble(payload, 'distanceMeters') ??
+        _readNullableDouble(payload, 'distance');
+    if (meters != null) {
+      return meters.round();
+    }
+
+    final double? kilometers = _readNullableDouble(payload, 'distance_km');
+    if (kilometers == null) {
+      return null;
+    }
+    return (kilometers * 1000).round();
   }
 
   bool _readBool(Map<String, dynamic> payload, String key) {

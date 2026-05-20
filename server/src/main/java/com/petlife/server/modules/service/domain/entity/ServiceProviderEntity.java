@@ -16,6 +16,8 @@ public class ServiceProviderEntity {
     private final String address;
     private final BigDecimal latitude;
     private final BigDecimal longitude;
+    private final String coordinateSource;
+    private final Integer distanceMeters;
     private final String contactPhone;
     private final String businessHours;
     private final BigDecimal ratingAvg;
@@ -34,6 +36,8 @@ public class ServiceProviderEntity {
         String address,
         BigDecimal latitude,
         BigDecimal longitude,
+        String coordinateSource,
+        Integer distanceMeters,
         String contactPhone,
         String businessHours,
         BigDecimal ratingAvg,
@@ -51,6 +55,8 @@ public class ServiceProviderEntity {
         this.address = address;
         this.latitude = latitude;
         this.longitude = longitude;
+        this.coordinateSource = coordinateSource;
+        this.distanceMeters = distanceMeters;
         this.contactPhone = contactPhone;
         this.businessHours = businessHours;
         this.ratingAvg = ratingAvg;
@@ -88,6 +94,14 @@ public class ServiceProviderEntity {
 
     public BigDecimal getLongitude() {
         return longitude;
+    }
+
+    public String getCoordinateSource() {
+        return coordinateSource;
+    }
+
+    public Integer getDistanceMeters() {
+        return distanceMeters;
     }
 
     public String getContactPhone() {

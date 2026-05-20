@@ -7,6 +7,103 @@
 - 若功能状态变化，必须同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 所有状态按完整交付标准记录，不使用阶段性跑通或“核心可用”口径。
 
+## 2026-05-20 服务商地图坐标维护与地图能力排查页面接入
+
+### 1. 新完成内容
+
+- `admin-web` 新增地图辅助 API 封装，接入真实后台接口：
+  - `GET /api/v1/admin/map/config`
+  - `GET /api/v1/admin/map/geocode`
+  - `GET /api/v1/admin/map/reverse-geocode`
+  - `PATCH /api/v1/admin/service/providers/{providerId}/location`
+- 新增地图排查页，展示服务商地址、经纬度、坐标来源、坐标覆盖率和距离能力就绪状态。
+- 地图排查页支持通过服务端地理编码辅助把地址解析为坐标，也支持坐标反查地址。
+- 地图排查页支持手动编辑服务商地址、纬度、经度和坐标来源，保存前二次确认，写入后刷新当前服务商坐标。
+- 页面明确标注：高德 Web 服务 Key 只由服务端使用；后台未接 Web JS 地图能力，不展示地图画布或假地图。
+- 后台路由、侧栏和系统配置页新增 `地图排查`、`地图坐标排查` 入口。
+
+### 2. 新增/修改文件
+
+- 新增：`admin-web/src/views/service/ServiceMapDebugView.vue`
+- 修改：`admin-web/src/shared/api/serviceApi.ts`
+- 修改：`admin-web/src/router/index.ts`
+- 修改：`admin-web/src/layouts/AdminLayout.vue`
+- 修改：`admin-web/src/views/system/SystemConfigView.vue`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/03-ui-closure-checklist.md`
+
+### 3. 验证命令与结果
+
+- `npm run type-check`：通过。
+- `npm run build`：通过；Vite 仍提示主 chunk 超过 500 kB，这是当前后台工程既有打包体积警告，不影响构建结果。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 后台未接入高德 Web JS API、地图选点组件或地图大屏。
+- 后台页面不展示真实地图画布；只做配置状态、地址解析、坐标维护和距离能力排查。
+- 真实 Key 仍通过环境变量注入服务端，admin-web 不持有、不展示、不硬编码。
+
+### 5. 风险或阻塞
+
+- 高德 Web 服务 Key 缺失时，地理编码和逆地理编码会由服务端返回配置缺失错误，页面只展示错误，不做前端兜底模拟。
+- 距离能力排查只检查服务商坐标覆盖和服务端 capability；真实用户端距离排序仍以服务端用户端接口计算为准。
+
+### 6. 下一步建议
+
+1. 如需后台地图选点，先申请并明确 Web JS Key 管理、域名白名单和权限边界，再接前端地图 SDK。
+2. 后续如需路线距离或导航状态排查，由服务端先定义对应后台接口后再接入 admin-web。
+
+## 2026-05-20 服务端高德地图与服务商坐标接口可接入
+
+### 1. 新完成内容
+
+- 服务端已新增后台地图配置状态与地理编码辅助接口，并同步到 OpenAPI：
+  - `GET /api/v1/admin/map/config`
+  - `GET /api/v1/admin/map/geocode`
+  - `GET /api/v1/admin/map/reverse-geocode`
+- 服务端已新增服务商坐标维护接口：
+  - `PATCH /api/v1/admin/service/providers/{providerId}/location`
+- 服务商列表接口已支持用户经纬度返回 `distance_meters`，并支持 `sort=distance`。
+- 本轮未修改 admin-web 源码，后台地图辅助与服务商坐标维护页面仍待后续接入。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/technical/02-api-and-events.md`
+- 新增：`docs/technical/12-amap-location-foundation.sql`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests test`：通过测试编译。
+- 使用远程 MySQL 配置运行服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 97, Failures: 0, Errors: 0, Skipped: 0`。
+- 服务端 OpenAPI YAML 解析：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- admin-web 尚未接入地图配置状态、地理编码辅助和服务商坐标维护页面。
+- 未接前端地图组件、地图选点和导航能力。
+
+### 5. 风险或阻塞
+
+- `GET /api/v1/admin/map/config` 不返回 Key；页面只能展示配置是否就绪。
+- 高德 Web 服务 Key 缺失时，地理编码和逆地理编码会返回 `MAP_CONFIGURATION_MISSING`。
+- 服务商列表 `distance_meters` 是基于已维护坐标的直线距离，不代表真实导航路线距离。
+
+### 6. 下一步建议
+
+1. admin-web 在服务商编辑页增加坐标维护入口，调用地理编码辅助接口回填经纬度后提交坐标维护接口。
+2. 后续如接入地图选点组件，需要先明确高德前端 SDK Key 管理和权限边界。
+
 ## 2026-05-20 内容审核任务与 Push 投递排查页面接入
 
 ### 1. 新完成内容

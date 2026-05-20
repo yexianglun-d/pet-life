@@ -14,6 +14,7 @@ public record ServiceProviderDataObject(
     String address,
     BigDecimal latitude,
     BigDecimal longitude,
+    String coordinateSource,
     String contactPhone,
     String businessHours,
     BigDecimal ratingAvg,

@@ -74,6 +74,8 @@ public class GlobalExceptionHandler {
                  NOTIFICATION_CHANNEL_NOT_FOUND,
                  PUSH_DEVICE_TOKEN_NOT_FOUND,
                  MEDIA_ASSET_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case MAP_CONFIGURATION_MISSING -> HttpStatus.SERVICE_UNAVAILABLE;
+            case MAP_PROVIDER_REQUEST_FAILED -> HttpStatus.BAD_GATEWAY;
             case INTERNAL_SERVER_ERROR, AUTH_SMS_SEND_FAILED -> HttpStatus.INTERNAL_SERVER_ERROR;
             default -> HttpStatus.BAD_REQUEST;
         };

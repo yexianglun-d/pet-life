@@ -868,6 +868,9 @@ class _FakePetLifeRepository implements PetLifeRepository {
   Future<List<ServiceProviderSnapshot>> listServiceProviders({
     String? providerType,
     String? cityCode,
+    double? latitude,
+    double? longitude,
+    String? sort,
   }) async {
     return <ServiceProviderSnapshot>[
       ServiceProviderSnapshot(
@@ -876,6 +879,10 @@ class _FakePetLifeRepository implements PetLifeRepository {
         providerName: '安心宠物医院',
         cityCode: cityCode ?? '310000',
         address: '上海市徐汇区宠物友好路 88 号',
+        latitude: 31.1882,
+        longitude: 121.4367,
+        coordinateSource: 'manual',
+        distanceMeters: latitude != null && longitude != null ? 1200 : null,
         contactPhone: '021-87654321',
         businessHours: '09:00-20:00',
         ratingAvg: '4.8',

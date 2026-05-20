@@ -19,6 +19,7 @@ import PetArchiveQueryView from '@/views/operation/PetArchiveQueryView.vue';
 import UserManagementView from '@/views/operation/UserManagementView.vue';
 import ReminderTemplateManagementView from '@/views/reminder/ReminderTemplateManagementView.vue';
 import SystemReminderQueryView from '@/views/reminder/SystemReminderQueryView.vue';
+import ServiceMapDebugView from '@/views/service/ServiceMapDebugView.vue';
 import ServiceProviderView from '@/views/service/ServiceProviderView.vue';
 import SystemConfigView from '@/views/system/SystemConfigView.vue';
 
@@ -125,6 +126,11 @@ const routes: RouteRecordRaw[] = [
         path: 'service-providers',
         name: 'serviceProviders',
         component: ServiceProviderView
+      },
+      {
+        path: 'service-map',
+        name: 'serviceMap',
+        component: ServiceMapDebugView
       },
       {
         path: 'system-config',

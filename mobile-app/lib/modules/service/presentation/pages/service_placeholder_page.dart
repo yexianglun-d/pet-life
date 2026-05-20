@@ -7,6 +7,11 @@ import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_sect
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
+import 'package:petlife_mobile_app/shared/location/petlife_location_models.dart';
+import 'package:petlife_mobile_app/shared/location/petlife_location_service.dart';
+import 'package:petlife_mobile_app/shared/location/service_distance_calculator.dart';
+import 'package:petlife_mobile_app/shared/location/service_map_launcher.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ServicePlaceholderPage extends StatefulWidget {
   const ServicePlaceholderPage({super.key});
@@ -171,14 +176,32 @@ class ServiceProviderListPage extends StatefulWidget {
 }
 
 class _ServiceProviderListPageState extends State<ServiceProviderListPage> {
+  static const PetLifeLocationService _locationService =
+      PetLifeLocationService();
+
   late Future<List<ServiceProviderSnapshot>> _providersFuture;
+  PetLifeLocationResult _locationResult =
+      const PetLifeLocationResult.notRequested();
+  bool _sortByDistance = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _providersFuture =
-        PetLifeAppScope.repositoryOf(context).listServiceProviders(
+    _providersFuture = _loadProviders();
+  }
+
+  Future<List<ServiceProviderSnapshot>> _loadProviders({
+    PetLifeLocationResult? locationResult,
+    bool? sortByDistance,
+  }) {
+    final PetLifeCoordinate? coordinate =
+        (locationResult ?? _locationResult).coordinate;
+    final bool shouldSortByDistance = sortByDistance ?? _sortByDistance;
+    return PetLifeAppScope.repositoryOf(context).listServiceProviders(
       providerType: widget.category.providerType,
+      latitude: coordinate?.latitude,
+      longitude: coordinate?.longitude,
+      sort: shouldSortByDistance && coordinate != null ? 'distance' : null,
     );
   }
 
@@ -191,12 +214,79 @@ class _ServiceProviderListPageState extends State<ServiceProviderListPage> {
     );
     if (mounted) {
       setState(() {
-        _providersFuture =
-            PetLifeAppScope.repositoryOf(context).listServiceProviders(
-          providerType: widget.category.providerType,
-        );
+        _providersFuture = _loadProviders();
       });
     }
+  }
+
+  Future<void> _requestLocation() async {
+    if (_locationResult.status == PetLifeLocationStatus.locating) {
+      return;
+    }
+    setState(() {
+      _locationResult = const PetLifeLocationResult.locating();
+    });
+    final PetLifeLocationResult result =
+        await _locationService.requestCurrentLocation();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _locationResult = result;
+      if (result.hasCoordinate) {
+        _sortByDistance = true;
+        _providersFuture = _loadProviders(
+          locationResult: result,
+          sortByDistance: true,
+        );
+      }
+    });
+  }
+
+  List<ServiceProviderSnapshot> _displayProviders(
+    List<ServiceProviderSnapshot> providers,
+  ) {
+    if (!_sortByDistance) {
+      return providers;
+    }
+    final List<ServiceProviderSnapshot> sorted =
+        List<ServiceProviderSnapshot>.of(providers);
+    sorted.sort(
+      (ServiceProviderSnapshot left, ServiceProviderSnapshot right) {
+        final int? leftDistance =
+            ServiceDistanceCalculator.resolveDistanceMeters(
+          provider: left,
+          currentCoordinate: _locationResult.coordinate,
+        );
+        final int? rightDistance =
+            ServiceDistanceCalculator.resolveDistanceMeters(
+          provider: right,
+          currentCoordinate: _locationResult.coordinate,
+        );
+        if (leftDistance == null && rightDistance == null) {
+          return left.providerName.compareTo(right.providerName);
+        }
+        if (leftDistance == null) {
+          return 1;
+        }
+        if (rightDistance == null) {
+          return -1;
+        }
+        return leftDistance.compareTo(rightDistance);
+      },
+    );
+    return sorted;
+  }
+
+  bool _hasDistance(List<ServiceProviderSnapshot> providers) {
+    return providers.any(
+      (ServiceProviderSnapshot provider) =>
+          ServiceDistanceCalculator.resolveDistanceMeters(
+            provider: provider,
+            currentCoordinate: _locationResult.coordinate,
+          ) !=
+          null,
+    );
   }
 
   @override
@@ -220,29 +310,57 @@ class _ServiceProviderListPageState extends State<ServiceProviderListPage> {
               message: snapshot.error.toString(),
               onRetry: () {
                 setState(() {
-                  _providersFuture = PetLifeAppScope.repositoryOf(context)
-                      .listServiceProviders(
-                          providerType: widget.category.providerType);
+                  _providersFuture = _loadProviders();
                 });
               },
             );
           }
+          final List<ServiceProviderSnapshot> providers = snapshot.data!;
+          final bool hasDistance = _hasDistance(providers);
+          final List<ServiceProviderSnapshot> displayProviders =
+              _displayProviders(providers);
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               PageSection(
                 title: widget.category.title,
                 description: widget.category.description,
-                child: snapshot.data!.isEmpty
-                    ? const CompanionEmptyState(
-                        title: '暂时没有可预约服务商',
-                        description: '可以稍后再看，或切换城市后重新查找。',
-                        icon: Icons.search_off_rounded,
-                      )
-                    : _ProviderList(
-                        providers: snapshot.data!,
-                        onTap: _openProvider,
-                      ),
+                child: Column(
+                  children: [
+                    _LocationStatusCard(
+                      result: _locationResult,
+                      sortByDistance: _sortByDistance,
+                      canSortByDistance: hasDistance,
+                      onLocate: _requestLocation,
+                      onOpenSettings: () {
+                        openAppSettings();
+                      },
+                      onToggleSort: hasDistance
+                          ? () {
+                              final bool nextSortState = !_sortByDistance;
+                              setState(() {
+                                _sortByDistance = nextSortState;
+                                _providersFuture = _loadProviders(
+                                  sortByDistance: nextSortState,
+                                );
+                              });
+                            }
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                    providers.isEmpty
+                        ? const CompanionEmptyState(
+                            title: '暂时没有可预约服务商',
+                            description: '可以稍后再看，或切换城市后重新查找。',
+                            icon: Icons.search_off_rounded,
+                          )
+                        : _ProviderList(
+                            providers: displayProviders,
+                            currentCoordinate: _locationResult.coordinate,
+                            onTap: _openProvider,
+                          ),
+                  ],
+                ),
               ),
             ],
           );
@@ -790,12 +908,41 @@ class _ProviderDetailBody extends StatelessWidget {
   final Future<List<ProviderReviewSnapshot>> reviewsFuture;
   final VoidCallback onAppointmentTap;
 
+  Future<void> _openNavigation(BuildContext context) async {
+    if (!provider.hasCoordinate) {
+      showCompanionErrorFeedback(context, '服务方暂未维护坐标，可以先通过地址或电话确认路线');
+      return;
+    }
+    final bool opened =
+        await const ServiceMapLauncher().openProviderNavigation(provider);
+    if (!context.mounted) {
+      return;
+    }
+    if (opened) {
+      showCompanionFeedback(
+        context,
+        message: '已打开地图，路线会在外部地图中完成',
+      );
+    } else {
+      showCompanionErrorFeedback(context, '暂时无法打开地图，可以稍后再试');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _ProviderCard(provider: provider, onTap: () {}),
+        const SizedBox(height: 16),
+        PageSection(
+          title: '到店路线',
+          description: '当前只提供外部地图拉起，App 内暂不做内嵌导航。',
+          child: _ProviderRouteCard(
+            provider: provider,
+            onNavigationTap: () => _openNavigation(context),
+          ),
+        ),
         const SizedBox(height: 16),
         PageSection(
           title: '服务项目',
@@ -996,14 +1143,193 @@ class _CategorySection extends StatelessWidget {
   }
 }
 
+class _LocationStatusCard extends StatelessWidget {
+  const _LocationStatusCard({
+    required this.result,
+    required this.sortByDistance,
+    required this.canSortByDistance,
+    required this.onLocate,
+    required this.onOpenSettings,
+    required this.onToggleSort,
+  });
+
+  final PetLifeLocationResult result;
+  final bool sortByDistance;
+  final bool canSortByDistance;
+  final VoidCallback onLocate;
+  final VoidCallback onOpenSettings;
+  final VoidCallback? onToggleSort;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool locating = result.status == PetLifeLocationStatus.locating;
+    final bool permanentlyDenied =
+        result.status == PetLifeLocationStatus.permanentlyDenied;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
+    return CompanionCard(
+      color: AppThemePalette.surfaceRaised,
+      padding: const EdgeInsets.all(16),
+      radius: 24,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppThemePalette.warmTint,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(_locationIcon(result.status),
+                    color: AppThemePalette.primaryDeep),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_locationTitle(result.status),
+                        style: textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    Text(
+                      _locationDescription(result),
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppThemePalette.body,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (permanentlyDenied)
+                FilledButton.tonalIcon(
+                  onPressed: onOpenSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                  label: const Text('去系统设置'),
+                )
+              else
+                FilledButton.tonalIcon(
+                  onPressed: locating ? null : onLocate,
+                  icon: Icon(locating
+                      ? Icons.hourglass_top_rounded
+                      : Icons.my_location_rounded),
+                  label: Text(result.hasCoordinate ? '重新定位' : '获取当前位置'),
+                ),
+              OutlinedButton.icon(
+                onPressed: canSortByDistance ? onToggleSort : null,
+                icon: Icon(sortByDistance
+                    ? Icons.swap_vert_rounded
+                    : Icons.near_me_outlined),
+                label: Text(sortByDistance ? '恢复默认排序' : '按距离排序'),
+              ),
+            ],
+          ),
+          if (result.hasCoordinate && !canSortByDistance) ...[
+            const SizedBox(height: 10),
+            Text(
+              '当前服务商暂未维护坐标，暂时不能计算距离。',
+              style: textTheme.bodySmall?.copyWith(
+                color: AppThemePalette.muted,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderRouteCard extends StatelessWidget {
+  const _ProviderRouteCard({
+    required this.provider,
+    required this.onNavigationTap,
+  });
+
+  final ServiceProviderSnapshot provider;
+  final VoidCallback onNavigationTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    return CompanionCard(
+      color: AppThemePalette.surfaceRaised,
+      padding: const EdgeInsets.all(16),
+      radius: 24,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined,
+                  color: AppThemePalette.primaryDeep),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  provider.address ?? '服务方暂未填写地址',
+                  style: textTheme.titleSmall,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            provider.hasCoordinate
+                ? '坐标：${_formatCoordinate(provider.latitude!)}, ${_formatCoordinate(provider.longitude!)}'
+                : '服务方暂未维护坐标，无法直接计算距离或拉起导航。',
+            style: textTheme.bodySmall?.copyWith(color: AppThemePalette.body),
+          ),
+          if (provider.coordinateSource != null) ...[
+            const SizedBox(height: 8),
+            CompanionPill(
+              label: _coordinateSourceLabel(provider.coordinateSource!),
+              icon: Icons.explore_outlined,
+              backgroundColor: AppThemePalette.warmTint,
+            ),
+          ],
+          if (provider.contactPhone != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '电话：${provider.contactPhone}',
+              style: textTheme.bodySmall?.copyWith(color: AppThemePalette.body),
+            ),
+          ],
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: provider.hasCoordinate ? onNavigationTap : null,
+            icon: const Icon(Icons.near_me_outlined),
+            label: const Text('打开地图导航'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '会优先尝试拉起高德地图；未安装时打开高德网页地图，路线规划在外部地图中完成。',
+            style: textTheme.bodySmall?.copyWith(color: AppThemePalette.muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProviderList extends StatelessWidget {
   const _ProviderList({
     required this.providers,
     required this.onTap,
+    this.currentCoordinate,
   });
 
   final List<ServiceProviderSnapshot> providers;
   final ValueChanged<ServiceProviderSnapshot> onTap;
+  final PetLifeCoordinate? currentCoordinate;
 
   @override
   Widget build(BuildContext context) {
@@ -1012,7 +1338,14 @@ class _ProviderList extends StatelessWidget {
           .map((ServiceProviderSnapshot provider) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _ProviderCard(
-                    provider: provider, onTap: () => onTap(provider)),
+                  provider: provider,
+                  distanceMeters:
+                      ServiceDistanceCalculator.resolveDistanceMeters(
+                    provider: provider,
+                    currentCoordinate: currentCoordinate,
+                  ),
+                  onTap: () => onTap(provider),
+                ),
               ))
           .toList(),
     );
@@ -1023,10 +1356,12 @@ class _ProviderCard extends StatelessWidget {
   const _ProviderCard({
     required this.provider,
     required this.onTap,
+    this.distanceMeters,
   });
 
   final ServiceProviderSnapshot provider;
   final VoidCallback onTap;
+  final int? distanceMeters;
 
   @override
   Widget build(BuildContext context) {
@@ -1066,6 +1401,14 @@ class _ProviderCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 CompanionPill(label: _providerTypeLabel(provider.providerType)),
+                if (distanceMeters != null)
+                  CompanionPill(
+                    label:
+                        '距你 ${ServiceDistanceCalculator.formatDistance(distanceMeters!)}',
+                    icon: Icons.near_me_outlined,
+                    backgroundColor: const Color(0xFFEAF4E8),
+                    foregroundColor: AppThemePalette.success,
+                  ),
                 if (provider.ratingAvg != null)
                   CompanionPill(label: '${provider.ratingAvg} 分'),
                 CompanionPill(label: '${provider.reviewCount} 条评价'),
@@ -1368,6 +1711,69 @@ IconData _categoryIcon(String providerType) {
     default:
       return Icons.medical_services_outlined;
   }
+}
+
+IconData _locationIcon(PetLifeLocationStatus status) {
+  switch (status) {
+    case PetLifeLocationStatus.ready:
+      return Icons.near_me_rounded;
+    case PetLifeLocationStatus.locating:
+      return Icons.hourglass_top_rounded;
+    case PetLifeLocationStatus.denied:
+    case PetLifeLocationStatus.permanentlyDenied:
+      return Icons.location_disabled_outlined;
+    case PetLifeLocationStatus.serviceDisabled:
+      return Icons.location_off_outlined;
+    case PetLifeLocationStatus.keyMissing:
+      return Icons.key_off_outlined;
+    case PetLifeLocationStatus.failed:
+      return Icons.wifi_tethering_error_rounded;
+    case PetLifeLocationStatus.notRequested:
+      return Icons.my_location_rounded;
+  }
+}
+
+String _locationTitle(PetLifeLocationStatus status) {
+  switch (status) {
+    case PetLifeLocationStatus.ready:
+      return '已获取当前位置';
+    case PetLifeLocationStatus.locating:
+      return '正在获取当前位置';
+    case PetLifeLocationStatus.denied:
+      return '定位权限未开启';
+    case PetLifeLocationStatus.permanentlyDenied:
+      return '需要在系统设置中开启定位';
+    case PetLifeLocationStatus.serviceDisabled:
+      return '系统定位服务未开启';
+    case PetLifeLocationStatus.keyMissing:
+      return '地图定位暂未配置';
+    case PetLifeLocationStatus.failed:
+      return '定位暂时失败';
+    case PetLifeLocationStatus.notRequested:
+      return '按距离查找附近服务';
+  }
+}
+
+String _locationDescription(PetLifeLocationResult result) {
+  if (result.status == PetLifeLocationStatus.ready) {
+    return result.address ?? result.message;
+  }
+  return result.message;
+}
+
+String _coordinateSourceLabel(String coordinateSource) {
+  switch (coordinateSource) {
+    case 'manual':
+      return '服务方维护坐标';
+    case 'amap_geocode':
+      return '高德地理编码坐标';
+    default:
+      return '已维护坐标';
+  }
+}
+
+String _formatCoordinate(double value) {
+  return value.toStringAsFixed(6);
 }
 
 String _priceRange(ProviderServiceItemSnapshot item) {

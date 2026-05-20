@@ -39,6 +39,7 @@
   - `GET /api/v1/admin/service/providers`
   - `POST /api/v1/admin/service/providers`
   - `PATCH /api/v1/admin/service/providers/{providerId}`
+  - `PATCH /api/v1/admin/service/providers/{providerId}/location`
   - `POST /api/v1/admin/service/providers/{providerId}/items`
   - `PATCH /api/v1/admin/service/providers/{providerId}/items/{serviceItemId}`
   - `POST /api/v1/admin/service/providers/{providerId}/slots`
@@ -48,6 +49,10 @@
   - `GET /api/v1/admin/service/reviews`
   - `PATCH /api/v1/admin/service/reviews/{reviewId}/status`
   - `GET /api/v1/admin/service/audit-logs`
+- 后台地图辅助能力已同步到 `docs/api/petlife-openapi.yaml`：
+  - `GET /api/v1/admin/map/config`
+  - `GET /api/v1/admin/map/geocode`
+  - `GET /api/v1/admin/map/reverse-geocode`
 - 内容治理查询能力已同步到 `docs/api/petlife-openapi.yaml`：
   - `GET /api/v1/admin/health-records`
   - `GET /api/v1/admin/health-records/{healthRecordId}`
@@ -106,6 +111,7 @@
 - 审核任务接口已接入内容审核任务页，支持真实任务列表、详情、审核快照、回调 payload、任务审计展示和人工通过/拒绝。
 - 通知与消息配置接口已接入消息模板管理页和通知发送配置页，支持真实列表筛选、详情查看、创建、编辑、启停和配置审计查询。
 - Push 任务和投递记录接口已接入 Push 投递排查页，支持真实任务/投递记录查询、状态排查、失败原因和设备标识脱敏展示。
+- 后台地图配置状态、地理编码辅助和服务商坐标维护接口已接入地图排查页，支持配置状态展示、地址转坐标、坐标反查地址、手动坐标保存和距离能力排查。
 - 写治理能力已使用服务端状态机、权限边界和审计动作接口，不使用前端本地 mock。
 
 ## 待后续补齐或接入
@@ -114,6 +120,7 @@
 | --- | --- | --- |
 | 2. 认证与会话 | 短信验证码发送/校验排查按服务端时间范围查询 | 现有接口未提供 `created_from` / `created_to` 或等价时间范围参数，当前 admin-web 基于真实返回时间字段做页面内收窄 |
 | 12. 审核与举报处理 | 审核任务列表按关键词和时间范围服务端查询 | 现有 `GET /api/v1/admin/moderation/tasks` 未提供 `keyword`、`created_from`、`created_to` 或等价参数，当前 admin-web 基于真实返回字段做页面内收窄 |
+| 13. 服务中心 | 后台地图选点、地图画布和路线距离排查 | 当前只有高德 Web 服务 Key、Android Key、iOS Key；admin-web 未接 Web JS Key 和 Web JS API，不展示地图画布或地图选点，后续需要服务端与前端明确 Web JS Key 管理和路线距离后台接口后再接入 |
 | 14. 通知与消息 | Push 任务和投递记录按 `notify_type` 与时间范围服务端查询 | 现有 `GET /api/v1/admin/push-tasks` 未提供 `notify_type`、`created_from`、`created_to` 参数，`GET /api/v1/admin/push-deliveries` 未提供时间范围参数，当前 admin-web 基于真实返回字段做页面内收窄 |
 | 14. 通知与消息 | Push 投递记录展示设备 token 脱敏值 | 现有 `PushDeliveryRecord` 只返回 `device_token_id`，不返回真实 token 或服务端生成的 `masked_device_token`；admin-web 只能脱敏展示设备标识，不能定位真实 token 原文 |
 | 14. 通知与消息 | 真实短信 / Push 供应商接入后的密钥配置、发送报表、通道健康检查 | 需服务端先定义供应商接入、发送状态和健康检查接口 |

@@ -7,6 +7,108 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-20 服务端确认服务商距离参数与字段
+
+### 1. 新完成内容
+
+- 服务端已将 `GET /api/v1/providers` 的 `latitude`、`longitude`、`sort=distance` 查询参数和 `distance_meters` 响应字段同步到 OpenAPI。
+- 服务端已提供服务商坐标维护和后台地图辅助接口；本轮未修改 mobile-app 源码。
+- 移动端此前记录的“服务端 OpenAPI 未声明经纬度入参与 distance_meters”缺口已由服务端线程补齐。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/technical/02-api-and-events.md`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests test`：通过测试编译。
+- 使用远程 MySQL 配置运行服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 97, Failures: 0, Errors: 0, Skipped: 0`。
+- 服务端 OpenAPI YAML 解析：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 本轮未做 mobile-app 真机定位、地图拉起或导航验证。
+- 真实路线距离仍未接入；当前服务端返回的是基于坐标的直线距离。
+
+### 5. 风险或阻塞
+
+- 移动端如果切换为服务端距离排序，需要确保传入的是用户授权后的真实经纬度，不使用固定坐标。
+- 高德 Web 服务 Key 仍只存在服务端环境变量，移动端不应复用服务端 Web 服务 Key。
+
+### 6. 下一步建议
+
+1. mobile-app 已在下一条记录中按 OpenAPI 切换到服务端 `distance_meters` 与 `sort=distance`，并保留本地直线距离作为无服务端字段时的兼容策略。
+2. 真机注入移动端高德 Key 后，再验证系统定位权限、拒绝态和外部地图拉起。
+
+## 2026-05-20 移动端高德定位与服务商距离展示接入
+
+### 1. 新完成内容
+
+- mobile-app 接入 `csp_amap_flutter_location`、`permission_handler`、`url_launcher`，Android / iOS Key 均通过本地构建参数或 `dart-define` 注入，仓库不提交真实 Key。
+- Android 已声明前台定位和网络权限，并用 `AMAP_ANDROID_KEY` manifest placeholder 注入高德 Key；iOS 已补 `NSLocationWhenInUseUsageDescription` 和高德 URL Scheme 查询配置。
+- 新增移动端定位封装，统一处理未请求、定位中、系统定位关闭、拒绝、永久拒绝和定位失败状态；若未通过 `dart-define` 注入 Key，则允许继续走原生平台配置。
+- 服务商模型和网络解析兼容 `latitude`、`longitude`、`coordinate_source`、`distance_meters` / `distance`；定位成功后 `/providers` 会带 `latitude`、`longitude` 和 `sort=distance` 重新请求服务端，服务端未返回距离时再按经纬度本地计算直线距离。
+- 服务商列表新增当前位置获取、距离展示、按距离排序和无权限/失败态说明；未授权定位不阻塞服务商浏览，授权后优先消费服务端返回的 `distance_meters`。
+- 服务商详情新增“到店路线”区域，展示地址、坐标维护状态和外部地图导航入口；当前不做 App 内嵌导航，优先拉起高德地图，未安装时打开高德网页地图。
+
+### 2. 新增/修改文件
+
+- 新增：`mobile-app/lib/shared/location/petlife_location_models.dart`
+- 新增：`mobile-app/lib/shared/location/petlife_location_service.dart`
+- 新增：`mobile-app/lib/shared/location/service_distance_calculator.dart`
+- 新增：`mobile-app/lib/shared/location/service_map_launcher.dart`
+- 新增：`mobile-app/test/service_distance_calculator_test.dart`
+- 修改：`mobile-app/pubspec.yaml`
+- 修改：`mobile-app/pubspec.lock`
+- 修改：`mobile-app/android/app/build.gradle.kts`
+- 修改：`mobile-app/android/app/src/main/AndroidManifest.xml`
+- 修改：`mobile-app/ios/Podfile`
+- 修改：`mobile-app/ios/Runner/Info.plist`
+- 修改：`mobile-app/lib/shared/repository/petlife_repository.dart`
+- 修改：`mobile-app/lib/shared/domain/models/service_center_snapshot.dart`
+- 修改：`mobile-app/lib/shared/repository/network_petlife_repository.dart`
+- 修改：`mobile-app/lib/modules/service/presentation/pages/service_placeholder_page.dart`
+- 修改：`mobile-app/test/widget_test.dart`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/03-ui-closure-checklist.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- `/Users/deng/development/flutter/bin/flutter pub add amap_flutter_location permission_handler url_launcher`：初始通过，但 Android debug 编译发现 `amap_flutter_location 3.0.0` 缺少 AGP 8 必需的 `namespace`。
+- `/Users/deng/development/flutter/bin/flutter pub remove amap_flutter_location && /Users/deng/development/flutter/bin/flutter pub add csp_amap_flutter_location`：通过，切换到带 Android `namespace` 的高德定位插件。
+- `/Users/deng/development/flutter/bin/dart format lib/shared/domain/models/service_center_snapshot.dart lib/shared/repository/petlife_repository.dart lib/shared/repository/network_petlife_repository.dart lib/shared/location/petlife_location_models.dart lib/shared/location/petlife_location_service.dart lib/shared/location/service_distance_calculator.dart lib/shared/location/service_map_launcher.dart lib/modules/service/presentation/pages/service_placeholder_page.dart test/service_distance_calculator_test.dart test/widget_test.dart`：通过，`Formatted 10 files (0 changed)`。
+- `/Users/deng/development/flutter/bin/flutter analyze`：通过，`No issues found!`。
+- `/Users/deng/development/flutter/bin/flutter test`：通过，`All tests passed!`。
+- `/Users/deng/development/flutter/bin/flutter build apk --debug`：通过，已生成 `build/app/outputs/flutter-apk/app-debug.apk`；构建过程中同步将 Android NDK 固定到插件要求的 `27.0.12077973`。
+- `git diff --check`：通过。
+- `rg -n "AMAP|amap|com\\.amap\\.api\\.v2\\.apikey" mobile-app/android mobile-app/ios mobile-app/lib mobile-app/pubspec.yaml`：只发现依赖名、URL Scheme、manifest placeholder 与 `dart-define` 名称，未发现真实高德 Key。
+
+### 4. 未完成事项
+
+- 未做 App 内嵌地图页面和内嵌导航，本轮边界为定位、距离展示、距离排序与外部地图拉起。
+- 未在真机上使用真实高德 Android / iOS Key 做定位和地图拉起验证；需要本地或 CI 注入 Key 后进行设备验收。
+- 当前未做真实路径规划距离，仅展示服务端 `distance_meters` 或经纬度直线距离；如后续要展示驾车/步行路线距离，需要服务端先提供路线距离字段。
+
+### 5. 风险或阻塞
+
+- 如果服务商后台未维护经纬度，移动端只能展示地址和“暂未维护坐标”，不会生成假坐标，也不会显示距离。
+- 若后续要求服务端按距离分页排序，需要服务端继续明确分页稳定性、距离单位和排序语义。
+- 高德 SDK 合规依赖隐私政策展示与用户同意，当前代码在定位调用前设置隐私状态；上线前仍需产品/法务确认隐私政策文案已覆盖高德定位服务。
+
+### 6. 下一步建议
+
+1. 本地注入 `AMAP_ANDROID_KEY`、`AMAP_IOS_KEY` 后在 Android 与 iOS 真机验证：授权、拒绝、永久拒绝、系统定位关闭、无坐标服务商和地图拉起。
+2. 如后续要展示驾车/步行路线距离，服务端先补路线距离字段，移动端再区分“直线距离”和“路线距离”。
+3. 如后续要做 App 内嵌地图，再单独评估高德地图 Flutter 插件、审图号展示和地图 Key 注入，不与本轮外部导航混做。
+
 ## 2026-05-20 移动端 Push token 底座与社区审核状态展示接入
 
 ### 1. 新完成内容

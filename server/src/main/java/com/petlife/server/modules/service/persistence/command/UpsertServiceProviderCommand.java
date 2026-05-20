@@ -14,6 +14,7 @@ public class UpsertServiceProviderCommand {
     private String address;
     private BigDecimal latitude;
     private BigDecimal longitude;
+    private String coordinateSource;
     private String contactPhone;
     private String businessHours;
     private BigDecimal ratingAvg;
@@ -74,6 +75,14 @@ public class UpsertServiceProviderCommand {
 
     public void setLongitude(BigDecimal longitude) {
         this.longitude = longitude;
+    }
+
+    public String getCoordinateSource() {
+        return coordinateSource;
+    }
+
+    public void setCoordinateSource(String coordinateSource) {
+        this.coordinateSource = coordinateSource;
     }
 
     public String getContactPhone() {

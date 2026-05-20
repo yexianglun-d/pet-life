@@ -33,6 +33,15 @@ public class ServiceProviderConverter {
         List<ProviderServiceItemEntity> serviceItems,
         List<ProviderScheduleSlotEntity> availableSlots
     ) {
+        return toProviderEntity(dataObject, serviceItems, availableSlots, null);
+    }
+
+    public ServiceProviderEntity toProviderEntity(
+        ServiceProviderDataObject dataObject,
+        List<ProviderServiceItemEntity> serviceItems,
+        List<ProviderScheduleSlotEntity> availableSlots,
+        Integer distanceMeters
+    ) {
         if (dataObject == null) {
             return null;
         }
@@ -44,6 +53,8 @@ public class ServiceProviderConverter {
             dataObject.address(),
             dataObject.latitude(),
             dataObject.longitude(),
+            dataObject.coordinateSource(),
+            distanceMeters,
             dataObject.contactPhone(),
             dataObject.businessHours(),
             dataObject.ratingAvg(),
@@ -165,6 +176,8 @@ public class ServiceProviderConverter {
             entity.getAddress(),
             entity.getLatitude(),
             entity.getLongitude(),
+            entity.getCoordinateSource(),
+            entity.getDistanceMeters(),
             entity.getContactPhone(),
             entity.getBusinessHours(),
             entity.getRatingAvg(),

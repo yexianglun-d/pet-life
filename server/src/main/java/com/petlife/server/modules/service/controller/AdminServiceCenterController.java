@@ -6,6 +6,7 @@ import com.petlife.server.modules.admin.dto.response.AuditLogResponse;
 import com.petlife.server.modules.admin.service.AuditLogApplicationService;
 import com.petlife.server.modules.service.dto.request.AdminUpdateProviderReviewStatusRequest;
 import com.petlife.server.modules.service.dto.request.AdminUpdateServiceAppointmentStatusRequest;
+import com.petlife.server.modules.service.dto.request.AdminUpdateProviderLocationRequest;
 import com.petlife.server.modules.service.dto.request.AdminUpsertProviderScheduleSlotRequest;
 import com.petlife.server.modules.service.dto.request.AdminUpsertProviderServiceItemRequest;
 import com.petlife.server.modules.service.dto.request.AdminUpsertServiceCityConfigRequest;
@@ -105,6 +106,22 @@ public class AdminServiceCenterController {
     ) {
         return ApiResponse.success(
             serviceCenterApplicationService.updateAdminProvider(
+                providerId,
+                request,
+                auditContext(operatorName, httpServletRequest)
+            )
+        );
+    }
+
+    @PatchMapping("/providers/{providerId}/location")
+    public ApiResponse<ServiceProviderResponse> updateProviderLocation(
+        @PathVariable Long providerId,
+        @RequestHeader(value = "X-Admin-Operator", required = false) String operatorName,
+        HttpServletRequest httpServletRequest,
+        @Valid @RequestBody AdminUpdateProviderLocationRequest request
+    ) {
+        return ApiResponse.success(
+            serviceCenterApplicationService.updateAdminProviderLocation(
                 providerId,
                 request,
                 auditContext(operatorName, httpServletRequest)

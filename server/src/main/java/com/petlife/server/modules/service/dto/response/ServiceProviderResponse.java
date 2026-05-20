@@ -14,6 +14,8 @@ import java.util.List;
  * @param address 地址
  * @param latitude 纬度
  * @param longitude 经度
+ * @param coordinateSource 坐标来源
+ * @param distanceMeters 到用户位置的直线距离（米）
  * @param contactPhone 联系电话
  * @param businessHours 营业时间
  * @param ratingAvg 平均评分
@@ -33,6 +35,8 @@ public record ServiceProviderResponse(
     String address,
     BigDecimal latitude,
     BigDecimal longitude,
+    String coordinateSource,
+    Integer distanceMeters,
     String contactPhone,
     String businessHours,
     BigDecimal ratingAvg,

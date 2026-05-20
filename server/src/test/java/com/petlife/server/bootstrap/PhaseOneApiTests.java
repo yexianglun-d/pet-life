@@ -37,7 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest
+@SpringBootTest(properties = "petlife.amap.web-service.key=")
 @AutoConfigureMockMvc
 @Transactional
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -178,6 +178,7 @@ class PhaseOneApiTests {
               KEY idx_service_city_configs_opened_sort (opened, sort_order)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='服务城市开通配置表'
             """);
+        ensureServiceProviderLocationSchema();
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS audit_logs (
               id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
@@ -373,6 +374,21 @@ class PhaseOneApiTests {
     private void ensureModerationTaskColumn(String columnName, String alterSql) {
         if (!tableColumnExists("moderation_tasks", columnName)) {
             jdbcTemplate.execute(alterSql);
+        }
+    }
+
+    private void ensureServiceProviderLocationSchema() {
+        if (!tableColumnExists("service_providers", "coordinate_source")) {
+            jdbcTemplate.execute("""
+                ALTER TABLE service_providers
+                ADD COLUMN coordinate_source VARCHAR(20) DEFAULT NULL COMMENT '坐标来源：manual/amap' AFTER longitude
+                """);
+        }
+        if (!tableColumnExists("service_providers", "coordinate_updated_at")) {
+            jdbcTemplate.execute("""
+                ALTER TABLE service_providers
+                ADD COLUMN coordinate_updated_at DATETIME DEFAULT NULL COMMENT '坐标更新时间' AFTER coordinate_source
+                """);
         }
     }
 
@@ -3612,6 +3628,43 @@ class PhaseOneApiTests {
     }
 
     @Test
+    void shouldMaintainProviderLocationAndReturnDistanceSortedDirectory() throws Exception {
+        String authorizationHeader = authorizationHeader("13620000000");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        ProviderFixture nearProvider = createServiceProviderWithSlot("hospital", "近处宠物医院", 2);
+        ProviderFixture farProvider = createServiceProviderWithSlot("hospital", "远处宠物医院", 2);
+
+        updateProviderLocation(adminAuthorizationHeader, nearProvider.providerId(), "上海市徐汇区宠物友好路 88 号", "31.230500", "121.473800", "amap");
+        updateProviderLocation(adminAuthorizationHeader, farProvider.providerId(), "上海市松江区宠物友好路 188 号", "31.030000", "121.210000", "manual");
+
+        mockMvc.perform(get("""
+                /api/v1/providers?provider_type=hospital&city_code=310000&latitude=31.230400&longitude=121.473700&sort=distance
+                """.trim())
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].provider_id", is(nearProvider.providerId())))
+            .andExpect(jsonPath("$.data[0].coordinate_source", is("amap")))
+            .andExpect(jsonPath("$.data[0].distance_meters").isNumber())
+            .andExpect(jsonPath("$.data[1].provider_id", is(farProvider.providerId())));
+    }
+
+    @Test
+    void shouldExposeAmapConfigMissingAndRejectGeocodeWithoutConfiguredKey() throws Exception {
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+
+        mockMvc.perform(get("/api/v1/admin/map/config")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.provider_code", is("amap")))
+            .andExpect(jsonPath("$.data.configured", is(false)));
+
+        mockMvc.perform(get("/api/v1/admin/map/geocode?address=%E4%B8%8A%E6%B5%B7%E5%B8%82%E5%BE%90%E6%B1%87%E5%8C%BA%E5%AE%A0%E7%89%A9%E5%8F%8B%E5%A5%BD%E8%B7%AF88%E5%8F%B7&city=310000")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.code", is("MAP_CONFIGURATION_MISSING")));
+    }
+
+    @Test
     void shouldManageServiceCityConfigInAdminAndControlUserDirectory() throws Exception {
         String authorizationHeader = authorizationHeader();
         String adminAuthorizationHeader = adminAuthorizationHeader();
@@ -4858,6 +4911,31 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.device_token_suffix", is(deviceToken.substring(deviceToken.length() - 6))))
             .andReturn();
         return JsonPath.read(registerResult.getResponse().getContentAsString(), "$.data.device_token_id");
+    }
+
+    private void updateProviderLocation(
+        String adminAuthorizationHeader,
+        String providerId,
+        String address,
+        String latitude,
+        String longitude,
+        String coordinateSource
+    ) throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/service/providers/%s/location".formatted(providerId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "service-location-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "address": "%s",
+                      "latitude": %s,
+                      "longitude": %s,
+                      "coordinate_source": "%s"
+                    }
+                    """.formatted(address, latitude, longitude, coordinateSource)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.provider_id", is(providerId)))
+            .andExpect(jsonPath("$.data.coordinate_source", is(coordinateSource)));
     }
 
     private ProviderFixture createServiceProviderWithSlot(

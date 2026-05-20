@@ -52,6 +52,10 @@ class ServiceProviderSnapshot {
     this.address,
     this.contactPhone,
     this.businessHours,
+    this.latitude,
+    this.longitude,
+    this.coordinateSource,
+    this.distanceMeters,
     this.ratingAvg,
     this.reviewCount = 0,
   });
@@ -63,12 +67,18 @@ class ServiceProviderSnapshot {
   final String? address;
   final String? contactPhone;
   final String? businessHours;
+  final double? latitude;
+  final double? longitude;
+  final String? coordinateSource;
+  final int? distanceMeters;
   final String? ratingAvg;
   final int reviewCount;
   final String status;
   final bool bookable;
   final List<ProviderServiceItemSnapshot> serviceItems;
   final List<ProviderScheduleSlotSnapshot> availableSlots;
+
+  bool get hasCoordinate => latitude != null && longitude != null;
 }
 
 /// 服务项目快照。
