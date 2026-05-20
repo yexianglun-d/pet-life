@@ -3,10 +3,6 @@
     <div class="pet-admin-hero service-hero">
       <p class="page-section__eyebrow">服务网络</p>
       <h1 class="page-section__title">让线下照护服务可维护、可预约、可追踪</h1>
-      <p class="page-section__description">
-        当前后台承接医院、寄养、洗护和训练服务的真实运营动作：城市开通、服务商资料、服务项目、
-        可预约时段、预约状态处理和评价治理。商城和设备厂商接入保持预留，不进入这条后台履约链路。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">开通城市 {{ openedCityCount }} 个</span>
         <span class="pet-admin-chip">在线服务商 {{ onlineProviderCount }} 家</span>
@@ -18,7 +14,6 @@
     <div class="summary-grid service-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -27,9 +22,6 @@
       <div class="service-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">城市开通配置</h2>
-          <p class="pet-admin-panel__description">
-            用户端服务首页和服务商列表以这里的开通状态为准；关闭城市不会删除服务商资料，但用户端不再展示可预约资源。
-          </p>
         </div>
         <div class="service-toolbar__actions">
           <el-select v-model="cityConfigFilters.opened" size="small" class="service-filter" placeholder="开通状态">
@@ -112,9 +104,6 @@
       <div class="service-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">服务商与资源维护</h2>
-          <p class="pet-admin-panel__description">
-            先保证门店资料、服务项目和时段库存准确，用户端才会展示为可预约资源。
-          </p>
         </div>
         <div class="service-toolbar__actions">
           <el-select v-model="providerFilters.providerType" size="small" class="service-filter" placeholder="服务类型">
@@ -190,7 +179,7 @@
                         {{ item.service_code }} · {{ priceRangeLabel(item) }}
                       </div>
                       <div class="service-provider-cell__meta">
-                        {{ item.service_desc || '暂未维护服务说明' }}
+                        {{ item.service_desc || '暂未维护服务内容' }}
                       </div>
                     </div>
                     <el-button size="small" @click="openCreateServiceItemDialog(row, item)">
@@ -324,9 +313,6 @@
       <div class="service-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">预约记录处理</h2>
-          <p class="pet-admin-panel__description">
-            后台只处理预约状态和备注，不替代用户端下单；取消预约会释放对应时段名额。
-          </p>
         </div>
         <div class="service-toolbar__actions">
           <el-select v-model="appointmentFilters.status" size="small" class="service-filter" placeholder="预约状态">
@@ -460,9 +446,6 @@
       <div class="service-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">服务评价治理</h2>
-          <p class="pet-admin-panel__description">
-            用户完成预约后提交的评价会回算服务商评分；后台仅做展示/隐藏治理，不改写用户原始内容。
-          </p>
         </div>
         <div class="service-toolbar__actions">
           <el-select v-model="reviewFilters.status" size="small" class="service-filter" placeholder="评价状态">
@@ -565,9 +548,6 @@
       <div class="service-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">服务中心操作审计</h2>
-          <p class="pet-admin-panel__description">
-            记录城市开通、服务商资源、预约状态和评价治理的后台写操作，方便后续排查责任链路。
-          </p>
         </div>
         <div class="service-toolbar__actions">
           <el-select v-model="auditLogFilters.targetType" size="small" class="service-filter" placeholder="目标类型">
@@ -673,7 +653,7 @@
             type="textarea"
             :rows="3"
             :disabled="cityConfigForm.opened"
-            placeholder="未开通时展示给用户的说明"
+            placeholder="未开通原因"
           />
         </el-form-item>
       </el-form>
@@ -779,8 +759,8 @@
         <el-form-item label="服务名称">
           <el-input v-model="serviceItemForm.serviceName" placeholder="例如：基础问诊" />
         </el-form-item>
-        <el-form-item label="服务说明">
-          <el-input v-model="serviceItemForm.serviceDesc" type="textarea" :rows="3" placeholder="说明服务内容和边界" />
+        <el-form-item label="服务内容">
+          <el-input v-model="serviceItemForm.serviceDesc" type="textarea" :rows="3" placeholder="服务内容" />
         </el-form-item>
         <div class="service-form-grid">
           <el-form-item label="最低价格">
@@ -903,7 +883,7 @@
             v-model="appointmentStatusForm.remark"
             type="textarea"
             :rows="4"
-            placeholder="说明本次状态调整原因，用户端后续可按需展示"
+            placeholder="状态调整原因"
           />
         </el-form-item>
       </el-form>

@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">家庭共养</p>
       <h1 class="page-section__title">查询家庭资料、成员关系和共养宠物</h1>
-      <p class="page-section__description">
-        家庭管理页只做真实查询和详情查看，用于运营侧确认家庭归属、成员角色、邀请状态和家庭宠物关系。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">家庭 {{ records.length }} 个</span>
         <span class="pet-admin-chip">正常 {{ activeFamilyCount }} 个</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid family-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="family-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">家庭查询</h2>
-          <p class="pet-admin-panel__description">
-            按关键词、家庭名、成员手机号、成员角色或家庭状态筛选。停用、恢复和关系修复不在本轮提前实现。
-          </p>
         </div>
         <div class="family-toolbar__actions">
           <el-input v-model="filters.keyword" size="small" class="family-keyword" placeholder="家庭 / 拥有者 / 成员" clearable />
@@ -338,7 +331,7 @@ async function handleFamilyStatusChange(record: AdminFamilySnapshot) {
   const actionLabel = targetStatus === 2 ? '停用' : '恢复';
   try {
     const result = await ElMessageBox.prompt(
-      `请输入${actionLabel}原因，后续会写入后台审计日志。`,
+      `请输入${actionLabel}原因。`,
       `${actionLabel}家庭`,
       {
         confirmButtonText: actionLabel,

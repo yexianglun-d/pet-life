@@ -404,7 +404,7 @@ class _LoginEyebrow extends StatelessWidget {
         children: [
           Icon(Icons.pets, size: 14, color: AppThemePalette.primaryDeep),
           SizedBox(width: 6),
-          Text('陪伴，从今天继续'),
+          Text('宠物生活管家'),
         ],
       ),
     );
@@ -465,7 +465,7 @@ class _LoginIllustration extends StatelessWidget {
                   color: AppThemePalette.primaryDeep,
                 ),
                 SizedBox(height: 10),
-                Text('记录、照护、陪伴'),
+                Text('PetLife'),
               ],
             ),
           ),

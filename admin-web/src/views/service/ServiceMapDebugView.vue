@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">地图能力排查</p>
       <h1 class="page-section__title">维护服务商坐标，排查距离能力底座</h1>
-      <p class="page-section__description">
-        本页只使用服务端地图辅助接口。高德 Web 服务 Key 只由服务端持有；后台未接 Web JS 地图能力时，不展示地图画布。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">服务商 {{ providers.length }} 家</span>
         <span class="pet-admin-chip">已维护坐标 {{ locatedProviderCount }} 家</span>
@@ -17,28 +14,15 @@
     <div class="summary-grid service-map-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
-
-    <el-alert
-      title="地图边界"
-      description="当前后台没有接入高德 Web JS API，也不持有 Web JS Key；页面只做配置状态、地址解析、坐标保存和距离能力排查，不展示假地图。"
-      type="warning"
-      show-icon
-      class="service-map-boundary"
-      :closable="false"
-    />
 
     <div class="pet-admin-grid pet-admin-grid--two service-map-panels">
       <article class="pet-admin-panel">
         <div class="service-map-panel-heading">
           <div>
             <h2 class="pet-admin-panel__title">地图服务配置</h2>
-            <p class="pet-admin-panel__description">
-              配置状态来自服务端，不返回任何 Key 明文。Web 服务 Key 仅由服务端调用高德 Web 服务时使用。
-            </p>
           </div>
           <el-button :loading="mapConfigLoading" @click="loadMapConfig">刷新配置</el-button>
         </div>
@@ -78,10 +62,6 @@
               <span v-if="mapConfig.capabilities.length === 0">暂无能力</span>
             </dd>
           </div>
-          <div>
-            <dt>说明</dt>
-            <dd>{{ mapConfig.message }}</dd>
-          </div>
         </dl>
         <div v-else class="service-map-empty-inline">
           {{ mapConfigLoading ? '正在读取地图配置状态' : '地图配置状态暂不可用，请刷新重试' }}
@@ -90,9 +70,6 @@
 
       <article class="pet-admin-panel">
         <h2 class="pet-admin-panel__title">距离能力排查入口</h2>
-        <p class="pet-admin-panel__description">
-          用户端距离排序依赖服务商坐标和服务端距离计算。本页不调用用户端接口，只检查后台坐标维护覆盖率和地图底座能力。
-        </p>
         <div class="service-map-readiness">
           <div>
             <strong>{{ locatedProviderCount }}</strong>
@@ -118,9 +95,6 @@
       <div class="service-map-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">服务商坐标维护</h2>
-          <p class="pet-admin-panel__description">
-            展示服务商地址、经纬度和坐标来源。可通过服务端地理编码辅助回填，也可手动编辑坐标后保存。
-          </p>
         </div>
         <div class="service-map-toolbar__actions">
           <el-select v-model="providerFilters.providerType" size="small" class="service-map-filter" placeholder="服务类型">
@@ -261,7 +235,7 @@
         <section class="service-map-drawer__section">
           <h3>地址转坐标辅助</h3>
           <p class="service-map-section-note">
-            通过服务端调用高德 Web 服务。配置缺失时服务端会返回错误，本页不会在前端保存或展示 Key。
+            高德 Web 服务
           </p>
           <div class="service-map-form-grid">
             <label class="service-map-form-item">

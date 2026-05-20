@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">健康档案</p>
       <h1 class="page-section__title">把健康记录、宠物归属和附件线索看清楚</h1>
-      <p class="page-section__description">
-        健康记录审查页只做真实记录查询和排查，不替用户改写健康档案。重点是快速定位记录类型、操作者、宠物归属和附件状态。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">记录 {{ records.length }} 条</span>
         <span class="pet-admin-chip">带附件 {{ attachmentRecordCount }} 条</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid health-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="health-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">健康记录队列</h2>
-          <p class="pet-admin-panel__description">
-            按类型、宠物、操作者或关键词筛选。列表最多返回 200 条，更多治理筛选交给服务端继续扩展。
-          </p>
         </div>
         <div class="health-toolbar__actions">
           <el-select v-model="filters.recordType" size="small" class="health-filter" placeholder="记录类型">

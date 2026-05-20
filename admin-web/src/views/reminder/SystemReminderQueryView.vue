@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">系统提醒</p>
       <h1 class="page-section__title">看清每一条照护提醒的状态、归属和来源</h1>
-      <p class="page-section__description">
-        系统提醒查询页只承接真实提醒排查，不替用户完成、跳过或改写提醒。运营侧重点是定位待处理提醒、逾期风险、宠物家庭归属和来源健康记录。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">提醒 {{ records.length }} 条</span>
         <span class="pet-admin-chip">待处理 {{ pendingReminderCount }} 条</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid reminder-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="reminder-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">提醒查询队列</h2>
-          <p class="pet-admin-panel__description">
-            按状态、类型、模式、宠物、家庭、处理人、来源记录和提醒时间筛选，结果来自管理端系统提醒接口。
-          </p>
         </div>
         <div class="reminder-toolbar__actions">
           <el-select v-model="filters.status" size="small" class="reminder-filter" placeholder="状态">

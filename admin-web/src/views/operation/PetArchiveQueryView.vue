@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">宠物主档</p>
       <h1 class="page-section__title">查询宠物档案、主人和家庭归属</h1>
-      <p class="page-section__description">
-        宠物档案查询页用于运营侧核查宠物基础资料、主人、家庭归属和健康提示信息。本轮不实现修复工具和写操作。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">宠物 {{ records.length }} 只</span>
         <span class="pet-admin-chip">活跃 {{ activePetCount }} 只</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid pet-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="pet-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">宠物档案查询</h2>
-          <p class="pet-admin-panel__description">
-            按关键词、宠物名、类型、状态、主人手机号或家庭 ID 筛选。问题数据修复工具待服务端定义状态机后再接入。
-          </p>
         </div>
         <div class="pet-toolbar__actions">
           <el-input v-model="filters.keyword" size="small" class="pet-keyword" placeholder="宠物 / 品种 / 家庭 / 主人" clearable />

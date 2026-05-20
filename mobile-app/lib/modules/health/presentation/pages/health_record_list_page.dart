@@ -229,11 +229,6 @@ class _HealthHeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(petName, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 10),
-          Text(
-            '把体检、疫苗、驱虫和异常观察慢慢整理好，照顾时会更安心。',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
           const SizedBox(height: 16),
           CompanionPill(
             label: '已记录 $recordCount 条',

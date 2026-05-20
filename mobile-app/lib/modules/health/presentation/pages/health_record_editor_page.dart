@@ -561,7 +561,6 @@ class _HealthRecordEditorPageState extends State<HealthRecordEditorPage> {
           value: _createNextReminder,
           contentPadding: EdgeInsets.zero,
           title: const Text('生成下一次提醒'),
-          subtitle: const Text('保存健康记录后，会自动加入提醒计划。'),
           onChanged: (bool value) {
             setState(() {
               _createNextReminder = value;
@@ -626,8 +625,6 @@ class _EditorHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(title, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 10),
-          Text(description, style: Theme.of(context).textTheme.bodyMedium),
         ],
       ),
     );
@@ -655,13 +652,6 @@ class _FormSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppThemePalette.muted,
-                ),
-          ),
           const SizedBox(height: 16),
           child,
         ],

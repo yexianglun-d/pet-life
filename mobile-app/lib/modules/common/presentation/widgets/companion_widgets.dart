@@ -121,13 +121,6 @@ class CompanionEmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(title, style: textTheme.titleMedium),
-          const SizedBox(height: 6),
-          Text(
-            description,
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppThemePalette.muted,
-            ),
-          ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 16),
             FilledButton.tonal(

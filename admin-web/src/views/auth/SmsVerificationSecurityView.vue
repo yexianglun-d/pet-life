@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">验证码排查</p>
       <h1 class="page-section__title">查看短信发送记录和验证码安全状态</h1>
-      <p class="page-section__description">
-        当前页面只接入供应商无关的短信验证码安全底座，用于排查服务端受理、频控、错误次数、过期和校验状态；真实短信供应商尚未接入。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">记录 {{ visibleRows.length }} 条</span>
         <span class="pet-admin-chip">已受理 {{ acceptedCount }} 条</span>
@@ -17,14 +14,12 @@
     <div class="summary-grid sms-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
 
     <el-alert
-      title="安全边界"
-      description="后台接口不会返回明文验证码、code_hash 或 salt；页面详情只展示排查字段，不提供查看验证码能力。"
+      title="功能未完成：缺少真实短信供应商"
       type="warning"
       show-icon
       class="sms-boundary"
@@ -35,9 +30,6 @@
       <div class="sms-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">短信发送与校验记录</h2>
-          <p class="pet-admin-panel__description">
-            按手机号、场景、发送状态、校验状态、供应商和时间范围筛选。时间范围基于接口真实返回时间字段在页面内收窄。
-          </p>
         </div>
         <div class="sms-toolbar__actions">
           <el-input v-model="filters.mobile" size="small" class="sms-filter" placeholder="手机号" clearable />
@@ -169,13 +161,6 @@
                 {{ rowVerificationStatusLabel(activeRow) }}
               </el-tag>
             </div>
-            <el-alert
-              title="验证码内容不可见"
-              description="服务端响应不包含明文验证码、code_hash 或 salt，本详情仅用于排查状态、频控、错误次数和请求来源。"
-              type="info"
-              show-icon
-              :closable="false"
-            />
           </section>
 
           <section class="sms-detail__section">

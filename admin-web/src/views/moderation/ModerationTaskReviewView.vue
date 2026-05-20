@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">内容审核任务</p>
       <h1 class="page-section__title">排查公开内容审核任务，并进行人工通过或拒绝</h1>
-      <p class="page-section__description">
-        这里只承接后台内容审核任务接口。dev_noop 表示本地占位流程，manual 表示人工处理，不代表已接入第三方审核供应商。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">任务 {{ visibleTasks.length }} 条</span>
         <span class="pet-admin-chip">待处理 {{ pendingCount }} 条</span>
@@ -17,14 +14,12 @@
     <div class="summary-grid moderation-task-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
 
     <el-alert
-      title="审核边界"
-      description="当前页面展示内容审核任务和人工审核结果。未接入真实第三方内容审核前，dev_noop/manual 不应被理解为真实供应商审核结论。"
+      title="功能未完成：缺少真实内容审核供应商"
       type="warning"
       show-icon
       class="moderation-task-boundary"
@@ -35,9 +30,6 @@
       <div class="moderation-task-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">审核任务列表</h2>
-          <p class="pet-admin-panel__description">
-            服务端支持目标、内容类型、审核状态和供应商筛选；关键词和时间范围基于真实返回字段在页面内收窄。
-          </p>
         </div>
         <div class="moderation-task-toolbar__actions">
           <el-select v-model="filters.targetType" size="small" class="moderation-task-filter" placeholder="目标类型">
@@ -197,9 +189,6 @@
       <div class="moderation-task-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">审核任务审计</h2>
-          <p class="pet-admin-panel__description">
-            查询服务端写入的 moderation_task 审计记录，便于回溯人工审核动作与备注。
-          </p>
         </div>
         <div class="moderation-task-toolbar__actions">
           <el-input
@@ -390,7 +379,7 @@
             :rows="4"
             maxlength="500"
             show-word-limit
-            placeholder="说明本次人工通过或拒绝依据，便于后续审计排查"
+            placeholder="处理备注"
           />
         </el-form-item>
       </el-form>
@@ -508,7 +497,7 @@ const summaryCards = computed(() => [
     value: `${failedCount.value} 条`
   },
   {
-    title: '占位流程',
+    title: '未接供应商',
     description: 'provider_code 为 dev_noop 的本地底座任务。',
     value: `${devNoopCount.value} 条`
   }
@@ -783,7 +772,7 @@ function reviewActionLabel(action: ModerationReviewAction) {
 
 function providerLabel(providerCode: string) {
   if (providerCode === 'dev_noop') {
-    return 'dev_noop · 本地占位';
+    return 'dev_noop · 未接供应商';
   }
   if (providerCode === 'manual') {
     return 'manual · 人工处理';

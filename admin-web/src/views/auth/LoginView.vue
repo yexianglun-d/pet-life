@@ -3,18 +3,12 @@
     <section class="login-shell">
       <article class="login-intro">
         <p class="login-intro__eyebrow">PetLife Admin</p>
-        <h1 class="login-intro__title">陪伴体验背后的运营工作台</h1>
-        <p class="login-intro__description">
-          后台负责把社区治理、服务配置和系统边界整理清楚，让用户端看到的每一步都更稳定、更可信。
-        </p>
+        <h1 class="login-intro__title">宠物生活管家后台</h1>
         <div class="login-intro__chips">
           <span class="login-intro__chip">社区审核</span>
           <span class="login-intro__chip">举报处理</span>
           <span class="login-intro__chip">服务商维护</span>
           <span class="login-intro__chip">系统配置</span>
-        </div>
-        <div class="login-intro__note">
-          当前重点依然是围绕宠物生活场景，做清晰、稳定、可持续的运营支撑，而不是堆砌后台功能。
         </div>
       </article>
 
@@ -22,9 +16,6 @@
         <header class="login-panel__header">
           <p class="login-panel__eyebrow">欢迎回来</p>
           <h2 class="login-panel__title">进入后台</h2>
-          <p class="login-panel__description">
-            登录后可查看审核中心、服务商管理和系统配置页。
-          </p>
         </header>
 
         <el-form label-position="top" @submit.prevent="handleSubmit">

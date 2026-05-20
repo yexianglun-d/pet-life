@@ -488,15 +488,8 @@ class _CommunityComposerHero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            topic == null ? '把这段宠物生活认真分享出去' : '分享给同一个话题下的家长',
+            topic == null ? '发布社区内容' : '发布到 #${topic!.topicName}',
             style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            topic == null
-                ? '真实的记录、经验和问题会让社区变得有用，也更有人情味。'
-                : '围绕 #${topic!.topicName} 写下你的经历，后续会出现在话题页里。',
-            style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
       ),

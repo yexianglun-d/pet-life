@@ -321,11 +321,6 @@ class _HeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text('宠物生活管家', style: textTheme.headlineSmall),
-          const SizedBox(height: 10),
-          Text(
-            '${currentUser.nickname}，先看看 ${dashboard.pet.petName} 今天需要你记住什么。',
-            style: textTheme.bodyMedium,
-          ),
           const SizedBox(height: 18),
           Row(
             children: [
@@ -518,13 +513,6 @@ class _ReportEntryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppThemePalette.muted,
-                        ),
-                  ),
                 ],
               ),
             ),
@@ -1155,13 +1143,6 @@ class _QuickRecordSheetHeader extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(title, style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        Text(
-          description,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppThemePalette.muted,
-              ),
-        ),
       ],
     );
   }

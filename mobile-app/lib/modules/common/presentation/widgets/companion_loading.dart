@@ -93,20 +93,13 @@ class CompanionLoadingState extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const CompanionPill(
-                  label: '正在整理',
+                  label: '加载中',
                   icon: Icons.auto_awesome_rounded,
                   backgroundColor: Color(0xFFFFE8D8),
                   foregroundColor: AppThemePalette.primaryDeep,
                 ),
                 const SizedBox(height: 10),
-                Text(title, style: textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: AppThemePalette.muted,
-                  ),
-                ),
+                Text('加载中', style: textTheme.titleMedium),
               ],
             ),
           ),

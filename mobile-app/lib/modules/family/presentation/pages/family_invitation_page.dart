@@ -241,13 +241,8 @@ class _InvitationHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '把一起照顾的人邀请进来',
+            '邀请成员',
             style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '这次邀请会同时写清楚身份和共享宠物范围，后续协作时边界会更稳。',
-            style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
           CompanionPill(

@@ -371,13 +371,6 @@ class _DetailSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppThemePalette.muted,
-                ),
-          ),
           const SizedBox(height: 16),
           child,
         ],

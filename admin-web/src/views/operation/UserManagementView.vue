@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">用户治理</p>
       <h1 class="page-section__title">查询用户资料、通知设置和当前陪伴上下文</h1>
-      <p class="page-section__description">
-        用户管理页只做真实运营查询和详情查看，不提前扩展封禁、恢复等写治理动作。当前重点是看清账号资料、城市、通知偏好、主要家庭和当前宠物。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">用户 {{ records.length }} 个</span>
         <span class="pet-admin-chip">开启通知 {{ notificationEnabledCount }} 个</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid user-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="user-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">用户查询</h2>
-          <p class="pet-admin-panel__description">
-            按关键词、手机号、昵称、城市、通知开关或隐私级别筛选。列表和详情均来自管理端用户接口。
-          </p>
         </div>
         <div class="user-toolbar__actions">
           <el-input v-model="filters.keyword" size="small" class="user-keyword" placeholder="手机号 / 昵称 / 城市 / 家庭 / 宠物" clearable />
@@ -359,7 +352,7 @@ async function handleUserStatusChange(record: AdminUserSnapshot) {
   const actionLabel = targetStatus === 2 ? '封禁' : '恢复';
   try {
     const result = await ElMessageBox.prompt(
-      `请输入${actionLabel}原因，后续会写入后台审计日志。`,
+      `请输入${actionLabel}原因。`,
       `${actionLabel}用户`,
       {
         confirmButtonText: actionLabel,

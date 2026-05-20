@@ -150,7 +150,7 @@ class _ServicePlaceholderPageState extends State<ServicePlaceholderPage> {
               ),
               const SizedBox(height: 16),
               CompanionEmptyState(
-                title: '商城保持单独边界',
+                title: '功能未完成：缺少商城后端',
                 description: serviceHome.commercePlaceholder,
                 icon: Icons.storefront_outlined,
               ),
@@ -602,7 +602,7 @@ class _ServiceAppointmentEditorPageState
                   ),
                   const SizedBox(height: 16),
                   PageSection(
-                    title: '照护说明',
+                    title: '照护备注',
                     description: '把需要服务方提前知道的信息写清楚。',
                     child: Column(
                       children: [
@@ -611,7 +611,7 @@ class _ServiceAppointmentEditorPageState
                           minLines: 3,
                           maxLines: 5,
                           decoration: const InputDecoration(
-                            labelText: '需求说明',
+                            labelText: '需求备注',
                             hintText: '例如近期症状、洗护注意事项、寄养喂食要求',
                           ),
                         ),
@@ -1066,15 +1066,8 @@ class _ServiceHeroSection extends StatelessWidget {
             foregroundColor: AppThemePalette.primaryDeep,
           ),
           const SizedBox(height: 12),
-          Text('把照护预约整理在一个地方',
+          Text('服务预约',
               style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 10),
-          Text(
-            '医院、洗护、寄养和训练都围绕当前宠物发起预约，成功后会沉淀到消息和时间轴里。',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppThemePalette.body,
-                ),
-          ),
           const SizedBox(height: 16),
           FilledButton.tonalIcon(
             onPressed: onAppointmentsTap,

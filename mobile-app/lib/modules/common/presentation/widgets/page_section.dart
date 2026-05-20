@@ -54,13 +54,6 @@ class PageSection extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppThemePalette.muted,
-                ),
-          ),
           const SizedBox(height: 18),
           child,
         ],

@@ -202,13 +202,6 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('写评论', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 10),
-                  Text(
-                    '说一点真实的观察、经验或鼓励，会比一句空话更有温度。',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppThemePalette.muted,
-                        ),
-                  ),
                   const SizedBox(height: 14),
                   TextField(
                     controller: controller,
@@ -320,13 +313,6 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('举报内容', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 10),
-                  Text(
-                    '请选择最接近的问题类型，我们会进入人工核查队列。',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppThemePalette.muted,
-                        ),
-                  ),
                   const SizedBox(height: 12),
                   ..._reportReasonOptions.map(
                     (_ReportReasonOption option) => RadioListTile<String>(

@@ -83,17 +83,7 @@ class _AppShellPageState extends State<AppShellPage> {
       appBar: AppBar(
         toolbarHeight: 78,
         titleSpacing: 20,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(currentDestination.label),
-            const SizedBox(height: 4),
-            Text(
-              currentDestination.subtitle,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
+        title: Text(currentDestination.label),
         actions: [
           IconButton.filledTonal(
             tooltip: '消息中心',
@@ -170,11 +160,9 @@ class _AppShellPageState extends State<AppShellPage> {
           label: '首页',
           icon: Icons.home_outlined,
           selectedIcon: Icons.home_rounded,
-          subtitle: '看看毛孩子今天的状态和待办',
           builder: (_ShellViewData data) => data.dashboard == null
               ? _NoPetShellView(
-                  title: '先把第一只毛孩子接进来',
-                  description: '建立宠物主档之后，首页才会慢慢长出提醒、健康变化和陪伴片段。',
+                  title: '暂无宠物档案',
                   actionLabel: '去创建宠物',
                   onAction: () => _openPetManagement(data.currentUser),
                 )
@@ -188,11 +176,9 @@ class _AppShellPageState extends State<AppShellPage> {
           label: '宠物',
           icon: Icons.pets_outlined,
           selectedIcon: Icons.pets,
-          subtitle: '把成长、健康和照护都留在档案里',
           builder: (_ShellViewData data) => data.dashboard == null
               ? _NoPetShellView(
                   title: '宠物档案还没有开始',
-                  description: '先创建第一只宠物主档，健康记录、提醒计划和成长时间轴才会有明确归属。',
                   actionLabel: '创建宠物档案',
                   onAction: () => _openPetManagement(data.currentUser),
                 )
@@ -206,21 +192,18 @@ class _AppShellPageState extends State<AppShellPage> {
           label: '社区',
           icon: Icons.forum_outlined,
           selectedIcon: Icons.forum_rounded,
-          subtitle: '看看大家和毛孩子分享了什么',
           builder: (_) => const CommunityHomePage(),
         ),
         _ShellDestination(
           label: '服务',
           icon: Icons.medical_services_outlined,
           selectedIcon: Icons.medical_services_rounded,
-          subtitle: '把医院、洗护和寄养安排得更安心',
           builder: (_) => const ServicePlaceholderPage(),
         ),
         _ShellDestination(
           label: '我的',
           icon: Icons.person_outline,
           selectedIcon: Icons.person_rounded,
-          subtitle: '管理家庭、资料和陪伴关系',
           builder: (_ShellViewData data) => ProfilePage(
             currentUser: data.currentUser,
             onCurrentUserChanged: _reloadShellViewData,
@@ -235,14 +218,12 @@ class _ShellDestination {
     required this.label,
     required this.icon,
     required this.selectedIcon,
-    required this.subtitle,
     required this.builder,
   });
 
   final String label;
   final IconData icon;
   final IconData selectedIcon;
-  final String subtitle;
   final Widget Function(_ShellViewData data) builder;
 }
 
@@ -259,13 +240,11 @@ class _ShellViewData {
 class _NoPetShellView extends StatelessWidget {
   const _NoPetShellView({
     required this.title,
-    required this.description,
     required this.actionLabel,
     required this.onAction,
   });
 
   final String title;
-  final String description;
   final String actionLabel;
   final VoidCallback onAction;
 
@@ -295,8 +274,6 @@ class _NoPetShellView extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(title, style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 10),
-              Text(description, style: Theme.of(context).textTheme.bodyMedium),
               const SizedBox(height: 18),
               FilledButton(
                 onPressed: onAction,
@@ -307,7 +284,7 @@ class _NoPetShellView extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         const CompanionEmptyState(
-          title: '等第一只毛孩子加入后，这里会热闹起来',
+          title: '暂无宠物档案',
           description: '提醒、健康记录、日常片段和成长时间轴都会围绕当前宠物慢慢整理出来。',
           icon: Icons.auto_awesome_outlined,
         ),

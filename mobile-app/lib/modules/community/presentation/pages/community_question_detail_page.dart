@@ -204,13 +204,6 @@ class _CommunityQuestionDetailPageState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('写回答', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 10),
-                    Text(
-                      '把亲身经验、观察和边界讲清楚，会更容易帮到提问的人。',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppThemePalette.muted,
-                          ),
-                    ),
                     const SizedBox(height: 14),
                     TextField(
                       controller: controller,
@@ -326,13 +319,6 @@ class _CommunityQuestionDetailPageState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('举报问答', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 10),
-                    Text(
-                      '请选择最接近的问题类型，我们会进入人工核查队列。',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppThemePalette.muted,
-                          ),
-                    ),
                     const SizedBox(height: 12),
                     ..._reportReasonOptions.map(
                       (_ReportReasonOption option) => RadioListTile<String>(

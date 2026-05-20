@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">通知发送配置</p>
       <h1 class="page-section__title">把站内信、短信和 Push 渠道状态维护清楚</h1>
-      <p class="page-section__description">
-        通知渠道配置用于管理发送通道的后台开关和供应商标识。短信与 Push 当前只维护配置，不代表真实外部供应商已经接入。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">配置 {{ channels.length }} 个</span>
         <span class="pet-admin-chip">启用 {{ enabledChannelCount }} 个</span>
@@ -17,14 +14,12 @@
     <div class="summary-grid channel-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
 
     <el-alert
-      title="边界说明"
-      description="sms 和 push 目前只表示后台渠道配置状态；真实短信服务、Push 推送通道和供应商 SDK 接入仍按项目缺口跟踪，不在本页面伪装为已上线发送能力。"
+      title="功能未完成：缺少真实短信和 Push 供应商"
       type="warning"
       show-icon
       class="channel-boundary"
@@ -35,9 +30,6 @@
       <div class="channel-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">渠道配置</h2>
-          <p class="pet-admin-panel__description">
-            按渠道、启用状态、供应商编码和配置状态筛选。启用渠道必须为 ready，停用渠道不能保持 ready。
-          </p>
         </div>
         <div class="channel-toolbar__actions">
           <el-select v-model="filters.channelType" size="small" class="channel-filter" placeholder="渠道">
@@ -149,9 +141,6 @@
       <div class="channel-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">通知配置审计</h2>
-          <p class="pet-admin-panel__description">
-            查询渠道配置创建、编辑和启停动作，追踪配置责任链路。
-          </p>
         </div>
         <div class="channel-toolbar__actions">
           <el-select v-model="auditLogFilters.action" size="small" class="channel-audit-filter" placeholder="动作">
@@ -253,7 +242,7 @@
                 <dd>{{ activeChannel.provider_name }}</dd>
               </div>
               <div>
-                <dt>边界说明</dt>
+                <dt>备注</dt>
                 <dd>{{ channelBoundaryLabel(activeChannel.channel_type) }}</dd>
               </div>
               <div>
@@ -308,16 +297,9 @@
             :rows="4"
             maxlength="500"
             show-word-limit
-            placeholder="说明渠道边界、配置状态或供应商接入进度"
+            placeholder="备注"
           />
         </label>
-        <el-alert
-          title="配置状态规则"
-          description="启用渠道必须保存为 ready；停用渠道不能保存为 ready。短信和 Push 即使 ready，也只代表后台配置可用，不代表真实供应商已接入。"
-          type="info"
-          show-icon
-          :closable="false"
-        />
       </div>
       <template #footer>
         <el-button @click="channelDialogVisible = false">取消</el-button>
@@ -664,12 +646,12 @@ function configStatusTagType(status: NotificationConfigStatus): ElementTagType {
 
 function channelBoundaryLabel(channelType: NotificationChannelType) {
   if (channelType === 'inbox') {
-    return '站内信为站内通知配置，不依赖外部供应商。';
+    return '-';
   }
   if (channelType === 'sms') {
-    return '短信当前只维护渠道配置，不代表真实短信供应商已接入。';
+    return '功能未完成：缺少真实短信供应商。';
   }
-  return 'Push 当前只维护渠道配置，不代表真实推送供应商已接入。';
+  return '功能未完成：缺少真实 Push 供应商。';
 }
 
 function auditActionLabel(action: string) {

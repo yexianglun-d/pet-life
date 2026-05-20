@@ -269,15 +269,6 @@ class _ReportHeroCard extends StatelessWidget {
             '${_formatDateLabel(report.windowStart)} - ${_formatDateLabel(report.windowEnd)}',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-          const SizedBox(height: 14),
-          Text(
-            isMonthly
-                ? '把最近 30 天的照护节奏、健康变化和生活片段整理成了一份月报。'
-                : '把最近 7 天的照护节奏、健康变化和生活片段整理成了一份周报。',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppThemePalette.muted,
-                ),
-          ),
         ],
       ),
     );

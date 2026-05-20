@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">问答治理</p>
       <h1 class="page-section__title">查看问答内容、回答线索，并完成下架或恢复</h1>
-      <p class="page-section__description">
-        问答治理页只接后台问答管理接口，聚焦问题内容、作者宠物、话题归属、回答列表和治理审计。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">问答 {{ questions.length }} 条</span>
         <span class="pet-admin-chip">公开中 {{ approvedCount }} 条</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid community-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="community-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">问答治理队列</h2>
-          <p class="pet-admin-panel__description">
-            按审核状态、可见范围、作者、话题或关键词筛选。详情会拉取问题与回答列表。
-          </p>
         </div>
         <div class="community-toolbar__actions">
           <el-select v-model="filters.reviewStatus" size="small" class="community-filter" placeholder="审核状态">
@@ -146,9 +139,6 @@
       <div class="community-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">问答治理审计</h2>
-          <p class="pet-admin-panel__description">
-            查询服务端记录的问答治理动作，方便按操作者或动作追溯。
-          </p>
         </div>
         <div class="community-toolbar__actions">
           <el-select v-model="auditLogFilters.action" size="small" class="community-audit-filter" placeholder="动作">
@@ -317,7 +307,7 @@
             :rows="4"
             maxlength="500"
             show-word-limit
-            placeholder="说明本次下架或恢复依据，便于后续审计排查"
+            placeholder="处理备注"
           />
         </el-form-item>
       </el-form>

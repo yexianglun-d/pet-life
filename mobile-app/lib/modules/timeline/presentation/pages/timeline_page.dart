@@ -279,11 +279,6 @@ class _TimelineHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(petName, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 10),
-          Text(
-            '把体检、疫苗、驱虫和日常小片段放在一起回看，会更容易看见陪伴的痕迹。',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
           const SizedBox(height: 16),
           Wrap(
             spacing: 10,

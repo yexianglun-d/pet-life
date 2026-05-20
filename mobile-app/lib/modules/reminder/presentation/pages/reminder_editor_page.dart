@@ -383,7 +383,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
                       maxLines: 5,
                       decoration: const InputDecoration(
                         labelText: '备注',
-                        hintText: '例如医院、药量、注意事项和执行说明',
+                        hintText: '例如医院、药量、注意事项',
                       ),
                     ),
                   ],
@@ -506,13 +506,6 @@ class _ReminderFormSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppThemePalette.muted,
-                ),
-          ),
           const SizedBox(height: 16),
           child,
         ],

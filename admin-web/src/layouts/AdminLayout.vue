@@ -27,15 +27,11 @@
         <el-menu-item index="/service-map">地图排查</el-menu-item>
         <el-menu-item index="/system-config">系统配置</el-menu-item>
       </el-menu>
-      <div class="admin-layout__aside-note">
-        围绕社区治理、服务网络和系统边界，稳定支持用户端体验。
-      </div>
     </el-aside>
     <el-container>
       <el-header class="admin-layout__header">
         <div>
-          <div class="admin-layout__header-title">运营与治理中心</div>
-          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 审核任务 / 社区治理 / 健康档案 / 萌宠日常 / 时间轴 / 提醒 / 通知 / Push 排查 / 服务管理 / 地图排查</div>
+          <div class="admin-layout__header-title">{{ activeMenuTitle }}</div>
         </div>
         <div class="admin-layout__header-actions">
           <div class="admin-layout__operator">{{ operatorName }}</div>
@@ -59,7 +55,31 @@ import { useRoute, useRouter } from 'vue-router';
 const route = useRoute();
 const router = useRouter();
 
+const menuTitleMap = new Map([
+  ['/dashboard', '控制台'],
+  ['/moderation', '审核中心'],
+  ['/moderation-tasks', '审核任务'],
+  ['/community-posts', '社区帖子'],
+  ['/community-questions', '问答治理'],
+  ['/users', '用户管理'],
+  ['/families', '家庭管理'],
+  ['/pets', '宠物档案'],
+  ['/health-records', '健康记录'],
+  ['/daily-logs', '萌宠日常'],
+  ['/timeline-events', '时间轴排查'],
+  ['/system-reminders', '系统提醒'],
+  ['/reminder-templates', '提醒模板'],
+  ['/sms-verifications', '验证码排查'],
+  ['/message-templates', '消息模板'],
+  ['/notification-channels', '通知渠道'],
+  ['/push-deliveries', 'Push 投递'],
+  ['/service-providers', '服务商管理'],
+  ['/service-map', '地图排查'],
+  ['/system-config', '系统配置']
+]);
+
 const activePath = computed(() => route.path);
+const activeMenuTitle = computed(() => menuTitleMap.get(route.path) ?? '宠物生活管家后台');
 const operatorName = computed(
   () => window.localStorage.getItem(ADMIN_OPERATOR_NAME_KEY) ?? '当前管理员'
 );
@@ -112,17 +132,6 @@ const handleLogout = async () => {
   overflow-y: auto;
 }
 
-.admin-layout__aside-note {
-  margin: 18px;
-  padding: 16px;
-  border: 1px solid var(--pet-admin-line);
-  border-radius: 20px;
-  background: var(--pet-admin-surface-soft);
-  color: var(--pet-admin-body);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
 .admin-layout__header {
   display: flex;
   align-items: center;
@@ -138,12 +147,6 @@ const handleLogout = async () => {
   font-size: 16px;
   font-weight: 600;
   color: var(--pet-admin-title);
-}
-
-.admin-layout__header-subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--pet-admin-muted);
 }
 
 .admin-layout__header-actions {

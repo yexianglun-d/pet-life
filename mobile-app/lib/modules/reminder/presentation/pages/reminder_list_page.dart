@@ -313,11 +313,6 @@ class _ReminderHeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(petName, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 10),
-          Text(
-            heroDescription,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
           const SizedBox(height: 16),
           CompanionPill(
             label: '当前共 $reminderCount 条',

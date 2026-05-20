@@ -229,13 +229,6 @@ class _PetHeroCard extends StatelessWidget {
                       '${dashboard.pet.breed} · ${_toLocalizedGender(dashboard.pet.gender)} · ${_toLocalizedPetType(dashboard.pet.petType)}',
                       style: textTheme.bodyMedium,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${currentUser.familyName} 正一起照顾它，这里会把成长、健康和日常慢慢整理成一份完整档案。',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: AppThemePalette.body,
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -569,13 +562,6 @@ class _TimelineCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: AppThemePalette.muted,
-                  ),
-                ),
               ],
             ),
           ),

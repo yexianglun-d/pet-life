@@ -77,13 +77,6 @@ class _CitySelectionPageState extends State<CitySelectionPage> {
                   const SizedBox(height: 12),
                   Text('选一个常用城市',
                       style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text(
-                    '社区同城内容和后续服务中心都会以这里为默认城市。',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppThemePalette.muted,
-                        ),
-                  ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _searchController,

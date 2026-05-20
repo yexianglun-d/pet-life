@@ -272,13 +272,8 @@ class _CommunityHeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '在这里看看别人和毛孩子的生活',
+            '社区',
             style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '公开的日常、温柔的评论和认真记录的瞬间，会让社区慢慢长出真实的陪伴感。',
-            style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
           Wrap(

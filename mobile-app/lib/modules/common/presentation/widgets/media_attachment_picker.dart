@@ -296,7 +296,7 @@ class _MediaAttachmentPickerState extends State<MediaAttachmentPicker> {
         ),
         const SizedBox(height: 12),
         if (_items.isEmpty)
-          _EmptyMediaBox(description: widget.emptyDescription)
+          const _EmptyMediaBox()
         else
           ..._items.map(
             (_PickedMediaAsset item) => Padding(
@@ -660,9 +660,7 @@ class _FileTypePreview extends StatelessWidget {
 }
 
 class _EmptyMediaBox extends StatelessWidget {
-  const _EmptyMediaBox({required this.description});
-
-  final String description;
+  const _EmptyMediaBox();
 
   @override
   Widget build(BuildContext context) {
@@ -683,7 +681,7 @@ class _EmptyMediaBox extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              description,
+              '暂无附件',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppThemePalette.muted,
                   ),

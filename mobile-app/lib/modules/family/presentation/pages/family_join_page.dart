@@ -341,13 +341,8 @@ class _JoinHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '确认后再走进这个家庭',
+            '加入家庭',
             style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '每个邀请都会写清楚谁邀请你、共享哪些宠物，以及你在家庭里的身份。',
-            style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
       ),

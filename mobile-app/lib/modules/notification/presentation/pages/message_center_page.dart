@@ -236,13 +236,8 @@ class _MessageInboxView extends StatelessWidget {
                 foregroundColor: AppThemePalette.primaryDeep,
               ),
               const SizedBox(height: 12),
-              Text('重要变化会留在这里',
+              Text('消息中心',
                   style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 10),
-              Text(
-                '提醒处理、系统消息和服务预约通知都会整理成可回看的站内消息记录。',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
               const SizedBox(height: 18),
               Row(
                 children: [

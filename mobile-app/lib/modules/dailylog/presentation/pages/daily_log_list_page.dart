@@ -232,11 +232,6 @@ class _DailyLogHeroSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(petName, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 10),
-          Text(
-            '把今天的样子、心情和有趣的小瞬间记下来，时间久了会很珍贵。',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
           const SizedBox(height: 16),
           CompanionPill(
             label: '已经记录 $dailyLogCount 条',

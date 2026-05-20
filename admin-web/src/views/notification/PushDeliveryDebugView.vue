@@ -3,28 +3,23 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">Push 投递排查</p>
       <h1 class="page-section__title">查看 Push 任务和设备投递记录，定位底座状态</h1>
-      <p class="page-section__description">
-        当前页面只展示服务端 Push 任务与投递记录底座。真实 APNs、厂商推送和供应商控制台尚未接入，sent 仅表示服务端状态标记。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">任务 {{ tasks.length }} 条</span>
         <span class="pet-admin-chip">投递 {{ deliveries.length }} 条</span>
         <span class="pet-admin-chip">失败 {{ failedRowCount }} 条</span>
-        <span class="pet-admin-chip">占位 {{ devNoopRowCount }} 条</span>
+        <span class="pet-admin-chip">未接供应商 {{ devNoopRowCount }} 条</span>
       </div>
     </div>
 
     <div class="summary-grid push-debug-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
 
     <el-alert
-      title="Push 边界"
-      description="这里是供应商无关 Push 底座排查页。dev_noop 不代表真实 APNs 或厂商通道；列表中的 sent 只表示服务端状态标记，不代表第三方实际送达。"
+      title="功能未完成：缺少真实 Push 供应商"
       type="warning"
       show-icon
       class="push-debug-boundary"
@@ -35,9 +30,6 @@
       <div class="push-debug-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">任务与投递记录</h2>
-          <p class="pet-admin-panel__description">
-            用户、任务状态、投递状态和供应商筛选由后台接口支持；notify_type 和时间范围基于真实返回字段在页面内收窄。
-          </p>
         </div>
         <div class="push-debug-toolbar__actions">
           <el-input v-model="filters.userId" size="small" class="push-debug-filter" placeholder="用户 ID" clearable />
@@ -178,14 +170,6 @@
 
     <el-drawer v-model="detailDrawerVisible" title="Push 排查详情" size="600px">
       <div v-if="activeRow" class="push-debug-detail">
-        <el-alert
-          title="投递边界"
-          description="当前记录来自服务端 Push 底座，不连接供应商控制台；sent 也不代表真实第三方投递成功。"
-          type="info"
-          show-icon
-          :closable="false"
-        />
-
         <section class="push-debug-detail__section">
           <div class="push-debug-detail__heading">
             <h3>任务信息</h3>
@@ -482,7 +466,7 @@ function maskedDeviceTokenId(value: string | undefined) {
 
 function providerLabel(providerCode: string) {
   if (providerCode === 'dev_noop') {
-    return 'dev_noop · 本地占位';
+    return 'dev_noop · 未接供应商';
   }
   return providerCode;
 }

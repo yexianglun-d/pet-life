@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">消息模板</p>
       <h1 class="page-section__title">把站内信、短信和 Push 文案维护成清晰模板</h1>
-      <p class="page-section__description">
-        消息模板只维护可复用文案配置，真实发送仍由通知链路和渠道配置决定。这里支持查询、详情、创建、编辑和启停，并展示配置审计结果。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">模板 {{ templates.length }} 个</span>
         <span class="pet-admin-chip">启用 {{ enabledTemplateCount }} 个</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid message-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="message-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">模板配置</h2>
-          <p class="pet-admin-panel__description">
-            按关键词、模板编码、渠道和启用状态筛选。保存前会做必填校验，唯一性仍以服务端校验为准。
-          </p>
         </div>
         <div class="message-toolbar__actions">
           <el-input v-model="filters.keyword" size="small" class="message-keyword" placeholder="关键词" clearable />
@@ -129,9 +122,6 @@
       <div class="message-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">消息模板审计</h2>
-          <p class="pet-admin-panel__description">
-            查询服务端记录的模板创建、编辑和启停动作，便于运营排查配置变化。
-          </p>
         </div>
         <div class="message-toolbar__actions">
           <el-select v-model="auditLogFilters.action" size="small" class="message-audit-filter" placeholder="动作">

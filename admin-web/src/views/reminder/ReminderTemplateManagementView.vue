@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">提醒模板</p>
       <h1 class="page-section__title">把常见照护提醒规则维护成清晰模板</h1>
-      <p class="page-section__description">
-        提醒模板用于沉淀疫苗、驱虫、体检、用药等常见照护规则。后台只维护模板配置，不替用户自动创建提醒，避免把配置能力误包装成用户端行为。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">模板 {{ templates.length }} 个</span>
         <span class="pet-admin-chip">启用 {{ enabledTemplateCount }} 个</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid template-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="template-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">模板配置</h2>
-          <p class="pet-admin-panel__description">
-            列表、筛选、详情和编辑均来自提醒模板管理接口；启停会同步写入后台审计日志。
-          </p>
         </div>
         <div class="template-toolbar__actions">
           <el-select v-model="filters.reminderType" size="small" class="template-filter" placeholder="提醒类型">

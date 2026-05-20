@@ -3,9 +3,6 @@
     <div class="pet-admin-hero moderation-hero">
       <p class="page-section__eyebrow">社区治理</p>
       <h1 class="page-section__title">把社区举报和处理动作收口到同一处</h1>
-      <p class="page-section__description">
-        审核中心承接真实举报记录、帖子状态和处理动作。重点不是“多功能”，而是把每一条治理结果处理准确、回写清楚。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">待处理 {{ pendingCount }} 条</span>
         <span class="pet-admin-chip">已确认 {{ processedCount }} 条</span>
@@ -36,9 +33,6 @@
       <div class="moderation-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">举报队列</h2>
-          <p class="pet-admin-panel__description">
-            先按状态筛一下，再逐条确认目标内容、举报原因和处理动作。
-          </p>
         </div>
         <div class="moderation-toolbar__actions">
           <el-radio-group v-model="statusFilter" size="small">
@@ -171,7 +165,7 @@
             :rows="4"
             maxlength="200"
             show-word-limit
-            placeholder="说明本次判断依据，便于后续审计排查"
+            placeholder="处理备注"
           />
         </el-form-item>
       </el-form>

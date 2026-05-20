@@ -295,7 +295,7 @@ class _FamilyManagementPageState extends State<FamilyManagementPage> {
         ),
         const SizedBox(height: 16),
         PageSection(
-          title: '角色说明',
+          title: '家庭角色',
           description: '权限会影响谁能邀请、调角色和移除成员，最终仍以服务端校验为准。',
           child: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -356,11 +356,6 @@ class _FamilyHeroCard extends StatelessWidget {
           Text(
             familyDetail.familyName,
             style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '把一起照顾毛孩子的人、宠物和邀请关系都整理清楚，协作时就不会乱。',
-            style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -652,13 +647,6 @@ class _PermissionTip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppThemePalette.muted,
-                ),
-          ),
         ],
       ),
     );

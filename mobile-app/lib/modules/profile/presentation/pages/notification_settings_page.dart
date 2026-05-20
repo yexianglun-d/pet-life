@@ -106,13 +106,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     foregroundColor: AppThemePalette.primaryDeep,
                   ),
                   const SizedBox(height: 12),
-                  Text('把提醒方式调成你舒服的节奏',
+                  Text('通知设置',
                       style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 10),
-                  Text(
-                    '这里控制站内消息中心与提醒接收偏好，不承诺系统 Push 或短信已经接入。',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
                 ],
               ),
             ),
@@ -125,11 +120,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 activeColor: AppThemePalette.primaryDeep,
                 contentPadding: EdgeInsets.zero,
                 title: const Text('接收消息与提醒'),
-                subtitle: Text(
-                  _notificationEnabled
-                      ? '后续消息中心和提醒通知会按你的偏好送达。'
-                      : '关闭后将不再接收新的 App 内通知提醒。',
-                ),
                 onChanged: (bool value) {
                   setState(() {
                     _notificationEnabled = value;
@@ -139,7 +129,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
             ),
             const SizedBox(height: 16),
             PageSection(
-              title: '渠道说明',
+              title: '通知渠道',
               description:
                   '后台可维护站内信、短信和 Push 渠道配置；当前 App 只展示站内消息，不提供短信或系统推送配置入口。',
               child: const Column(
@@ -152,13 +142,13 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   SizedBox(height: 10),
                   _ChannelNoticeTile(
                     icon: Icons.sms_outlined,
-                    title: '短信',
+                    title: '功能未完成：缺少真实短信供应商',
                     description: '真实短信通道尚未接入，本端不展示短信开关。',
                   ),
                   SizedBox(height: 10),
                   _ChannelNoticeTile(
                     icon: Icons.notifications_none_rounded,
-                    title: '系统推送',
+                    title: '功能未完成：缺少 Push SDK',
                     description: '暂未接入 Push SDK 和设备推送授权配置。',
                   ),
                 ],
@@ -240,13 +230,6 @@ class _ChannelNoticeTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppThemePalette.muted,
-                      ),
-                ),
               ],
             ),
           ),

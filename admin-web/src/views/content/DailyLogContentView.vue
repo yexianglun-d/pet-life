@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">萌宠日常</p>
       <h1 class="page-section__title">查询日常内容、可见范围和社区同步线索</h1>
-      <p class="page-section__description">
-        这里用于运营侧排查萌宠日常内容，不做内容改写。重点查看作者、宠物归属、媒体附件、可见范围和同步社区结果。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">日常 {{ records.length }} 条</span>
         <span class="pet-admin-chip">公开 {{ publicCount }} 条</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid daily-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="daily-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">日常内容队列</h2>
-          <p class="pet-admin-panel__description">
-            按可见范围、社区同步、宠物、作者或关键词筛选。当前页面只展示真实接口返回内容。
-          </p>
         </div>
         <div class="daily-toolbar__actions">
           <el-select v-model="filters.visibility" size="small" class="daily-filter" placeholder="可见范围">

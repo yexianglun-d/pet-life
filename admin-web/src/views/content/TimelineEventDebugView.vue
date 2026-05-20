@@ -3,9 +3,6 @@
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">成长时间轴</p>
       <h1 class="page-section__title">排查时间轴事件和源记录派生状态</h1>
-      <p class="page-section__description">
-        时间轴是健康、日常和服务预约的读模型。这个页面用于确认事件是否存在、来源是否还有效、可见范围是否符合预期。
-      </p>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">事件 {{ records.length }} 条</span>
         <span class="pet-admin-chip">源记录有效 {{ activeSourceCount }} 条</span>
@@ -17,7 +14,6 @@
     <div class="summary-grid timeline-summary">
       <article v-for="item in summaryCards" :key="item.title" class="summary-card">
         <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
         <strong>{{ item.value }}</strong>
       </article>
     </div>
@@ -26,9 +22,6 @@
       <div class="timeline-toolbar">
         <div>
           <h2 class="pet-admin-panel__title">时间轴事件</h2>
-          <p class="pet-admin-panel__description">
-            按事件类型、源类型、宠物 ID 或源记录 ID 查询。源状态异常时，需要回到对应服务端派生链路排查。
-          </p>
         </div>
         <div class="timeline-toolbar__actions">
           <el-select v-model="filters.eventType" size="small" class="timeline-filter" placeholder="事件类型">
