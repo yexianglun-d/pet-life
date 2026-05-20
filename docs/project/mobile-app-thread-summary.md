@@ -7,6 +7,102 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-20 移动端 Push token 底座与社区审核状态展示接入
+
+### 1. 新完成内容
+
+- 新增移动端 Push 设备 Token 注册结果模型，并在 `PetLifeRepository` / `NetworkPetLifeRepository` 中接入：
+  - `POST /api/v1/push/device-tokens`
+  - `DELETE /api/v1/push/device-tokens/{deviceTokenId}`
+- 当前未接 APNs、FCM、华为、小米等 SDK，不申请系统通知权限，也不生成本地 token；只保留真实 SDK token 到位后的仓储调用入口。
+- 社区发布成功后按服务端返回的 `review_status` 展示状态：`pending_review` 显示“审核中，不会立即公开”，`approved` 保持发布成功语义，`rejected` 显示不公开。
+- 社区首页、话题页和内容卡片兼容 `review_status`，过滤 `rejected` 内容，并为非 `approved` 内容显示审核状态提示。
+- 帖子详情和问答详情兼容审核状态：`pending_review` 展示待审核提示，`rejected` 不展示正文内容；加载失败时将社区内容不可见提示与普通网络错误区分。
+
+### 2. 新增/修改文件
+
+- 新增：`mobile-app/lib/shared/domain/models/push_device_token_snapshot.dart`
+- 新增：`mobile-app/lib/modules/community/presentation/widgets/community_review_status.dart`
+- 修改：`mobile-app/lib/shared/repository/petlife_repository.dart`
+- 修改：`mobile-app/lib/shared/repository/network_petlife_repository.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/pages/community_post_editor_page.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/pages/community_home_page.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/pages/community_topic_page.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/pages/community_post_detail_page.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/pages/community_question_detail_page.dart`
+- 修改：`mobile-app/lib/modules/community/presentation/widgets/community_post_card.dart`
+- 修改：`mobile-app/test/widget_test.dart`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/03-ui-closure-checklist.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- `/Users/deng/development/flutter/bin/dart format lib/shared/domain/models/push_device_token_snapshot.dart lib/shared/repository/petlife_repository.dart lib/shared/repository/network_petlife_repository.dart lib/modules/community/presentation/widgets/community_review_status.dart lib/modules/community/presentation/pages/community_post_editor_page.dart lib/modules/community/presentation/pages/community_home_page.dart lib/modules/community/presentation/widgets/community_post_card.dart lib/modules/community/presentation/pages/community_topic_page.dart lib/modules/community/presentation/pages/community_post_detail_page.dart lib/modules/community/presentation/pages/community_question_detail_page.dart test/widget_test.dart`：通过，`Formatted 11 files (0 changed)`。
+- `/Users/deng/development/flutter/bin/flutter analyze`：通过，`No issues found!`。
+- `/Users/deng/development/flutter/bin/flutter test`：通过，`All tests passed!`。
+- `rg -n "push-token|requestPermission|APNs|FCM|华为|小米|系统通知权限|申请通知权限|假 Push|假系统通知|伪造.*Push|伪造.*审核成功" mobile-app/lib mobile-app/test`：通过，无匹配。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实 Push SDK、系统通知权限申请、真实设备 token 获取、登录后自动注册和退出/卸载解绑生命周期仍未接入，本轮按边界不实现。
+- 第三方内容审核供应商仍未接入，审核结果由服务端当前审核任务和人工处理链路决定。
+- 发布后审核状态主动刷新、被拒绝后的编辑重提入口仍未实现。
+
+### 5. 风险或阻塞
+
+- 没有真实 SDK token 前，移动端不能主动调用注册接口，否则会制造无效设备记录。
+- 服务端用户侧公开流和详情按 `approved` 过滤；如果后续要让作者查看自己的待审核/拒绝内容，需要新增“我的发布/审核状态”类用户侧接口。
+
+### 6. 下一步建议
+
+1. 等真实 Push SDK 与系统权限策略明确后，再在登录态恢复、token 刷新和退出时接入注册/解绑触发点。
+2. 如果产品需要用户查看审核进度，服务端应先补用户侧“我的社区内容审核状态”接口，移动端再做列表和重提入口。
+
+## 2026-05-20 服务端 Push Token 契约与社区审核状态变化
+
+### 1. 新完成内容
+
+- 服务端已新增 App Push 设备 Token 注册和解绑接口，并同步到 OpenAPI：
+  - `POST /api/v1/push/device-tokens`
+  - `DELETE /api/v1/push/device-tokens/{deviceTokenId}`
+- 服务端站内通知生成后会派生 Push 任务；当前不接真实 Push SDK，任务只沉淀 `pending/skipped/failed` 等状态。
+- 服务端社区公开内容发布后改为 `pending_review` 并创建审核任务，用户侧公开流和详情只展示 `approved` 内容。
+- 本轮服务端侧未修改 mobile-app 源码；移动端已在后续记录中接入 Push token 仓储适配和发布后待审核提示。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 服务端实现和验证见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 94, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- mobile-app 尚未接入真实 Push SDK token 获取、注册触发点、解绑生命周期和通知点击落点。
+- 发布社区内容后，移动端已针对 `pending_review` 做待审核提示；审核状态主动刷新仍未实现。
+- 真实 Push SDK 未接入，当前服务端 `dev_noop` 不会真实推送到设备。
+
+### 5. 风险或阻塞
+
+- 独立发布社区帖子和日常同步社区后，内容默认不会立即出现在公开流；移动端需要避免把发布成功误表达为“已公开展示”。
+- 服务端只返回设备 token 后缀用于排查，移动端不应依赖接口回显完整 token。
+
+### 6. 下一步建议
+
+1. 真实 Push SDK 与系统权限策略明确后，移动端再接入 token 获取、上报触发点和解绑生命周期。
+2. 如需用户查看审核进度，服务端先提供用户侧审核状态列表，移动端再做刷新和重提入口。
+
 ## 2026-05-19 移动端短信验证码登录体验收口
 
 ### 1. 新完成内容

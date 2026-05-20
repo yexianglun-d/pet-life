@@ -7,6 +7,118 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用“核心可用”等阶段性表述。
 
+## 2026-05-20 内容审核底座 + Push 推送底座
+
+### 新完成内容
+
+- 新增内容审核任务模型与状态机，覆盖 `target_type`、`target_id`、`content_type`、`content_snapshot`、`provider_code`、`review_status`、`review_result`、`risk_labels`、`failure_reason`、`callback_payload`。
+- 社区独立发帖、问答帖和萌宠日常同步社区不再直接进入公开曝光，统一写入 `pending_review` 并生成 `moderation_tasks`。
+- 用户侧社区推荐流、关注流、同城流、话题页、帖子详情和问答详情继续只读取 `review_status=approved` 内容；待审和拒绝内容不进入公开流。
+- 新增内容审核 provider 抽象与 `dev_noop` 实现；当前只沉淀任务，不伪造自动通过。
+- 新增审核供应商回调入口 `POST /api/v1/moderation/callbacks/{providerCode}`，以及后台审核任务查询、详情、人工通过、人工拒绝接口：
+  - `GET /api/v1/admin/moderation/tasks`
+  - `GET /api/v1/admin/moderation/tasks/{taskId}`
+  - `PATCH /api/v1/admin/moderation/tasks/{taskId}/status`
+- 人工审核会同步社区内容审核状态并写入 `audit_logs.target_type=moderation_task`；旧待审任务在内容更新时置为 `failed/content_updated_before_review`，避免旧结论覆盖新内容。
+- 新增 Push 设备 Token、Push 任务和 Push 投递记录底座：
+  - `POST /api/v1/push/device-tokens`
+  - `DELETE /api/v1/push/device-tokens/{deviceTokenId}`
+  - `GET /api/v1/admin/push-tasks`
+  - `GET /api/v1/admin/push-deliveries`
+- 站内通知生成后派生 Push 任务；当前 `dev_noop` Push provider 不真实发送，有设备 token 时任务和投递记录保持 `pending`，无 token 或通知开关关闭时记录 `skipped` 原因。
+- 扩展 PhaseOneApiTests，覆盖审核任务创建、公开流过滤、人工通过/拒绝、日常同步审核、Push token 注册、通知派生 Push、通知开关拦截、后台查询权限边界。
+
+### 新增/修改文件
+
+- 新增审核服务端文件：
+  - `server/src/main/java/com/petlife/server/modules/moderation/controller/ModerationCallbackController.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/converter/ModerationTaskConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/domain/entity/ModerationTaskEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/dto/request/AdminReviewModerationTaskRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/dto/request/ModerationProviderCallbackRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/dto/response/ModerationTaskResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/persistence/ModerationTaskPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/persistence/command/CreateModerationTaskCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/persistence/command/UpdateModerationTaskReviewCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/persistence/dataobject/ModerationTaskDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/service/ModerationTaskApplicationService.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/service/provider/ContentModerationProvider.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/service/provider/DevelopmentNoopContentModerationProvider.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/service/provider/ModerationSubmissionRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/service/provider/ModerationSubmissionResult.java`
+- 新增 Push 服务端文件：
+  - `server/src/main/java/com/petlife/server/modules/notification/controller/AdminPushNotificationController.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/controller/PushDeviceTokenController.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/converter/PushNotificationConverter.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/domain/entity/PushDeviceTokenEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/domain/entity/PushTaskEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/domain/entity/PushDeliveryRecordEntity.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/request/RegisterPushDeviceTokenRequest.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/response/PushDeviceTokenResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/response/PushTaskResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/dto/response/PushDeliveryRecordResponse.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/PushNotificationPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/command/UpsertPushDeviceTokenCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/command/CreatePushTaskCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/command/CreatePushDeliveryRecordCommand.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/dataobject/PushDeviceTokenDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/dataobject/PushTaskDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/dataobject/PushDeliveryRecordDataObject.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/service/PushNotificationApplicationService.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/service/provider/PushProvider.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/service/provider/DevelopmentNoopPushProvider.java`
+- 修改服务端文件：
+  - `server/src/main/java/com/petlife/server/common/response/ResponseCode.java`
+  - `server/src/main/java/com/petlife/server/config/GlobalExceptionHandler.java`
+  - `server/src/main/java/com/petlife/server/modules/admin/persistence/AuditLogPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/admin/service/AuditLogApplicationService.java`
+  - `server/src/main/java/com/petlife/server/modules/auth/security/DevelopmentTokenAuthenticationFilter.java`
+  - `server/src/main/java/com/petlife/server/modules/community/service/CommunityApplicationService.java`
+  - `server/src/main/java/com/petlife/server/modules/moderation/controller/ModerationController.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/persistence/NotificationPersistenceMapper.java`
+  - `server/src/main/java/com/petlife/server/modules/notification/service/NotificationApplicationService.java`
+  - `server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+- 新增/修改文档：
+  - `docs/technical/11-moderation-push-foundation.sql`
+  - `docs/technical/03-ddl-draft.sql`
+  - `docs/technical/02-api-and-events.md`
+  - `docs/api/petlife-openapi.yaml`
+  - `docs/project/server-thread-summary.md`
+  - `docs/project/admin-web-thread-summary.md`
+  - `docs/project/mobile-app-thread-summary.md`
+  - `docs/project/02-feature-completion-checklist.md`
+  - `docs/project/01-current-delivery-status.md`
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`
+  - 结果：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`
+  - 结果：通过，`Tests run: 94, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`
+  - 结果：通过。
+- `git diff --check`
+  - 结果：通过。
+
+### 未完成事项
+
+- 未接第三方内容审核 SDK，`dev_noop` 不会自动给出真实审核结论；新公开内容需要后台人工通过后才进入用户侧公开流。
+- 未接 APNs、FCM、华为、小米等 Push SDK；当前 Push 任务和投递记录只沉淀状态，不真实发送。
+- admin-web 尚未接入审核任务管理页、Push 任务排查页和 Push 投递记录排查页。
+- mobile-app 尚未接入系统 Push 权限、设备 token 上报和解绑；本轮只提供服务端契约。
+
+### 风险或阻塞
+
+- 发布公开社区内容后默认 `pending_review`，如果后台没有人工审核入口接入，用户侧公开流不会展示新内容。
+- 当前回调入口作为供应商抽象预留，未接第三方签名校验；真实供应商接入前不能对公网开放无签名回调。
+- Push 任务状态为 `pending` 不代表已投递，只表示服务端已沉淀待发送任务；后台页面必须区分 `pending` 与真实成功。
+
+### 下一步建议
+
+1. admin-web 接入审核任务列表/详情/人工通过/拒绝页面，以及 Push 任务和投递记录排查页面。
+2. mobile-app 后续接入系统 Push 权限、设备 token 注册/解绑和通知点击落点。
+3. 接入真实内容审核或 Push 供应商时，基于现有 provider 抽象扩展，并补签名、回调验签、调度和失败重试。
+
 ## 2026-05-19 短信验证码安全闭环供应商无关底座
 
 ### 新完成内容

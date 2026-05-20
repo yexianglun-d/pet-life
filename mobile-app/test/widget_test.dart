@@ -17,6 +17,7 @@ import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snaps
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_profile_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/push_device_token_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_template_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
@@ -250,6 +251,22 @@ class _FakePetLifeRepository implements PetLifeRepository {
       notificationEnabled: notificationEnabled,
       privacyLevel: privacyLevel,
     );
+  }
+
+  @override
+  Future<PushDeviceTokenSnapshot> registerPushDeviceToken({
+    required String platform,
+    required String deviceToken,
+    String? providerCode,
+    String? deviceId,
+    String? appVersion,
+  }) {
+    throw UnsupportedError('测试仓储未接入 Push token');
+  }
+
+  @override
+  Future<PushDeviceTokenSnapshot> unbindPushDeviceToken(String deviceTokenId) {
+    throw UnsupportedError('测试仓储未接入 Push token');
   }
 
   @override

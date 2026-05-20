@@ -248,9 +248,143 @@ class PhaseOneApiTests {
               KEY idx_notification_channel_status (config_status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='通知渠道配置表'
             """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS moderation_tasks (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              target_type VARCHAR(30) NOT NULL COMMENT '目标类型：community_post/community_question',
+              target_id BIGINT UNSIGNED NOT NULL COMMENT '目标 ID',
+              content_type VARCHAR(30) NOT NULL COMMENT '内容形态：text/image_text/video/qa',
+              content_snapshot JSON DEFAULT NULL COMMENT '审核内容快照',
+              provider_code VARCHAR(64) NOT NULL DEFAULT 'dev_noop' COMMENT '审核供应商编码',
+              review_status VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '状态：pending/approved/rejected/failed',
+              review_result JSON DEFAULT NULL COMMENT '审核结果',
+              risk_labels JSON DEFAULT NULL COMMENT '风险标签',
+              failure_reason VARCHAR(500) DEFAULT NULL COMMENT '失败原因',
+              callback_payload JSON DEFAULT NULL COMMENT '供应商回调载荷',
+              reviewed_at DATETIME DEFAULT NULL COMMENT '审核完成时间',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              PRIMARY KEY (id),
+              KEY idx_moderation_tasks_target (target_type, target_id),
+              KEY idx_moderation_tasks_status (review_status, created_at),
+              KEY idx_moderation_tasks_provider (provider_code, review_status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='审核任务表'
+            """);
+        ensureModerationTaskSchema();
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS user_push_device_tokens (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              user_id BIGINT UNSIGNED NOT NULL COMMENT '用户 ID',
+              platform VARCHAR(20) NOT NULL COMMENT '客户端平台：ios/android',
+              provider_code VARCHAR(64) NOT NULL COMMENT 'Push 供应商编码',
+              device_token VARCHAR(512) NOT NULL COMMENT '设备 Token',
+              device_id VARCHAR(128) DEFAULT NULL COMMENT '客户端设备标识',
+              app_version VARCHAR(40) DEFAULT NULL COMMENT 'App 版本',
+              enabled TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用：0-否 1-是',
+              last_registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最近注册时间',
+              unregistered_at DATETIME DEFAULT NULL COMMENT '解绑时间',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              PRIMARY KEY (id),
+              UNIQUE KEY uk_push_device_provider_token (provider_code, device_token),
+              KEY idx_push_device_user_enabled (user_id, enabled)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户 Push 设备 Token 表'
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS push_tasks (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              user_id BIGINT UNSIGNED NOT NULL COMMENT '接收用户 ID',
+              notification_id BIGINT UNSIGNED DEFAULT NULL COMMENT '关联站内通知 ID',
+              notify_type VARCHAR(30) NOT NULL COMMENT '通知类型',
+              biz_type VARCHAR(50) DEFAULT NULL COMMENT '业务类型',
+              biz_id BIGINT UNSIGNED DEFAULT NULL COMMENT '业务 ID',
+              title VARCHAR(100) NOT NULL COMMENT 'Push 标题',
+              content VARCHAR(500) NOT NULL COMMENT 'Push 内容',
+              provider_code VARCHAR(64) NOT NULL COMMENT 'Push 供应商编码',
+              task_status VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '任务状态：pending/skipped/failed/sent',
+              failure_reason VARCHAR(500) DEFAULT NULL COMMENT '失败或跳过原因',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+              PRIMARY KEY (id),
+              KEY idx_push_tasks_user_status (user_id, task_status, created_at),
+              KEY idx_push_tasks_notification (notification_id),
+              KEY idx_push_tasks_provider_status (provider_code, task_status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Push 任务表'
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS push_delivery_records (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+              push_task_id BIGINT UNSIGNED NOT NULL COMMENT 'Push 任务 ID',
+              device_token_id BIGINT UNSIGNED NOT NULL COMMENT '设备 Token ID',
+              user_id BIGINT UNSIGNED NOT NULL COMMENT '接收用户 ID',
+              provider_code VARCHAR(64) NOT NULL COMMENT 'Push 供应商编码',
+              delivery_status VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '投递状态：pending/skipped/failed/sent',
+              failure_reason VARCHAR(500) DEFAULT NULL COMMENT '失败原因',
+              attempted_at DATETIME DEFAULT NULL COMMENT '投递尝试时间',
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+              PRIMARY KEY (id),
+              KEY idx_push_delivery_task (push_task_id),
+              KEY idx_push_delivery_user_status (user_id, delivery_status, created_at),
+              KEY idx_push_delivery_provider_status (provider_code, delivery_status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Push 投递记录表'
+            """);
         ensureCommunityReportAdminNotesColumn();
         ensureCommunityClosedLoopSchema();
         ensureAdminAccount();
+    }
+
+    private void ensureModerationTaskSchema() {
+        ensureModerationTaskColumn(
+            "content_type",
+            "ALTER TABLE moderation_tasks ADD COLUMN content_type VARCHAR(30) NOT NULL DEFAULT 'text' COMMENT '内容形态：text/image_text/video/qa' AFTER target_id"
+        );
+        ensureModerationTaskColumn(
+            "content_snapshot",
+            "ALTER TABLE moderation_tasks ADD COLUMN content_snapshot JSON DEFAULT NULL COMMENT '审核内容快照' AFTER content_type"
+        );
+        ensureModerationTaskColumn(
+            "provider_code",
+            "ALTER TABLE moderation_tasks ADD COLUMN provider_code VARCHAR(64) NOT NULL DEFAULT 'dev_noop' COMMENT '审核供应商编码' AFTER content_snapshot"
+        );
+        ensureModerationTaskColumn(
+            "risk_labels",
+            "ALTER TABLE moderation_tasks ADD COLUMN risk_labels JSON DEFAULT NULL COMMENT '风险标签' AFTER review_result"
+        );
+        ensureModerationTaskColumn(
+            "failure_reason",
+            "ALTER TABLE moderation_tasks ADD COLUMN failure_reason VARCHAR(500) DEFAULT NULL COMMENT '失败原因' AFTER risk_labels"
+        );
+        ensureModerationTaskColumn(
+            "callback_payload",
+            "ALTER TABLE moderation_tasks ADD COLUMN callback_payload JSON DEFAULT NULL COMMENT '供应商回调载荷' AFTER failure_reason"
+        );
+        ensureModerationTaskColumn(
+            "reviewed_at",
+            "ALTER TABLE moderation_tasks ADD COLUMN reviewed_at DATETIME DEFAULT NULL COMMENT '审核完成时间' AFTER callback_payload"
+        );
+        if (tableColumnExists("moderation_tasks", "review_type")) {
+            jdbcTemplate.execute("""
+                ALTER TABLE moderation_tasks
+                MODIFY COLUMN review_type VARCHAR(20) DEFAULT NULL COMMENT '历史审核类型'
+                """);
+        }
+    }
+
+    private void ensureModerationTaskColumn(String columnName, String alterSql) {
+        if (!tableColumnExists("moderation_tasks", columnName)) {
+            jdbcTemplate.execute(alterSql);
+        }
+    }
+
+    private boolean tableColumnExists(String tableName, String columnName) {
+        Integer columnCount = jdbcTemplate.queryForObject("""
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = ?
+            """, Integer.class, tableName, columnName);
+        return columnCount != null && columnCount > 0;
     }
 
     private void ensureCommunityReportAdminNotesColumn() {
@@ -2395,6 +2529,7 @@ class PhaseOneApiTests {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.sync_to_community", is(true)))
             .andExpect(jsonPath("$.data.community_post_id", is(postId)));
+        approveLatestModerationTaskForPost(postId);
 
         mockMvc.perform(get("/api/v1/community/posts/%s".formatted(postId))
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
@@ -2724,10 +2859,11 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.topic.topic_id", is(topicId)))
             .andExpect(jsonPath("$.data.media_asset_ids[0]", is(mediaAssetId)))
             .andExpect(jsonPath("$.data.media_assets[0].asset_id", is(mediaAssetId)))
-            .andExpect(jsonPath("$.data.review_status", is("approved")))
+            .andExpect(jsonPath("$.data.review_status", is("pending_review")))
             .andReturn();
 
         String postId = JsonPath.read(postResult.getResponse().getContentAsString(), "$.data.post_id");
+        approveLatestModerationTaskForPost(postId);
 
         mockMvc.perform(get("/api/v1/community/posts/%s".formatted(postId))
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
@@ -2768,6 +2904,259 @@ class PhaseOneApiTests {
             .andExpect(jsonPath("$.data.question.post_id", is(questionId)))
             .andExpect(jsonPath("$.data.question.post_type", is("qa")))
             .andExpect(jsonPath("$.data.answers[0].content", is("建议至少 7 天逐步增加新粮比例，并观察软便情况。")));
+    }
+
+    @Test
+    void shouldCreateModerationTaskFilterPendingAndSupportManualReview() throws Exception {
+        String authorizationHeader = authorizationHeader("13610000000");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+        String topicId = createCommunityTopic("审核底座测试-" + System.nanoTime());
+
+        String pendingPostId = createPendingCommunityPost(
+            authorizationHeader,
+            petId,
+            topicId,
+            "image_text",
+            "待审核普通帖子",
+            "这条内容需要先进入审核队列。"
+        );
+        mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.post_id == '%s')]".formatted(pendingPostId)).isEmpty());
+
+        MvcResult taskListResult = mockMvc.perform(get(
+                "/api/v1/admin/moderation/tasks?target_type=community_post&target_id=%s&review_status=pending"
+                    .formatted(pendingPostId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()", is(1)))
+            .andExpect(jsonPath("$.data[0].provider_code", is("dev_noop")))
+            .andExpect(jsonPath("$.data[0].content_type", is("text")))
+            .andExpect(jsonPath("$.data[0].content_snapshot")
+                .value(org.hamcrest.Matchers.containsString("这条内容需要先进入审核队列。")))
+            .andReturn();
+
+        String taskId = JsonPath.read(taskListResult.getResponse().getContentAsString(), "$.data[0].task_id");
+        mockMvc.perform(patch("/api/v1/admin/moderation/tasks/%s/status".formatted(taskId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "review-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "action": "approve",
+                      "risk_labels": [],
+                      "admin_notes": "人工复核通过"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.review_status", is("approved")))
+            .andExpect(jsonPath("$.data.review_result").value(org.hamcrest.Matchers.containsString("manual")));
+
+        mockMvc.perform(get("/api/v1/community/posts/%s".formatted(pendingPostId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.review_status", is("approved")));
+
+        String rejectedPostId = createPendingCommunityPost(
+            authorizationHeader,
+            petId,
+            topicId,
+            "qa",
+            "待拒绝问答帖子",
+            "这条问答用于验证人工拒绝。"
+        );
+        String rejectedTaskId = latestModerationTaskIdByTarget("community_question", rejectedPostId);
+        mockMvc.perform(patch("/api/v1/admin/moderation/tasks/%s/status".formatted(rejectedTaskId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "review-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "action": "reject",
+                      "risk_labels": ["manual_reject"],
+                      "admin_notes": "人工复核拒绝"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.review_status", is("rejected")))
+            .andExpect(jsonPath("$.data.risk_labels").value(org.hamcrest.Matchers.containsString("manual_reject")));
+
+        mockMvc.perform(get("/api/v1/community/questions/%s".formatted(rejectedPostId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code", is("COMMUNITY_POST_NOT_FOUND")));
+
+        mockMvc.perform(get("/api/v1/admin/moderation/audit-logs?operator_id=review-admin&target_type=moderation_task")
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.action == 'moderation_task_approve')].target_id", is(List.of(taskId))))
+            .andExpect(jsonPath("$.data[?(@.action == 'moderation_task_reject')].target_id", is(List.of(rejectedTaskId))));
+    }
+
+    @Test
+    void shouldCreateModerationTaskForSyncedDailyLogAndHideUntilApproved() throws Exception {
+        String authorizationHeader = authorizationHeader("13610000001");
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        String petId = currentPetId(authorizationHeader);
+
+        MvcResult dailyLogResult = mockMvc.perform(post("/api/v1/pets/%s/daily-logs".formatted(petId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "content": "同步社区前必须先进入内容审核。",
+                      "tags": ["审核", "社区"],
+                      "visibility": "public",
+                      "sync_to_community": true,
+                      "happened_at": "2026-04-17T10:00:00+08:00"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.community_post_id").exists())
+            .andReturn();
+
+        String responseBody = dailyLogResult.getResponse().getContentAsString();
+        String dailyLogId = JsonPath.read(responseBody, "$.data.daily_log_id");
+        String postId = JsonPath.read(responseBody, "$.data.community_post_id");
+
+        mockMvc.perform(get("/api/v1/community/feed?tab=recommended")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.post_id == '%s')]".formatted(postId)).isEmpty());
+
+        mockMvc.perform(get("/api/v1/admin/moderation/tasks?target_type=community_post&target_id=%s".formatted(postId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()", is(1)))
+            .andExpect(jsonPath("$.data[0].review_status", is("pending")))
+            .andExpect(jsonPath("$.data[0].content_snapshot")
+                .value(org.hamcrest.Matchers.containsString(dailyLogId)));
+    }
+
+    @Test
+    void shouldRegisterPushTokenAndCreatePushTaskFromNotification() throws Exception {
+        String authorAuthorizationHeader = authorizationHeader("13610000002");
+        String reporterAuthorizationHeader = authorizationHeader("13710000000");
+        String reporterUserId = currentUserId(reporterAuthorizationHeader);
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        String deviceTokenId = registerPushDeviceToken(reporterAuthorizationHeader, "push-token-" + System.nanoTime());
+
+        String petId = currentPetId(authorAuthorizationHeader);
+        createDailyLog(authorAuthorizationHeader, petId, "Push 派生通知测试。", true);
+        String postId = currentCommunityPostId(reporterAuthorizationHeader);
+        String reportId = createCommunityPostReport(reporterAuthorizationHeader, postId, "spam", "触发举报处理通知");
+
+        mockMvc.perform(patch("/api/v1/admin/moderation/reports/%s".formatted(reportId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .header("X-Admin-Operator", "push-admin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "action": "dismiss_report",
+                      "admin_notes": "Push 派生验证"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        MvcResult pushTaskResult = mockMvc.perform(get(
+                "/api/v1/admin/push-tasks?user_id=%s&task_status=pending&provider_code=dev_noop"
+                    .formatted(reporterUserId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.biz_type == 'moderation_report')].biz_id", is(List.of(reportId))))
+            .andExpect(jsonPath("$.data[?(@.biz_type == 'moderation_report')].task_status", is(List.of("pending"))))
+            .andReturn();
+
+        List<String> pushTaskIds = JsonPath.read(
+            pushTaskResult.getResponse().getContentAsString(),
+            "$.data[?(@.biz_type == 'moderation_report')].push_task_id"
+        );
+        String pushTaskId = pushTaskIds.get(0);
+        mockMvc.perform(get("/api/v1/admin/push-deliveries?push_task_id=%s&delivery_status=pending".formatted(pushTaskId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].device_token_id", is(deviceTokenId)))
+            .andExpect(jsonPath("$.data[0].provider_code", is("dev_noop")));
+    }
+
+    @Test
+    void shouldSkipPushTaskWhenNotificationSwitchOff() throws Exception {
+        String authorAuthorizationHeader = authorizationHeader("13610000003");
+        String reporterAuthorizationHeader = authorizationHeader("13710000001");
+        String reporterUserId = currentUserId(reporterAuthorizationHeader);
+        String adminAuthorizationHeader = adminAuthorizationHeader();
+        registerPushDeviceToken(reporterAuthorizationHeader, "push-token-switch-off-" + System.nanoTime());
+
+        mockMvc.perform(patch("/api/v1/me/settings/notifications")
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "notification_enabled": false,
+                      "privacy_level": "normal"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        String petId = currentPetId(authorAuthorizationHeader);
+        createDailyLog(authorAuthorizationHeader, petId, "通知开关拦截 Push 测试。", true);
+        String postId = currentCommunityPostId(authorAuthorizationHeader);
+        String reportId = createCommunityPostReport(reporterAuthorizationHeader, postId, "spam", "关闭通知后不应生成站内消息");
+
+        mockMvc.perform(patch("/api/v1/admin/moderation/reports/%s".formatted(reportId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "action": "dismiss_report",
+                      "admin_notes": "通知开关关闭"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/notifications?notify_type=system")
+                .header(HttpHeaders.AUTHORIZATION, reporterAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items[?(@.biz_type == 'moderation_report')]").isEmpty());
+
+        mockMvc.perform(get("/api/v1/admin/push-tasks?user_id=%s&task_status=skipped".formatted(reporterUserId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.biz_type == 'moderation_report')].biz_id", is(List.of(reportId))))
+            .andExpect(jsonPath("$.data[?(@.biz_type == 'moderation_report')].failure_reason",
+                is(List.of("notification_switch_off"))));
+    }
+
+    @Test
+    void shouldRejectModerationTaskAndPushAdminQueriesWithoutAdminToken() throws Exception {
+        String authorizationHeader = authorizationHeader("13610000004");
+
+        mockMvc.perform(get("/api/v1/admin/moderation/tasks"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(get("/api/v1/admin/moderation/tasks")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(get("/api/v1/admin/push-tasks")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
+
+        mockMvc.perform(post("/api/v1/push/device-tokens")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "platform": "ios",
+                      "device_token": "anonymous-token"
+                    }
+                    """))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code", is("UNAUTHORIZED")));
     }
 
     @Test
@@ -4202,7 +4591,12 @@ class PhaseOneApiTests {
             .andExpect(status().isOk())
             .andReturn();
 
-        return JsonPath.read(createDailyLogResult.getResponse().getContentAsString(), "$.data.daily_log_id");
+        String responseBody = createDailyLogResult.getResponse().getContentAsString();
+        if (syncToCommunity) {
+            String communityPostId = JsonPath.read(responseBody, "$.data.community_post_id");
+            approveLatestModerationTaskForPost(communityPostId);
+        }
+        return JsonPath.read(responseBody, "$.data.daily_log_id");
     }
 
     private String createWeightHealthRecordAt(
@@ -4377,7 +4771,93 @@ class PhaseOneApiTests {
             .andExpect(status().isOk())
             .andReturn();
 
+        String postId = JsonPath.read(postResult.getResponse().getContentAsString(), "$.data.post_id");
+        approveLatestModerationTaskForPost(postId);
+        return postId;
+    }
+
+    private String createPendingCommunityPost(
+        String authorizationHeader,
+        String petId,
+        String topicId,
+        String postType,
+        String title,
+        String content
+    ) throws Exception {
+        MvcResult postResult = mockMvc.perform(post("/api/v1/community/posts")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "pet_id": %s,
+                      "topic_id": %s,
+                      "post_type": "%s",
+                      "title": "%s",
+                      "content": "%s",
+                      "media_asset_ids": [],
+                      "city_code": "310000",
+                      "visibility": "public"
+                    }
+                    """.formatted(petId, topicId, postType, title, content)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.review_status", is("pending_review")))
+            .andReturn();
+
         return JsonPath.read(postResult.getResponse().getContentAsString(), "$.data.post_id");
+    }
+
+    private void approveLatestModerationTaskForPost(String postId) {
+        jdbcTemplate.update("""
+            UPDATE moderation_tasks
+            SET review_status = 'approved',
+                review_result = JSON_OBJECT('source', 'test_setup'),
+                risk_labels = JSON_ARRAY(),
+                reviewed_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE target_id = ?
+              AND target_type IN ('community_post', 'community_question')
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """, Long.valueOf(postId));
+        jdbcTemplate.update("""
+            UPDATE community_posts
+            SET review_status = 'approved',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """, Long.valueOf(postId));
+    }
+
+    private String latestModerationTaskIdByTarget(String targetType, String targetId) {
+        Long taskId = jdbcTemplate.queryForObject("""
+            SELECT id
+            FROM moderation_tasks
+            WHERE target_type = ?
+              AND target_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """, Long.class, targetType, Long.valueOf(targetId));
+        return String.valueOf(taskId);
+    }
+
+    private String registerPushDeviceToken(String authorizationHeader, String deviceToken) throws Exception {
+        MvcResult registerResult = mockMvc.perform(post("/api/v1/push/device-tokens")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "platform": "android",
+                      "provider_code": "dev_noop",
+                      "device_token": "%s",
+                      "device_id": "android-test-device",
+                      "app_version": "1.0.0"
+                    }
+                    """.formatted(deviceToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.enabled", is(true)))
+            .andExpect(jsonPath("$.data.provider_code", is("dev_noop")))
+            .andExpect(jsonPath("$.data.device_token_suffix", is(deviceToken.substring(deviceToken.length() - 6))))
+            .andReturn();
+        return JsonPath.read(registerResult.getResponse().getContentAsString(), "$.data.device_token_id");
     }
 
     private ProviderFixture createServiceProviderWithSlot(

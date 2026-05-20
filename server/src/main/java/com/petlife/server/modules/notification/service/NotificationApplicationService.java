@@ -100,15 +100,18 @@ public class NotificationApplicationService {
     private final NotificationPersistenceMapper notificationPersistenceMapper;
     private final MessageTemplatePersistenceMapper messageTemplatePersistenceMapper;
     private final NotificationConverter notificationConverter;
+    private final PushNotificationApplicationService pushNotificationApplicationService;
 
     public NotificationApplicationService(
         NotificationPersistenceMapper notificationPersistenceMapper,
         MessageTemplatePersistenceMapper messageTemplatePersistenceMapper,
-        NotificationConverter notificationConverter
+        NotificationConverter notificationConverter,
+        PushNotificationApplicationService pushNotificationApplicationService
     ) {
         this.notificationPersistenceMapper = notificationPersistenceMapper;
         this.messageTemplatePersistenceMapper = messageTemplatePersistenceMapper;
         this.notificationConverter = notificationConverter;
+        this.pushNotificationApplicationService = pushNotificationApplicationService;
     }
 
     public NotificationListResponse listNotifications(String notifyType, String readStatus) {
@@ -164,7 +167,7 @@ public class NotificationApplicationService {
             template.title(),
             template.content()
         );
-        notificationPersistenceMapper.insertNotificationIfAbsent(command);
+        insertNotificationAndCreatePush(command);
     }
 
     @Transactional
@@ -204,7 +207,7 @@ public class NotificationApplicationService {
                 template.title(),
                 template.content()
             );
-            notificationPersistenceMapper.insertNotificationIfAbsent(command);
+            insertNotificationAndCreatePush(command);
         }
     }
 
@@ -223,7 +226,7 @@ public class NotificationApplicationService {
             template.title(),
             template.content()
         );
-        notificationPersistenceMapper.insertNotificationIfAbsent(command);
+        insertNotificationAndCreatePush(command);
     }
 
     @Transactional
@@ -253,7 +256,7 @@ public class NotificationApplicationService {
                 template.title(),
                 template.content()
             );
-            notificationPersistenceMapper.insertNotificationIfAbsent(command);
+            insertNotificationAndCreatePush(command);
         }
     }
 
@@ -264,6 +267,28 @@ public class NotificationApplicationService {
             notificationPersistenceMapper.countUnreadNotifications(currentUserId, TYPE_SYSTEM),
             notificationPersistenceMapper.countUnreadNotifications(currentUserId, TYPE_REMINDER)
         );
+    }
+
+    private void insertNotificationAndCreatePush(CreateNotificationCommand command) {
+        int insertedRows = notificationPersistenceMapper.insertNotificationIfAbsent(command);
+        if (insertedRows > 0) {
+            pushNotificationApplicationService.createPushTaskForNotification(
+                notificationPersistenceMapper.findNotificationByBusinessKey(
+                    command.getUserId(),
+                    command.getNotifyType(),
+                    command.getBizType(),
+                    command.getBizId()
+                )
+            );
+            return;
+        }
+        /*
+         * 站内通知开关是用户级总开关。关闭时不写 notifications，同时沉淀 skipped Push 任务，
+         * 便于后台排查“业务已触发但用户关闭通知”的真实原因。
+         */
+        if (!notificationPersistenceMapper.isNotificationSwitchEnabled(command.getUserId())) {
+            pushNotificationApplicationService.recordNotificationSwitchSkipped(command);
+        }
     }
 
     private NotificationEntity requireNotification(Long currentUserId, Long notificationId) {

@@ -8,6 +8,7 @@
       <el-menu :default-active="activePath" router class="admin-layout__menu">
         <el-menu-item index="/dashboard">控制台</el-menu-item>
         <el-menu-item index="/moderation">审核中心</el-menu-item>
+        <el-menu-item index="/moderation-tasks">审核任务</el-menu-item>
         <el-menu-item index="/community-posts">社区帖子</el-menu-item>
         <el-menu-item index="/community-questions">问答治理</el-menu-item>
         <el-menu-item index="/users">用户管理</el-menu-item>
@@ -21,6 +22,7 @@
         <el-menu-item index="/sms-verifications">验证码排查</el-menu-item>
         <el-menu-item index="/message-templates">消息模板</el-menu-item>
         <el-menu-item index="/notification-channels">通知渠道</el-menu-item>
+        <el-menu-item index="/push-deliveries">Push 投递</el-menu-item>
         <el-menu-item index="/service-providers">服务商管理</el-menu-item>
         <el-menu-item index="/system-config">系统配置</el-menu-item>
       </el-menu>
@@ -32,7 +34,7 @@
       <el-header class="admin-layout__header">
         <div>
           <div class="admin-layout__header-title">运营与治理中心</div>
-          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 社区审核 / 社区治理 / 健康档案 / 萌宠日常 / 时间轴 / 提醒 / 通知 / 安全排查 / 服务管理</div>
+          <div class="admin-layout__header-subtitle">用户 / 家庭 / 宠物 / 审核任务 / 社区治理 / 健康档案 / 萌宠日常 / 时间轴 / 提醒 / 通知 / Push 排查 / 服务管理</div>
         </div>
         <div class="admin-layout__header-actions">
           <div class="admin-layout__operator">{{ operatorName }}</div>

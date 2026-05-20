@@ -65,6 +65,43 @@ public interface NotificationPersistenceMapper {
     );
 
     @Select("""
+        SELECT
+          id AS notificationId,
+          user_id AS userId,
+          notify_type AS notifyType,
+          biz_type AS bizType,
+          biz_id AS bizId,
+          title AS title,
+          content AS content,
+          read_status AS readStatus,
+          sent_at AS sentAt,
+          read_at AS readAt
+        FROM notifications
+        WHERE user_id = #{userId}
+          AND notify_type = #{notifyType}
+          AND biz_type <=> #{bizType}
+          AND biz_id <=> #{bizId}
+        ORDER BY sent_at DESC, id DESC
+        LIMIT 1
+        """)
+    NotificationDataObject findNotificationByBusinessKey(
+        @Param("userId") Long userId,
+        @Param("notifyType") String notifyType,
+        @Param("bizType") String bizType,
+        @Param("bizId") Long bizId
+    );
+
+    @Select("""
+        SELECT EXISTS (
+          SELECT 1
+          FROM user_settings us
+          WHERE us.user_id = #{userId}
+            AND us.notification_switch = 1
+        )
+        """)
+    boolean isNotificationSwitchEnabled(@Param("userId") Long userId);
+
+    @Select("""
         SELECT COUNT(1)
         FROM notifications
         WHERE user_id = #{userId}

@@ -6,6 +6,7 @@ import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_topic_page.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_author_follow_button.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_media_preview_grid.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_review_status.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_report_draft.dart';
@@ -75,7 +76,10 @@ class _CommunityQuestionDetailPageState
         return;
       }
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = communityContentUnavailableMessage(
+          error,
+          contentLabel: '问答内容',
+        );
       });
     } finally {
       if (mounted) {
@@ -459,6 +463,20 @@ class _CommunityQuestionDetailPageState
     }
 
     final CommunityPostSnapshot question = detail!.question;
+    if (isCommunityPostRejected(question)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('问答详情')),
+        body: const Padding(
+          padding: EdgeInsets.all(24),
+          child: CompanionEmptyState(
+            title: '问答暂时不可见',
+            description: '这个问题未通过审核，不会公开展示。',
+            icon: Icons.visibility_off_outlined,
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('问答详情'),
@@ -476,6 +494,10 @@ class _CommunityQuestionDetailPageState
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (isCommunityPostPendingReview(question)) ...[
+              CommunityReviewStatusNotice(reviewStatus: question.reviewStatus),
+              const SizedBox(height: 12),
+            ],
             _QuestionCard(
               question: question,
               isUpdatingLike: _isUpdatingLike,
@@ -545,6 +567,10 @@ class _QuestionCard extends StatelessWidget {
                 icon: Icons.help_outline_rounded,
                 backgroundColor: AppThemePalette.surface,
               ),
+              if (question.reviewStatus != 'approved') ...[
+                const SizedBox(width: 8),
+                CommunityReviewStatusPill(reviewStatus: question.reviewStatus),
+              ],
               const SizedBox(width: 10),
               Flexible(
                 child: Align(

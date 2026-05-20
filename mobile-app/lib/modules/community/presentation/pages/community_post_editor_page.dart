@@ -4,6 +4,7 @@ import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/media_attachment_picker.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_review_status.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/current_user_snapshot.dart';
@@ -164,9 +165,15 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
         return;
       }
 
-      showCompanionSuccessFeedback(
+      final CompanionFeedbackTone feedbackTone =
+          communityReviewFeedbackTone(createdPost.reviewStatus);
+      final String feedbackMessage = createdPost.reviewStatus == 'approved'
+          ? (_selectedPostType == 'qa' ? '问题已发布到社区' : '社区内容已发布')
+          : communityReviewStatusMessage(createdPost.reviewStatus);
+      showCompanionFeedback(
         context,
-        _selectedPostType == 'qa' ? '问题已发布到社区' : '社区内容已发布',
+        message: feedbackMessage,
+        tone: feedbackTone,
       );
       Navigator.of(context).pop(createdPost);
     } catch (error) {

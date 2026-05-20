@@ -6,6 +6,7 @@ import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_topic_page.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_author_follow_button.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_media_preview_grid.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_review_status.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_report_draft.dart';
@@ -80,7 +81,10 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = communityContentUnavailableMessage(
+          error,
+          contentLabel: '社区内容',
+        );
       });
     } finally {
       if (mounted) {
@@ -453,6 +457,22 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
       );
     }
 
+    if (post != null && isCommunityPostRejected(post)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('社区内容详情')),
+        body: const Padding(
+          padding: EdgeInsets.all(24),
+          child: CompanionEmptyState(
+            title: '内容暂时不可见',
+            description: '这条内容未通过审核，不会公开展示。',
+            icon: Icons.visibility_off_outlined,
+          ),
+        ),
+      );
+    }
+
+    final CommunityPostSnapshot visiblePost = post!;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('社区内容详情'),
@@ -479,8 +499,14 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (isCommunityPostPendingReview(visiblePost)) ...[
+              CommunityReviewStatusNotice(
+                reviewStatus: visiblePost.reviewStatus,
+              ),
+              const SizedBox(height: 12),
+            ],
             _CommunityPostDetailCard(
-              post: post!,
+              post: visiblePost,
               isUpdatingLike: _isUpdatingLike,
               isUpdatingFavorite: _isUpdatingFavorite,
               isSubmittingComment: _isSubmittingComment,
@@ -559,6 +585,10 @@ class _CommunityPostDetailCard extends StatelessWidget {
                 icon: Icons.forum_outlined,
                 backgroundColor: AppThemePalette.surface,
               ),
+              if (post.reviewStatus != 'approved') ...[
+                const SizedBox(width: 8),
+                CommunityReviewStatusPill(reviewStatus: post.reviewStatus),
+              ],
               const SizedBox(width: 10),
               Flexible(
                 child: Align(

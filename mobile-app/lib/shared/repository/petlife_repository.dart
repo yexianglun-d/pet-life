@@ -14,6 +14,7 @@ import 'package:petlife_mobile_app/shared/domain/models/media_asset_snapshot.dar
 import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/push_device_token_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_template_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
@@ -72,6 +73,16 @@ abstract interface class PetLifeRepository {
     required bool notificationEnabled,
     required String privacyLevel,
   });
+
+  Future<PushDeviceTokenSnapshot> registerPushDeviceToken({
+    required String platform,
+    required String deviceToken,
+    String? providerCode,
+    String? deviceId,
+    String? appVersion,
+  });
+
+  Future<PushDeviceTokenSnapshot> unbindPushDeviceToken(String deviceTokenId);
 
   Future<NotificationInboxSnapshot> listNotifications({
     String notifyType = 'all',

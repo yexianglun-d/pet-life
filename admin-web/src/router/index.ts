@@ -9,9 +9,11 @@ import DailyLogContentView from '@/views/content/DailyLogContentView.vue';
 import HealthRecordReviewView from '@/views/content/HealthRecordReviewView.vue';
 import TimelineEventDebugView from '@/views/content/TimelineEventDebugView.vue';
 import DashboardView from '@/views/dashboard/DashboardView.vue';
+import ModerationTaskReviewView from '@/views/moderation/ModerationTaskReviewView.vue';
 import ModerationView from '@/views/moderation/ModerationView.vue';
 import MessageTemplateManagementView from '@/views/notification/MessageTemplateManagementView.vue';
 import NotificationChannelConfigView from '@/views/notification/NotificationChannelConfigView.vue';
+import PushDeliveryDebugView from '@/views/notification/PushDeliveryDebugView.vue';
 import FamilyManagementView from '@/views/operation/FamilyManagementView.vue';
 import PetArchiveQueryView from '@/views/operation/PetArchiveQueryView.vue';
 import UserManagementView from '@/views/operation/UserManagementView.vue';
@@ -43,6 +45,11 @@ const routes: RouteRecordRaw[] = [
         path: 'moderation',
         name: 'moderation',
         component: ModerationView
+      },
+      {
+        path: 'moderation-tasks',
+        name: 'moderationTasks',
+        component: ModerationTaskReviewView
       },
       {
         path: 'community-posts',
@@ -108,6 +115,11 @@ const routes: RouteRecordRaw[] = [
         path: 'notification-channels',
         name: 'notificationChannels',
         component: NotificationChannelConfigView
+      },
+      {
+        path: 'push-deliveries',
+        name: 'pushDeliveries',
+        component: PushDeliveryDebugView
       },
       {
         path: 'service-providers',

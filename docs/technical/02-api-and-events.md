@@ -711,12 +711,14 @@ DDL 说明：
 - `qa` 类型必须传 `title`；普通帖子标题缺省时由正文截断生成。
 - `media_asset_ids` 仅允许引用当前用户已上传完成、`biz_type=community`、媒体类型为图片或视频的资产，最多 9 个。
 - 关联宠物时会校验当前用户是否有该宠物访问权；关联话题时只允许使用启用话题。
-- 本阶段不接第三方审核，发布后由服务端写入 `review_status=approved`，客户端不能提交审核状态；后台治理接口可下架或恢复。
+- 本阶段不接第三方审核厂商 SDK，发布后由服务端写入 `review_status=pending_review` 并创建 `moderation_tasks` 审核任务；客户端不能提交审核状态。
+- 用户侧社区流、话题页、帖子详情和问答详情只读取 `review_status=approved` 内容，待审和拒绝内容不会进入公开流。
 
 萌宠日常仍可同步社区：
 
 - 萌宠日常创建/更新时，若 `visibility=public` 且 `sync_to_community=true`，系统会自动生成或更新社区帖子。
 - 日常同步帖子类型为 `experience`，并同步日常媒体资产 ID 供社区详情预览。
+- 日常同步社区同样进入审核任务；内容更新会使旧待审任务失效，避免旧任务通过后放出新内容。
 
 ## 6.3 获取帖子详情
 
@@ -1156,13 +1158,37 @@ DDL 说明：
 - 站内通知生成会优先读取 `message_templates` 中 `channel_type=inbox` 且 `status=active` 的模板。
 - 内置通知模板编码包括 `user_welcome`、`reminder_completed`、`reminder_skipped`、`appointment_created`、`moderation_report_confirm_violation`、`moderation_report_dismiss_report`。
 - 模板缺失时仅上述内置模板会使用服务端默认模板，避免后台未配置模板阻断登录、提醒处理、预约提交和审核反馈；未知模板缺失仍按业务异常处理。
-- 当前未接入真实短信、真实 Push 或第三方厂商 SDK，`sms`、`push` 只进入后台配置和模板契约。
+- 当前未接入真实短信、真实 Push 或第三方厂商 SDK，`sms` 只进入后台配置和模板契约；Push 已沉淀设备 token、任务和投递记录，但不写真实投递成功。
 
-## 10.5 单条已读
+## 10.5 App Push 设备 Token
+
+`POST /push/device-tokens`
+
+请求关键字段：
+
+```json
+{
+  "platform": "android",
+  "provider_code": "dev_noop",
+  "device_token": "push-token-example",
+  "device_id": "android-device-001",
+  "app_version": "1.0.0"
+}
+```
+
+`DELETE /push/device-tokens/{device_token_id}`
+
+说明：
+
+- 当前仅注册和解绑设备 token，不接 APNs、FCM、华为、小米等厂商 SDK。
+- 响应只返回 `device_token_suffix`，不回显完整设备 token。
+- `provider_code` 缺省时使用 `dev_noop`；后续接真实厂商时通过 provider 抽象扩展。
+
+## 10.6 单条已读
 
 `PATCH /notifications/{notification_id}/read`
 
-## 10.6 批量已读
+## 10.7 批量已读
 
 `PATCH /notifications/read`
 
@@ -1260,7 +1286,11 @@ DDL 说明：
 
 - `GET /api/v1/admin/moderation/reports?status=pending|processed|rejected|all`
 - `PATCH /api/v1/admin/moderation/reports/{report_id}`
-- `GET /api/v1/admin/moderation/audit-logs?operator_id=risk-admin&target_type=moderation_report|community_post|community_question&action=moderation_report_confirm_violation`
+- `GET /api/v1/admin/moderation/tasks?target_type=community_post&target_id=30001&content_type=text&review_status=pending&provider_code=dev_noop`
+- `GET /api/v1/admin/moderation/tasks/{task_id}`
+- `PATCH /api/v1/admin/moderation/tasks/{task_id}/status`
+- `POST /api/v1/moderation/callbacks/{provider_code}`
+- `GET /api/v1/admin/moderation/audit-logs?operator_id=risk-admin&target_type=moderation_report|moderation_task|community_post|community_question&action=moderation_report_confirm_violation`
 
 `PATCH /api/v1/admin/moderation/reports/{report_id}` 请求关键字段：
 
@@ -1278,6 +1308,25 @@ DDL 说明：
 - `admin_notes` 会入库并随举报列表、处理响应回显
 - 当前阶段处理人通过请求头 `X-Admin-Operator` 回写，用于后台操作审计标识
 - 处理动作会写入 `audit_logs`，目标类型为 `moderation_report`，动作值为 `moderation_report_confirm_violation` 或 `moderation_report_dismiss_report`
+
+`PATCH /api/v1/admin/moderation/tasks/{task_id}/status` 请求关键字段：
+
+```json
+{
+  "action": "approve",
+  "risk_labels": [],
+  "admin_notes": "人工复核通过"
+}
+```
+
+内容审核任务说明：
+
+- `community_post`、`community_question` 公开内容发布后进入 `moderation_tasks`，任务状态为 `pending`。
+- 当前 provider 为 `dev_noop`，只沉淀任务和状态，不返回自动通过结果；人工 `approve` 才会把目标内容同步为 `approved`。
+- 人工 `reject` 会把目标内容同步为 `rejected`，用户侧公开流和详情不再可见。
+- 同一目标内容更新时，旧 `pending` 任务会置为 `failed/content_updated_before_review`，防止旧审核结论覆盖新内容。
+- 人工审核写入 `audit_logs.target_type=moderation_task`，动作值为 `moderation_task_approve` 或 `moderation_task_reject`。
+- 回调入口仅作为供应商抽象预留；未接第三方 SDK 前不得伪造真实审核通过。
 
 当前已落地的后台社区内容治理接口：
 
@@ -1303,7 +1352,7 @@ DDL 说明：
 - `action=restore`：目标内容 `review_status` 改为 `approved`，恢复用户侧可见。
 - 普通帖子治理写入 `audit_logs.target_type=community_post`，动作值为 `community_post_take_down` 或 `community_post_restore`。
 - 问答治理写入 `audit_logs.target_type=community_question`，动作值为 `community_question_take_down` 或 `community_question_restore`。
-- 当前不接第三方内容审核，不新增自动审核任务；后台治理是人工下架/恢复能力。
+- 后台治理接口仍保留人工下架/恢复能力；新发布公开内容的首次曝光由审核任务的人工通过决定。
 
 当前已落地的后台内容查询接口：
 
@@ -1383,6 +1432,8 @@ DDL 说明：
 - `POST /api/v1/admin/notification-channels`
 - `PATCH /api/v1/admin/notification-channels/{channel_config_id}`
 - `PATCH /api/v1/admin/notification-channels/{channel_config_id}/status`
+- `GET /api/v1/admin/push-tasks?user_id=20001&notification_id=70001&task_status=pending&provider_code=dev_noop`
+- `GET /api/v1/admin/push-deliveries?push_task_id=82001&user_id=20001&delivery_status=pending&provider_code=dev_noop`
 - `GET /api/v1/admin/notification/audit-logs?operator_id=notification-admin&target_type=message_template|notification_channel`
 
 `POST /api/v1/admin/message-templates` 与 `PATCH /api/v1/admin/message-templates/{template_id}` 请求关键字段：
@@ -1433,6 +1484,8 @@ DDL 说明：
 - `notification_channel_configs` 是本轮新增配置表，详见 `docs/technical/08-notification-config-upgrade.sql`；本轮只做配置维护，不做外部发送。
 - 渠道配置状态支持 `draft`、`ready`、`disabled`；启用渠道必须处于 `ready` 状态，停用渠道不能处于 `ready` 状态。
 - 消息模板和通知渠道配置的创建、更新、启停均写入 `audit_logs`，通知配置审计查询只返回 `message_template` 与 `notification_channel` 目标类型。
+- 站内通知生成后会派生 `push_tasks`；若用户关闭 `notification_switch`，不写站内通知，同时记录 `task_status=skipped`、`failure_reason=notification_switch_off` 的 Push 排查任务。
+- 当前 Push provider 为 `dev_noop`，有设备 token 时任务和投递记录保持 `pending`，不伪装真实投递成功；无可用 token 时任务为 `skipped/no_active_device_token`。
 
 当前已落地的后台服务中心接口：
 

@@ -9,6 +9,7 @@
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">消息模板</span>
         <span class="pet-admin-chip">通知渠道</span>
+        <span class="pet-admin-chip">Push 投递</span>
         <span class="pet-admin-chip">验证码排查</span>
         <span class="pet-admin-chip">功能开通状态</span>
         <span class="pet-admin-chip">预留模块边界</span>
@@ -27,12 +28,13 @@
       <article class="pet-admin-panel">
         <h2 class="pet-admin-panel__title">通知配置入口</h2>
         <p class="pet-admin-panel__description">
-          消息模板和通知渠道已接入真实后台接口。短信和 Push 仍只表示渠道配置，不代表真实供应商已接入。
+          消息模板、通知渠道、验证码排查和 Push 投递记录已接入真实后台接口。短信和 Push 仍只表示底座能力，不代表真实供应商已接入。
         </p>
         <div class="system-entry-actions">
           <el-button type="primary" @click="router.push({ name: 'messageTemplates' })">消息模板管理</el-button>
           <el-button @click="router.push({ name: 'notificationChannels' })">通知渠道配置</el-button>
           <el-button @click="router.push({ name: 'smsVerifications' })">验证码排查</el-button>
+          <el-button @click="router.push({ name: 'pushDeliveries' })">Push 投递排查</el-button>
         </div>
       </article>
 
@@ -57,7 +59,7 @@ const router = useRouter();
 const systemCards = [
   {
     title: '通知与消息',
-    description: '负责站内信、短信和 Push 模板内容与渠道配置。',
+    description: '负责站内信、短信和 Push 模板内容、渠道配置与投递排查。',
     highlight: '已接入'
   },
   {

@@ -52,6 +52,7 @@ public class DevelopmentTokenAuthenticationFilter extends OncePerRequestFilter {
         return HttpMethod.OPTIONS.matches(request.getMethod())
             || requestPath.startsWith("/api/v1/auth/")
             || requestPath.startsWith("/api/v1/admin/auth/")
+            || requestPath.startsWith("/api/v1/moderation/callbacks/")
             || requestPath.startsWith("/actuator/");
     }
 

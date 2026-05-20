@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
+import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/page_section.dart';
@@ -8,6 +9,7 @@ import 'package:petlife_mobile_app/modules/community/presentation/pages/communit
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_question_detail_page.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_topic_page.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_post_card.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_review_status.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 
@@ -112,6 +114,14 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
       return;
     }
 
+    if (createdPost.reviewStatus != 'approved') {
+      showCompanionFeedback(
+        context,
+        message: communityReviewStatusMessage(createdPost.reviewStatus),
+        tone: communityReviewFeedbackTone(createdPost.reviewStatus),
+      );
+    }
+
     setState(() {
       _selectedTab = createdPost.postType == 'qa' ? 'qa' : 'recommended';
       _postsByTab.remove(_selectedTab);
@@ -130,7 +140,10 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
   @override
   Widget build(BuildContext context) {
     final List<CommunityPostSnapshot> currentPosts =
-        _postsByTab[_selectedTab] ?? const <CommunityPostSnapshot>[];
+        (_postsByTab[_selectedTab] ?? const <CommunityPostSnapshot>[])
+            .where(
+                (CommunityPostSnapshot post) => !isCommunityPostRejected(post))
+            .toList();
     final String? currentError = _errorMessagesByTab[_selectedTab];
     final bool isCurrentTabLoading = _loadingTabs.contains(_selectedTab);
 

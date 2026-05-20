@@ -57,6 +57,9 @@
   - `GET /api/v1/admin/timeline/events/{eventId}`
 - 审核治理能力已同步到 `docs/api/petlife-openapi.yaml`：
   - `PATCH /api/v1/admin/moderation/reports/{reportId}` 支持 `admin_notes` 入库与回显
+  - `GET /api/v1/admin/moderation/tasks`
+  - `GET /api/v1/admin/moderation/tasks/{taskId}`
+  - `PATCH /api/v1/admin/moderation/tasks/{taskId}/status`
   - `GET /api/v1/admin/moderation/audit-logs`
 - 社区内容治理能力已同步到 `docs/api/petlife-openapi.yaml`：
   - `GET /api/v1/admin/community/posts`
@@ -86,6 +89,8 @@
   - `POST /api/v1/admin/notification-channels`
   - `PATCH /api/v1/admin/notification-channels/{channelConfigId}`
   - `PATCH /api/v1/admin/notification-channels/{channelConfigId}/status`
+  - `GET /api/v1/admin/push-tasks`
+  - `GET /api/v1/admin/push-deliveries`
   - `GET /api/v1/admin/notification/audit-logs`
 
 ## 当前已接入 admin-web 页面
@@ -98,7 +103,9 @@
 - 提醒模板管理接口已接入提醒模板管理页，支持真实列表、筛选、详情、创建、编辑和启停。
 - 短信验证码排查接口已接入验证码排查页，支持真实发送记录、校验记录、状态排查、详情查看和手机号脱敏展示。
 - 社区内容治理接口已接入社区帖子治理页和问答治理页，支持真实列表筛选、详情查看、下架/恢复和治理审计查询。
+- 审核任务接口已接入内容审核任务页，支持真实任务列表、详情、审核快照、回调 payload、任务审计展示和人工通过/拒绝。
 - 通知与消息配置接口已接入消息模板管理页和通知发送配置页，支持真实列表筛选、详情查看、创建、编辑、启停和配置审计查询。
+- Push 任务和投递记录接口已接入 Push 投递排查页，支持真实任务/投递记录查询、状态排查、失败原因和设备标识脱敏展示。
 - 写治理能力已使用服务端状态机、权限边界和审计动作接口，不使用前端本地 mock。
 
 ## 待后续补齐或接入
@@ -106,6 +113,9 @@
 | 清单项 | 后台页面目标 | 需要补齐的管理端接口 |
 | --- | --- | --- |
 | 2. 认证与会话 | 短信验证码发送/校验排查按服务端时间范围查询 | 现有接口未提供 `created_from` / `created_to` 或等价时间范围参数，当前 admin-web 基于真实返回时间字段做页面内收窄 |
+| 12. 审核与举报处理 | 审核任务列表按关键词和时间范围服务端查询 | 现有 `GET /api/v1/admin/moderation/tasks` 未提供 `keyword`、`created_from`、`created_to` 或等价参数，当前 admin-web 基于真实返回字段做页面内收窄 |
+| 14. 通知与消息 | Push 任务和投递记录按 `notify_type` 与时间范围服务端查询 | 现有 `GET /api/v1/admin/push-tasks` 未提供 `notify_type`、`created_from`、`created_to` 参数，`GET /api/v1/admin/push-deliveries` 未提供时间范围参数，当前 admin-web 基于真实返回字段做页面内收窄 |
+| 14. 通知与消息 | Push 投递记录展示设备 token 脱敏值 | 现有 `PushDeliveryRecord` 只返回 `device_token_id`，不返回真实 token 或服务端生成的 `masked_device_token`；admin-web 只能脱敏展示设备标识，不能定位真实 token 原文 |
 | 14. 通知与消息 | 真实短信 / Push 供应商接入后的密钥配置、发送报表、通道健康检查 | 需服务端先定义供应商接入、发送状态和健康检查接口 |
 
 ## admin-web 开发顺序建议

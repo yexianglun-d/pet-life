@@ -150,10 +150,24 @@ WHERE operator_id LIKE 'plt_%'
      UNION SELECT CAST(id AS CHAR) FROM seed_orders
    );
 
+DELETE FROM push_delivery_records
+WHERE user_id IN (SELECT id FROM seed_users)
+   OR failure_reason LIKE '%PLT-SEED%';
+
+DELETE FROM push_tasks
+WHERE user_id IN (SELECT id FROM seed_users)
+   OR title LIKE CONCAT(@seed_prefix, '%')
+   OR failure_reason LIKE '%PLT-SEED%';
+
+DELETE FROM user_push_device_tokens
+WHERE user_id IN (SELECT id FROM seed_users)
+   OR device_token LIKE 'PLT-SEED-PUSH-%';
+
 DELETE FROM moderation_tasks
-WHERE media_asset_id IN (SELECT id FROM seed_media)
-   OR target_id IN (SELECT id FROM seed_posts)
-   OR request_payload LIKE '%PLT-SEED%';
+WHERE (target_type IN ('community_post', 'community_question', 'post') AND target_id IN (SELECT id FROM seed_posts))
+   OR JSON_UNQUOTE(JSON_EXTRACT(content_snapshot, '$.seed_code')) LIKE 'PLT-SEED-%'
+   OR JSON_UNQUOTE(JSON_EXTRACT(review_result, '$.seed_code')) LIKE 'PLT-SEED-%'
+   OR failure_reason LIKE '%PLT-SEED%';
 
 DELETE FROM notifications
 WHERE user_id IN (SELECT id FROM seed_users)
@@ -530,7 +544,7 @@ INSERT INTO media_assets (
   CONCAT(@seed_object_prefix, 'health/vaccine-book.jpg'), 'petlife-local-dev',
   'https://static.petlife.test/media/health/vaccine-book.jpg',
   'image/jpeg', 428120, 1440, 1080, NULL, SHA2('PLT-SEED-media-health', 256),
-  'uploaded', 'passed', DATE_SUB(@seed_now, INTERVAL 30 DAY),
+  'uploaded', 'approved', DATE_SUB(@seed_now, INTERVAL 30 DAY),
   DATE_SUB(@seed_now, INTERVAL 30 DAY), @seed_now, NULL
 ) ON DUPLICATE KEY UPDATE
   uploader_user_id = VALUES(uploader_user_id),
@@ -562,7 +576,7 @@ INSERT INTO media_assets (
   CONCAT(@seed_object_prefix, 'daily/cat-sunlight.jpg'), 'petlife-local-dev',
   'https://static.petlife.test/media/daily/cat-sunlight.jpg',
   'image/jpeg', 682310, 1600, 1200, NULL, SHA2('PLT-SEED-media-daily-image', 256),
-  'uploaded', 'passed', DATE_SUB(@seed_now, INTERVAL 3 DAY),
+  'uploaded', 'approved', DATE_SUB(@seed_now, INTERVAL 3 DAY),
   DATE_SUB(@seed_now, INTERVAL 3 DAY), @seed_now, NULL
 ) ON DUPLICATE KEY UPDATE
   uploader_user_id = VALUES(uploader_user_id),
@@ -701,7 +715,7 @@ INSERT INTO community_posts (
   '同步自萌宠日常，用于测试推荐、同城和后台内容查询。',
   JSON_ARRAY(@media_daily_photo_id),
   @daily_log_cat_id, NULL, NULL, 'PLT_SH',
-  'public', 'passed', DATE_SUB(@seed_now, INTERVAL 2 DAY),
+  'public', 'approved', DATE_SUB(@seed_now, INTERVAL 2 DAY),
   1, 2, 1, DATE_SUB(@seed_now, INTERVAL 2 DAY), @seed_now, NULL
 );
 SET @post_daily_sync_id = LAST_INSERT_ID();
@@ -721,6 +735,22 @@ INSERT INTO community_posts (
   0, 1, 0, DATE_SUB(@seed_now, INTERVAL 1 DAY), @seed_now, NULL
 );
 SET @post_qa_id = LAST_INSERT_ID();
+
+INSERT INTO community_posts (
+  user_id, pet_id, topic_id, post_type, title, content, media_list,
+  source_daily_log_id, source_service_id, source_product_id, city_code,
+  visibility, review_status, published_at, like_count, comment_count,
+  favorite_count, created_at, updated_at, deleted_at
+) VALUES (
+  @user_follower_id, @pet_cat_id, @topic_city_cat_id, 'image_text',
+  '[TEST] 已拒绝的社区内容样本',
+  '该帖子用于验证人工拒绝后不进入公开社区流。',
+  JSON_ARRAY(@media_daily_photo_id),
+  NULL, NULL, NULL, 'PLT_SH',
+  'public', 'rejected', DATE_SUB(@seed_now, INTERVAL 10 HOUR),
+  0, 0, 0, DATE_SUB(@seed_now, INTERVAL 10 HOUR), @seed_now, NULL
+);
+SET @post_rejected_id = LAST_INSERT_ID();
 
 UPDATE pet_daily_logs
 SET community_post_id = @post_daily_sync_id, updated_at = @seed_now
@@ -783,21 +813,48 @@ INSERT INTO community_reports (
 );
 
 INSERT INTO moderation_tasks (
-  target_type, target_id, media_asset_id, review_vendor, review_type,
-  request_payload, review_result, review_status, risk_level, finished_at,
+  target_type, target_id, content_type, content_snapshot, provider_code,
+  review_status, review_result, risk_labels, failure_reason, callback_payload, reviewed_at,
   created_at, updated_at
 ) VALUES (
-  'post', @post_qa_id, @media_community_video_id, 'dev_manual',
-  'video',
-  JSON_OBJECT('seed_code', 'PLT-SEED-MODERATION-VIDEO', 'notice', '第三方内容审核接入：该功能待完善'),
-  JSON_OBJECT('manual_result', 'pending_admin_review'),
-  'pending', 'medium', NULL, DATE_SUB(@seed_now, INTERVAL 1 DAY), @seed_now
+  'community_question', @post_qa_id, 'qa',
+  JSON_OBJECT(
+    'seed_code', 'PLT-SEED-MODERATION-VIDEO',
+    'title', '[TEST] 飞盘训练后如何安排休息',
+    'content', '小风飞盘训练后会比较兴奋，想请教如何安排拉伸和休息。',
+    'media_asset_ids', JSON_ARRAY(@media_community_video_id),
+    'notice', '第三方内容审核接入：该功能待完善'
+  ),
+  'dev_noop', 'pending',
+  JSON_OBJECT('seed_code', 'PLT-SEED-MODERATION-VIDEO', 'source', 'dev_noop', 'notice', '等待人工审核'),
+  JSON_ARRAY('manual_review_required'), NULL, JSON_OBJECT(), NULL,
+  DATE_SUB(@seed_now, INTERVAL 1 DAY), @seed_now
 ), (
-  'post', @post_daily_sync_id, @media_daily_photo_id, 'dev_manual',
-  'image',
-  JSON_OBJECT('seed_code', 'PLT-SEED-MODERATION-IMAGE', 'notice', '第三方内容审核接入：该功能待完善'),
-  JSON_OBJECT('manual_result', 'passed'),
-  'passed', 'low', DATE_SUB(@seed_now, INTERVAL 1 DAY), DATE_SUB(@seed_now, INTERVAL 2 DAY), @seed_now
+  'community_post', @post_daily_sync_id, 'image_text',
+  JSON_OBJECT(
+    'seed_code', 'PLT-SEED-MODERATION-IMAGE',
+    'title', '[TEST] 奶盖窗边晒太阳记录',
+    'content', '同步自萌宠日常，用于测试推荐、同城和后台内容查询。',
+    'media_asset_ids', JSON_ARRAY(@media_daily_photo_id),
+    'notice', '人工通过样本，不代表第三方内容审核'
+  ),
+  'dev_noop', 'approved',
+  JSON_OBJECT('seed_code', 'PLT-SEED-MODERATION-IMAGE', 'source', 'manual', 'action', 'approve', 'admin_notes', '测试数据人工通过'),
+  JSON_ARRAY('normal_daily_log'), NULL, JSON_OBJECT('source', 'seed_manual'), DATE_SUB(@seed_now, INTERVAL 1 DAY),
+  DATE_SUB(@seed_now, INTERVAL 2 DAY), @seed_now
+), (
+  'community_post', @post_rejected_id, 'image_text',
+  JSON_OBJECT(
+    'seed_code', 'PLT-SEED-MODERATION-REJECTED',
+    'title', '[TEST] 已拒绝的社区内容样本',
+    'content', '该帖子用于验证人工拒绝后不进入公开社区流。',
+    'media_asset_ids', JSON_ARRAY(@media_daily_photo_id),
+    'notice', '人工拒绝样本，不代表第三方内容审核'
+  ),
+  'dev_noop', 'rejected',
+  JSON_OBJECT('seed_code', 'PLT-SEED-MODERATION-REJECTED', 'source', 'manual', 'action', 'reject', 'admin_notes', '测试数据人工拒绝'),
+  JSON_ARRAY('manual_rejected'), NULL, JSON_OBJECT('source', 'seed_manual'), DATE_SUB(@seed_now, INTERVAL 9 HOUR),
+  DATE_SUB(@seed_now, INTERVAL 10 HOUR), @seed_now
 );
 
 -- ====================================================================
@@ -1161,6 +1218,61 @@ INSERT INTO notifications (
   (@user_owner_id, 'reminder', 'pet_reminder', @health_vaccine_id, '[TEST] 奶盖下一针疫苗快到了', '建议提前 7 天确认医院和疫苗本。', 0, DATE_SUB(@seed_now, INTERVAL 30 MINUTE), NULL, DATE_SUB(@seed_now, INTERVAL 30 MINUTE), @seed_now),
   (@user_member_id, 'appointment', 'service_appointment', @appointment_completed_id, '[TEST] 小风洗护预约已完成', '可以为本次服务写一条评价。', 1, DATE_SUB(@seed_now, INTERVAL 4 DAY), DATE_SUB(@seed_now, INTERVAL 3 DAY), DATE_SUB(@seed_now, INTERVAL 4 DAY), @seed_now),
   (@user_owner_id, 'interaction', 'community_post', @post_daily_sync_id, '[TEST] 你的日常收到了新互动', '周宁点赞并评论了奶盖的日常。', 0, DATE_SUB(@seed_now, INTERVAL 12 HOUR), NULL, DATE_SUB(@seed_now, INTERVAL 12 HOUR), @seed_now);
+
+SELECT id INTO @notification_reminder_id
+FROM notifications
+WHERE user_id = @user_owner_id AND title = '[TEST] 奶盖下一针疫苗快到了'
+ORDER BY id DESC LIMIT 1;
+
+INSERT INTO user_push_device_tokens (
+  user_id, platform, provider_code, device_token, device_id, app_version,
+  enabled, last_registered_at, unregistered_at, created_at, updated_at
+) VALUES
+  (@user_owner_id, 'ios', 'dev_noop', 'PLT-SEED-PUSH-IOS-OWNER-0001', 'ios-plt-seed-001', '0.0.1+1', 1, DATE_SUB(@seed_now, INTERVAL 1 HOUR), NULL, DATE_SUB(@seed_now, INTERVAL 1 HOUR), @seed_now),
+  (@user_disabled_id, 'android', 'dev_noop', 'PLT-SEED-PUSH-ANDROID-SWITCH-OFF-0001', 'android-plt-seed-004', '0.0.1+1', 1, DATE_SUB(@seed_now, INTERVAL 2 HOUR), NULL, DATE_SUB(@seed_now, INTERVAL 2 HOUR), @seed_now)
+ON DUPLICATE KEY UPDATE
+  user_id = VALUES(user_id),
+  platform = VALUES(platform),
+  device_id = VALUES(device_id),
+  app_version = VALUES(app_version),
+  enabled = VALUES(enabled),
+  last_registered_at = VALUES(last_registered_at),
+  unregistered_at = NULL,
+  updated_at = @seed_now;
+
+SELECT id INTO @push_token_owner_id
+FROM user_push_device_tokens
+WHERE provider_code = 'dev_noop' AND device_token = 'PLT-SEED-PUSH-IOS-OWNER-0001'
+ORDER BY id DESC LIMIT 1;
+
+INSERT INTO push_tasks (
+  user_id, notification_id, notify_type, biz_type, biz_id, title, content,
+  provider_code, task_status, failure_reason, created_at, updated_at
+) VALUES (
+  @user_owner_id, @notification_reminder_id, 'reminder', 'pet_reminder', @health_vaccine_id,
+  '[TEST] 奶盖下一针疫苗快到了',
+  'dev_noop 仅记录 Push 底座任务，不代表真实系统 Push 已送达。',
+  'dev_noop', 'pending', NULL, DATE_SUB(@seed_now, INTERVAL 29 MINUTE), @seed_now
+);
+SET @push_task_reminder_id = LAST_INSERT_ID();
+
+INSERT INTO push_tasks (
+  user_id, notification_id, notify_type, biz_type, biz_id, title, content,
+  provider_code, task_status, failure_reason, created_at, updated_at
+) VALUES (
+  @user_disabled_id, NULL, 'system', 'moderation_report', @post_rejected_id,
+  '[TEST] 通知开关关闭时跳过 Push',
+  'notification_switch 关闭时只保留 skipped 排查记录，不生成可投递 Push。',
+  'dev_noop', 'skipped', 'notification_switch_off', DATE_SUB(@seed_now, INTERVAL 9 HOUR), @seed_now
+);
+
+INSERT INTO push_delivery_records (
+  push_task_id, device_token_id, user_id, provider_code, delivery_status,
+  failure_reason, attempted_at, created_at
+) VALUES (
+  @push_task_reminder_id, @push_token_owner_id, @user_owner_id, 'dev_noop',
+  'pending', NULL, NULL, DATE_SUB(@seed_now, INTERVAL 29 MINUTE)
+);
 
 INSERT INTO outbox_events (
   aggregate_type, aggregate_id, event_type, payload_json, status,

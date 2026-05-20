@@ -7,6 +7,106 @@
 - 若功能状态变化，必须同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 所有状态按完整交付标准记录，不使用阶段性跑通或“核心可用”口径。
 
+## 2026-05-20 内容审核任务与 Push 投递排查页面接入
+
+### 1. 新完成内容
+
+- 新增内容审核任务 API 封装，接入真实后台接口：
+  - `GET /api/v1/admin/moderation/tasks`
+  - `GET /api/v1/admin/moderation/tasks/{taskId}`
+  - `PATCH /api/v1/admin/moderation/tasks/{taskId}/status`
+  - `GET /api/v1/admin/moderation/audit-logs`
+- 新增内容审核任务页，支持 target_type、content_type、review_status、provider_code、关键词和时间筛选，展示任务状态、风险标签、失败原因和目标内容摘要。
+- 内容审核任务详情抽屉展示审核快照、审核结果、回调 payload 和 moderation_task 审计记录。
+- 内容审核任务页支持人工通过 / 拒绝，提交前二次确认，写操作后刷新任务列表和审计记录。
+- 新增 Push 投递排查 API 封装，接入真实后台接口：
+  - `GET /api/v1/admin/push-tasks`
+  - `GET /api/v1/admin/push-deliveries`
+- 新增 Push 投递排查页，支持用户、notify_type、provider_code、task_status、delivery_status 和时间筛选，展示设备标识脱敏、任务状态、投递状态和失败原因。
+- 页面明确标注 `dev_noop`、`manual`、Push `sent` 的边界，不把本地占位、人工处理或服务端状态标记包装成真实第三方审核/真实 Push 投递。
+- 后台路由、侧栏和系统配置页新增 `审核任务`、`Push 投递排查` 入口。
+
+### 2. 新增/修改文件
+
+- 新增：`admin-web/src/shared/api/adminModerationTaskApi.ts`
+- 新增：`admin-web/src/shared/api/adminPushNotificationApi.ts`
+- 新增：`admin-web/src/views/moderation/ModerationTaskReviewView.vue`
+- 新增：`admin-web/src/views/notification/PushDeliveryDebugView.vue`
+- 修改：`admin-web/src/router/index.ts`
+- 修改：`admin-web/src/layouts/AdminLayout.vue`
+- 修改：`admin-web/src/views/system/SystemConfigView.vue`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/04-admin-web-api-gap-list.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 3. 验证命令与结果
+
+- `npm run type-check`：通过。
+- `npm run build`：通过；Vite 仍提示主 chunk 超过 500 kB，这是当前后台工程既有打包体积警告，不影响构建结果。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实第三方内容审核供应商仍未接入。
+- 真实 APNs / 厂商 Push 推送通道仍未接入，当前只排查服务端 Push 底座任务和投递记录。
+- OpenAPI 当前未提供审核任务关键词 / 时间范围、Push notify_type / 时间范围的服务端查询参数，页面基于真实返回字段做前端收窄。
+- Push 投递记录当前只返回 `device_token_id`，不返回真实 token 或服务端生成的 `masked_device_token`。
+
+### 5. 风险或阻塞
+
+- 大数据量排查时，关键词和时间范围仍在页面侧过滤，后续需要服务端补查询参数以避免一次性返回过多记录。
+- `dev_noop`、`manual` 和 Push `sent` 只能说明底座或人工链路状态，不能作为真实第三方供应商结论。
+
+### 6. 下一步建议
+
+1. 服务端补充审核任务和 Push 排查的服务端分页、关键词、时间范围和 notify_type 查询参数。
+2. 等真实内容审核供应商和真实 Push 供应商接入后，再补供应商回调结果、投递回执、失败报表和通道健康检查页面。
+
+## 2026-05-20 服务端内容审核与 Push 排查接口可接入
+
+### 1. 新完成内容
+
+- 服务端已新增后台审核任务查询、详情、人工通过和人工拒绝接口，并同步到 OpenAPI：
+  - `GET /api/v1/admin/moderation/tasks`
+  - `GET /api/v1/admin/moderation/tasks/{taskId}`
+  - `PATCH /api/v1/admin/moderation/tasks/{taskId}/status`
+- 服务端已新增 Push 任务和投递记录后台排查接口：
+  - `GET /api/v1/admin/push-tasks`
+  - `GET /api/v1/admin/push-deliveries`
+- 后台审核审计查询已支持 `target_type=moderation_task`。
+- 本轮未修改 admin-web 源码，审核任务页面和 Push 排查页面仍待后续接入。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 服务端实现和验证见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 使用提供的远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 94, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- admin-web 尚未接入审核任务管理页、Push 任务列表页和 Push 投递记录排查页。
+- 真实第三方审核供应商和真实 Push SDK 未接入；后台页面不能把 `dev_noop`、`pending` 展示成真实成功。
+
+### 5. 风险或阻塞
+
+- 新发布公开内容默认进入 `pending_review`，后台没有审核任务页面时，运营无法在后台完成首次曝光审核。
+- Push 排查接口只表示服务端任务与投递记录沉淀，不代表厂商真实投递。
+
+### 6. 下一步建议
+
+1. 新增审核任务管理页：列表、详情、按状态/目标/供应商筛选、人工通过、人工拒绝、审计日志查看。
+2. 新增 Push 排查页：任务列表、投递记录列表、按用户/通知/状态/供应商筛选，并明确 `pending/skipped/failed` 含义。
+
 ## 2026-05-19 短信验证码安全排查页面接入
 
 ### 1. 新完成内容

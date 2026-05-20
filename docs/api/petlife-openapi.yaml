@@ -76,13 +76,13 @@ tags:
   - name: 服务 (Service)
     description: 医院、寄养、洗护、训练
   - name: 通知 (Notification)
-    description: 站内消息中心
+    description: 站内消息中心、App Push 设备 Token 管理
   - name: 后台通知 (Admin Notification)
     description: 消息模板、通知渠道配置与审计 (管理端)
   - name: 首页 (Home)
     description: 首页聚合、周报、月报
   - name: 审核 (Moderation)
-    description: 举报处理 (管理端)
+    description: 举报处理、内容审核任务与回调入口
   - name: 后台内容 (Admin Content)
     description: 健康记录、萌宠日常与时间轴查询 (管理端)
   - name: 后台服务 (Admin Service)
@@ -870,6 +870,257 @@ components:
       properties:
         enabled:
           type: boolean
+
+    RegisterPushDeviceTokenRequest:
+      type: object
+      required:
+        - platform
+        - device_token
+      properties:
+        platform:
+          type: string
+          enum: [ios, android]
+          example: "android"
+        provider_code:
+          type: string
+          nullable: true
+          maxLength: 64
+          example: "dev_noop"
+          description: 不传时使用 dev_noop；当前不接真实厂商 SDK
+        device_token:
+          type: string
+          maxLength: 512
+          example: "push-token-example"
+        device_id:
+          type: string
+          nullable: true
+          maxLength: 128
+          example: "android-device-001"
+        app_version:
+          type: string
+          nullable: true
+          maxLength: 40
+          example: "1.0.0"
+
+    PushDeviceToken:
+      type: object
+      properties:
+        device_token_id:
+          type: string
+          example: "81001"
+        user_id:
+          type: string
+          example: "10001"
+        platform:
+          type: string
+          enum: [ios, android]
+        provider_code:
+          type: string
+          example: "dev_noop"
+        device_token_suffix:
+          type: string
+          example: "xample"
+          description: 仅返回后 6 位用于排查，不回显完整 token
+        device_id:
+          type: string
+          nullable: true
+        app_version:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        last_registered_at:
+          type: string
+          format: date-time
+        unregistered_at:
+          type: string
+          nullable: true
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PushTask:
+      type: object
+      properties:
+        push_task_id:
+          type: string
+          example: "82001"
+        user_id:
+          type: string
+          example: "10001"
+        notification_id:
+          type: string
+          nullable: true
+          example: "70001"
+        notify_type:
+          type: string
+          example: "system"
+        biz_type:
+          type: string
+          nullable: true
+          example: "moderation_report"
+        biz_id:
+          type: string
+          nullable: true
+          example: "91001"
+        title:
+          type: string
+          example: "举报已处理"
+        content:
+          type: string
+          example: "你提交的举报已关闭。"
+        provider_code:
+          type: string
+          example: "dev_noop"
+        task_status:
+          type: string
+          enum: [pending, skipped, failed, sent]
+          example: "pending"
+        failure_reason:
+          type: string
+          nullable: true
+          example: "notification_switch_off"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PushDeliveryRecord:
+      type: object
+      properties:
+        delivery_record_id:
+          type: string
+          example: "83001"
+        push_task_id:
+          type: string
+          example: "82001"
+        device_token_id:
+          type: string
+          example: "81001"
+        user_id:
+          type: string
+          example: "10001"
+        provider_code:
+          type: string
+          example: "dev_noop"
+        delivery_status:
+          type: string
+          enum: [pending, skipped, failed, sent]
+          example: "pending"
+        failure_reason:
+          type: string
+          nullable: true
+        attempted_at:
+          type: string
+          nullable: true
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    ModerationTask:
+      type: object
+      properties:
+        task_id:
+          type: string
+          example: "84001"
+        target_type:
+          type: string
+          enum: [community_post, community_question]
+        target_id:
+          type: string
+          example: "30001"
+        content_type:
+          type: string
+          enum: [text, image_text, video, qa]
+        content_snapshot:
+          type: string
+          description: 审核内容快照 JSON 字符串
+        provider_code:
+          type: string
+          example: "dev_noop"
+        review_status:
+          type: string
+          enum: [pending, approved, rejected, failed]
+        review_result:
+          type: string
+          nullable: true
+          description: 审核结果 JSON 字符串
+        risk_labels:
+          type: string
+          nullable: true
+          description: 风险标签 JSON 字符串
+        failure_reason:
+          type: string
+          nullable: true
+        callback_payload:
+          type: string
+          nullable: true
+          description: 供应商回调载荷 JSON 字符串
+        reviewed_at:
+          type: string
+          nullable: true
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AdminReviewModerationTaskRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum: [approve, reject]
+        risk_labels:
+          type: array
+          nullable: true
+          items:
+            type: string
+        admin_notes:
+          type: string
+          nullable: true
+          maxLength: 500
+
+    ModerationProviderCallbackRequest:
+      type: object
+      required:
+        - task_id
+        - review_status
+      properties:
+        task_id:
+          type: integer
+          format: int64
+        review_status:
+          type: string
+          enum: [approved, rejected, failed]
+        review_result:
+          type: object
+          nullable: true
+          additionalProperties: true
+        risk_labels:
+          type: array
+          nullable: true
+          items:
+            type: string
+        failure_reason:
+          type: string
+          nullable: true
+          maxLength: 500
+        callback_payload:
+          type: object
+          nullable: true
+          additionalProperties: true
 
     AuditLog:
       type: object
@@ -3116,7 +3367,7 @@ paths:
         **说明**:
         - 支持 image_text、video、qa、experience
         - media_asset_ids 仅允许引用当前用户已上传完成且 biz_type=community 的图片或视频
-        - 当前不接第三方审核，发布后进入 approved；后台治理可下架或恢复
+        - 发布后进入 pending_review 并生成内容审核任务；公开流和详情只展示 approved 内容
       requestBody:
         required: true
         content:
@@ -3753,7 +4004,7 @@ paths:
         **说明**:
         - 通知生成尊重用户 notification_switch
         - 提醒通知会按宠物访问范围投递给有权限的家庭成员
-        - 当前未接入系统推送通道，接口表示站内消息中心
+        - 站内通知生成后会派生 Push 任务；当前不接真实 Push SDK，任务保持 pending 或 skipped
       parameters:
         - name: notify_type
           in: query
@@ -3817,6 +4068,56 @@ paths:
       responses:
         '200':
           description: 标记成功
+
+  /push/device-tokens:
+    post:
+      tags:
+        - 通知 (Notification)
+      summary: 注册 App Push 设备 Token
+      description: 注册或更新当前用户设备 Token；当前仅沉淀 token，不接真实厂商 SDK。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPushDeviceTokenRequest'
+      responses:
+        '200':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PushDeviceToken'
+
+  /push/device-tokens/{deviceTokenId}:
+    delete:
+      tags:
+        - 通知 (Notification)
+      summary: 解绑 App Push 设备 Token
+      parameters:
+        - name: deviceTokenId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 解绑成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PushDeviceToken'
           
   # ==================== 首页模块 ====================
   /home:
@@ -5171,6 +5472,98 @@ paths:
                       data:
                         $ref: '#/components/schemas/NotificationChannelConfig'
 
+  /admin/push-tasks:
+    get:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 后台 Push 任务列表
+      description: 查询站内通知派生的 Push 任务；当前不接真实厂商 SDK，不写真实投递成功。
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: notification_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: task_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, skipped, failed, sent]
+        - name: provider_code
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PushTask'
+
+  /admin/push-deliveries:
+    get:
+      tags:
+        - 后台通知 (Admin Notification)
+      summary: 后台 Push 投递记录列表
+      description: 查询 Push 任务对应的设备投递记录；未接真实供应商时记录保持 pending。
+      parameters:
+        - name: push_task_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: delivery_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, skipped, failed, sent]
+        - name: provider_code
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PushDeliveryRecord'
+
   /admin/notification/audit-logs:
     get:
       tags:
@@ -5689,6 +6082,41 @@ paths:
                         $ref: '#/components/schemas/CommunityPost'
           
   # ==================== 管理端 - 审核模块 ====================
+  /moderation/callbacks/{providerCode}:
+    post:
+      tags:
+        - 审核 (Moderation)
+      summary: 内容审核供应商回调入口
+      description: |
+        供应商回调入口。当前仅用于供应商抽象预留和 dev_noop/manual 流程验证，不接第三方 SDK。
+        真实供应商接入前不得伪造审核成功。
+      parameters:
+        - name: providerCode
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+          description: 审核供应商编码
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationProviderCallbackRequest'
+      responses:
+        '200':
+          description: 回调处理成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ModerationTask'
+
   /admin/moderation/reports:
     get:
       tags:
@@ -5766,6 +6194,120 @@ paths:
         '200':
           description: 处理成功
 
+  /admin/moderation/tasks:
+    get:
+      tags:
+        - 审核 (Moderation)
+      summary: 后台内容审核任务列表
+      description: 查询公开内容进入曝光前生成的审核任务。
+      parameters:
+        - name: target_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [community_post, community_question]
+        - name: target_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: content_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [text, image_text, video, qa]
+        - name: review_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected, failed]
+        - name: provider_code
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ModerationTask'
+
+  /admin/moderation/tasks/{taskId}:
+    get:
+      tags:
+        - 审核 (Moderation)
+      summary: 后台内容审核任务详情
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ModerationTask'
+
+  /admin/moderation/tasks/{taskId}/status:
+    patch:
+      tags:
+        - 审核 (Moderation)
+      summary: 后台人工通过或拒绝审核任务
+      description: 人工处理 pending 审核任务，并同步目标社区内容 review_status，同时写入 moderation_task 审计日志。
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: X-Admin-Operator
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminReviewModerationTaskRequest'
+      responses:
+        '200':
+          description: 处理成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ModerationTask'
+
   /admin/moderation/audit-logs:
     get:
       tags:
@@ -5784,7 +6326,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [moderation_report, community_post, community_question]
+            enum: [moderation_report, moderation_task, community_post, community_question]
           description: 审计目标类型
         - name: action
           in: query
@@ -5794,6 +6336,8 @@ paths:
             enum:
               - moderation_report_confirm_violation
               - moderation_report_dismiss_report
+              - moderation_task_approve
+              - moderation_task_reject
               - community_post_take_down
               - community_post_restore
               - community_question_take_down

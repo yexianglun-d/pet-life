@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_media_preview_grid.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_review_status.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 
 /// 社区内容流卡片。
@@ -19,6 +20,10 @@ class CommunityPostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isCommunityPostRejected(post)) {
+      return const SizedBox.shrink();
+    }
+
     final TextTheme textTheme = Theme.of(context).textTheme;
     final CommunityTopicSnapshot? topic = post.topic;
 
@@ -70,6 +75,7 @@ class CommunityPostCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 _FeedChip(label: _postTypeLabel(post.postType)),
+                CommunityReviewStatusPill(reviewStatus: post.reviewStatus),
                 if (topic != null)
                   InkWell(
                     onTap: onTopicTap == null

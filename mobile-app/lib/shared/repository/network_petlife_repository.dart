@@ -15,6 +15,7 @@ import 'package:petlife_mobile_app/shared/domain/models/notification_inbox_snaps
 import 'package:petlife_mobile_app/shared/domain/models/pet_dashboard_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_detail_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/pet_profile_snapshot.dart';
+import 'package:petlife_mobile_app/shared/domain/models/push_device_token_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_draft.dart';
 import 'package:petlife_mobile_app/shared/domain/models/reminder_template_snapshot.dart';
 import 'package:petlife_mobile_app/shared/domain/models/service_center_snapshot.dart';
@@ -251,6 +252,41 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       context: '通知设置更新响应',
     );
     return _toUserSettingsSnapshot(data);
+  }
+
+  @override
+  Future<PushDeviceTokenSnapshot> registerPushDeviceToken({
+    required String platform,
+    required String deviceToken,
+    String? providerCode,
+    String? deviceId,
+    String? appVersion,
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.postData(
+        '/api/v1/push/device-tokens',
+        body: <String, Object?>{
+          'platform': platform,
+          'device_token': deviceToken,
+          if (providerCode != null) 'provider_code': providerCode,
+          if (deviceId != null) 'device_id': deviceId,
+          if (appVersion != null) 'app_version': appVersion,
+        },
+      ),
+      context: '注册 Push 设备 Token 响应',
+    );
+    return _toPushDeviceTokenSnapshot(data);
+  }
+
+  @override
+  Future<PushDeviceTokenSnapshot> unbindPushDeviceToken(
+    String deviceTokenId,
+  ) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.deleteData('/api/v1/push/device-tokens/$deviceTokenId'),
+      context: '解绑 Push 设备 Token 响应',
+    );
+    return _toPushDeviceTokenSnapshot(data);
   }
 
   @override
@@ -1050,6 +1086,22 @@ class NetworkPetLifeRepository implements PetLifeRepository {
       unreadCount: _readInt(payload, 'unread_count'),
       systemUnreadCount: _readInt(payload, 'system_unread_count'),
       reminderUnreadCount: _readInt(payload, 'reminder_unread_count'),
+    );
+  }
+
+  PushDeviceTokenSnapshot _toPushDeviceTokenSnapshot(
+    Map<String, dynamic> payload,
+  ) {
+    return PushDeviceTokenSnapshot(
+      deviceTokenId: _readString(payload, 'device_token_id'),
+      userId: _readString(payload, 'user_id'),
+      platform: _readString(payload, 'platform'),
+      providerCode: _readString(payload, 'provider_code'),
+      deviceTokenSuffix: _readString(payload, 'device_token_suffix'),
+      deviceId: _readNullableString(payload, 'device_id'),
+      appVersion: _readNullableString(payload, 'app_version'),
+      enabled: _readBool(payload, 'enabled'),
+      lastRegisteredAt: _readNullableDateTime(payload, 'last_registered_at'),
     );
   }
 

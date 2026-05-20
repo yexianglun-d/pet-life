@@ -40,6 +40,7 @@ import com.petlife.server.modules.community.persistence.dataobject.CommunityPost
 import com.petlife.server.modules.dailylog.domain.entity.DailyLogEntity;
 import com.petlife.server.modules.media.dto.response.MediaAssetResponse;
 import com.petlife.server.modules.media.service.MediaAssetApplicationService;
+import com.petlife.server.modules.moderation.service.ModerationTaskApplicationService;
 import com.petlife.server.modules.pet.converter.PetEntityConverter;
 import com.petlife.server.modules.pet.domain.entity.PetProfileEntity;
 import com.petlife.server.modules.pet.persistence.PetPersistenceMapper;
@@ -47,6 +48,7 @@ import com.petlife.server.modules.user.converter.UserEntityConverter;
 import com.petlife.server.modules.user.domain.entity.UserProfileEntity;
 import com.petlife.server.modules.user.persistence.UserPersistenceMapper;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,6 +74,7 @@ public class CommunityApplicationService {
     private static final String POST_TYPE_EXPERIENCE = "experience";
     private static final String VISIBILITY_PUBLIC = "public";
     private static final String VISIBILITY_FOLLOWER = "follower";
+    private static final String REVIEW_STATUS_PENDING_REVIEW = "pending_review";
     private static final String REVIEW_STATUS_APPROVED = "approved";
     private static final String REVIEW_STATUS_REJECTED = "rejected";
     private static final String REACTION_TYPE_LIKE = "like";
@@ -125,6 +128,7 @@ public class CommunityApplicationService {
     private final CommunityReportConverter communityReportConverter;
     private final MediaAssetApplicationService mediaAssetApplicationService;
     private final AuditLogApplicationService auditLogApplicationService;
+    private final ModerationTaskApplicationService moderationTaskApplicationService;
 
     public CommunityApplicationService(
         CommunityPersistenceMapper communityPersistenceMapper,
@@ -136,7 +140,8 @@ public class CommunityApplicationService {
         CommunityCommentConverter communityCommentConverter,
         CommunityReportConverter communityReportConverter,
         MediaAssetApplicationService mediaAssetApplicationService,
-        AuditLogApplicationService auditLogApplicationService
+        AuditLogApplicationService auditLogApplicationService,
+        ModerationTaskApplicationService moderationTaskApplicationService
     ) {
         this.communityPersistenceMapper = communityPersistenceMapper;
         this.petPersistenceMapper = petPersistenceMapper;
@@ -148,6 +153,7 @@ public class CommunityApplicationService {
         this.communityReportConverter = communityReportConverter;
         this.mediaAssetApplicationService = mediaAssetApplicationService;
         this.auditLogApplicationService = auditLogApplicationService;
+        this.moderationTaskApplicationService = moderationTaskApplicationService;
     }
 
     public List<CommunityPostResponse> listFeed(String tab, String cityCode) {
@@ -189,14 +195,12 @@ public class CommunityApplicationService {
         command.setSourceDailyLogId(null);
         command.setCityCode(resolvePostCityCode(author, request.cityCode()));
         command.setVisibility(normalizeVisibility(request.visibility()));
-        /**
-         * 本阶段不接第三方审核。独立发布先进入内部 approved 状态，保证社区闭环真实可读；
-         * 后台治理接口负责后续人工下架和恢复，避免产生永远不可见的 pending 内容。
-         */
-        command.setReviewStatus(REVIEW_STATUS_APPROVED);
+        command.setReviewStatus(REVIEW_STATUS_PENDING_REVIEW);
         command.setPublishedAt(LocalDateTime.now());
         communityPersistenceMapper.insertCommunityPost(command);
-        return loadVisiblePostResponse(currentUserId, command.getId());
+        CommunityPostEntity createdPost = requireExistingPost(currentUserId, command.getId());
+        createModerationTaskForPost(createdPost);
+        return toPostResponse(createdPost);
     }
 
     public CommunityPostResponse getPost(Long postId) {
@@ -477,9 +481,11 @@ public class CommunityApplicationService {
             updateCommand.setMediaListJson(communityPostConverter.toMediaAssetIdsJson(dailyLog.getMediaAssetIds()));
             updateCommand.setCityCode(author.getCityCode());
             updateCommand.setVisibility(VISIBILITY_PUBLIC);
-            updateCommand.setReviewStatus(REVIEW_STATUS_APPROVED);
+            updateCommand.setReviewStatus(REVIEW_STATUS_PENDING_REVIEW);
             int updatedRows = communityPersistenceMapper.updateCommunityPost(updateCommand);
             if (updatedRows > 0) {
+                CommunityPostEntity updatedPost = requireExistingPost(author.getUserId(), dailyLog.getCommunityPostId());
+                createModerationTaskForPost(updatedPost);
                 return dailyLog.getCommunityPostId();
             }
         }
@@ -495,13 +501,11 @@ public class CommunityApplicationService {
         createCommand.setSourceDailyLogId(dailyLog.getDailyLogId());
         createCommand.setCityCode(author.getCityCode());
         createCommand.setVisibility(VISIBILITY_PUBLIC);
-        /**
-         * 审核模块尚未正式接入前，萌宠日常同步社区采用“系统已确认公开”的内容来源，
-         * 这里直接标记为 approved，保证推荐流真实可见，而不是生成永远不可读的 pending 数据。
-         */
-        createCommand.setReviewStatus(REVIEW_STATUS_APPROVED);
+        createCommand.setReviewStatus(REVIEW_STATUS_PENDING_REVIEW);
         createCommand.setPublishedAt(LocalDateTime.now());
         communityPersistenceMapper.insertCommunityPost(createCommand);
+        CommunityPostEntity createdPost = requireExistingPost(author.getUserId(), createCommand.getId());
+        createModerationTaskForPost(createdPost);
         return createCommand.getId();
     }
 
@@ -528,6 +532,16 @@ public class CommunityApplicationService {
 
     private CommunityPostResponse loadVisiblePostResponse(Long currentUserId, Long postId) {
         return toPostResponse(requireVisiblePost(currentUserId, postId));
+    }
+
+    private CommunityPostEntity requireExistingPost(Long currentUserId, Long postId) {
+        CommunityPostEntity communityPost = communityPostConverter.toEntity(
+            communityPersistenceMapper.findPostById(currentUserId, postId)
+        );
+        if (communityPost == null) {
+            throw new BusinessException(ResponseCode.COMMUNITY_POST_NOT_FOUND);
+        }
+        return communityPost;
     }
 
     private CommunityPostEntity requireAdminPost(Long postId) {
@@ -622,6 +636,41 @@ public class CommunityApplicationService {
             post.getMediaAssetIds()
         );
         return communityPostConverter.toResponse(post, mediaAssets);
+    }
+
+    private void createModerationTaskForPost(CommunityPostEntity post) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("post_id", String.valueOf(post.getPostId()));
+        snapshot.put("post_type", post.getPostType());
+        snapshot.put("title", post.getTitle());
+        snapshot.put("content", post.getContent());
+        snapshot.put("visibility", post.getVisibility());
+        snapshot.put("media_asset_ids", post.getMediaAssetIds());
+        snapshot.put("source_daily_log_id", post.getSourceDailyLogId() == null ? null : String.valueOf(post.getSourceDailyLogId()));
+        snapshot.put("author_user_id", String.valueOf(post.getAuthor().getUserId()));
+        /*
+         * 当前没有第三方审核供应商，公开内容只能先进入待审核队列；
+         * 用户侧公开流继续只读取 approved，确保待审或拒绝内容不会被曝光。
+         */
+        moderationTaskApplicationService.createCommunityPostReviewTask(
+            post.getPostId(),
+            POST_TYPE_QA.equals(post.getPostType()),
+            resolveModerationContentType(post),
+            snapshot
+        );
+    }
+
+    private String resolveModerationContentType(CommunityPostEntity post) {
+        if (POST_TYPE_QA.equals(post.getPostType())) {
+            return "qa";
+        }
+        if (POST_TYPE_VIDEO.equals(post.getPostType())) {
+            return "video";
+        }
+        if (post.getMediaAssetIds() != null && !post.getMediaAssetIds().isEmpty()) {
+            return "image_text";
+        }
+        return "text";
     }
 
     private PetProfileEntity requirePet(Long petId) {

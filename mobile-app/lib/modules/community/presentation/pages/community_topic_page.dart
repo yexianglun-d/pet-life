@@ -7,6 +7,7 @@ import 'package:petlife_mobile_app/modules/community/presentation/pages/communit
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_post_editor_page.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_question_detail_page.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_post_card.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_review_status.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
 import 'package:petlife_mobile_app/shared/domain/models/community_post_snapshot.dart';
 
@@ -91,6 +92,13 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
     if (!mounted || createdPost == null) {
       return;
     }
+    if (createdPost.reviewStatus != 'approved') {
+      showCompanionFeedback(
+        context,
+        message: communityReviewStatusMessage(createdPost.reviewStatus),
+        tone: communityReviewFeedbackTone(createdPost.reviewStatus),
+      );
+    }
     await _loadTopic();
   }
 
@@ -125,17 +133,22 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
       );
     }
 
+    final CommunityTopicDetailSnapshot topicDetail = detail!;
+    final List<CommunityPostSnapshot> visiblePosts = topicDetail.posts
+        .where((CommunityPostSnapshot post) => !isCommunityPostRejected(post))
+        .toList();
+
     return Scaffold(
-      appBar: AppBar(title: Text('# ${detail!.topic.topicName}')),
+      appBar: AppBar(title: Text('# ${topicDetail.topic.topicName}')),
       body: RefreshIndicator(
         onRefresh: _loadTopic,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             _TopicHeroCard(
-              topic: detail.topic,
-              postCount: detail.posts.length,
-              onPublish: () => _openPublisher(detail.topic),
+              topic: topicDetail.topic,
+              postCount: visiblePosts.length,
+              onPublish: () => _openPublisher(topicDetail.topic),
             ),
             const SizedBox(height: 16),
             if (_errorMessage != null) ...[
@@ -145,16 +158,16 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
               ),
               const SizedBox(height: 12),
             ],
-            if (detail.posts.isEmpty)
+            if (visiblePosts.isEmpty)
               CompanionEmptyState(
                 title: '这个话题还在等第一条分享',
                 description: '围绕真实经历写一条内容，话题页就会慢慢长出更多经验。',
                 icon: Icons.forum_outlined,
                 actionLabel: '参与话题',
-                onAction: () => _openPublisher(detail.topic),
+                onAction: () => _openPublisher(topicDetail.topic),
               )
             else
-              ...detail.posts.map(
+              ...visiblePosts.map(
                 (CommunityPostSnapshot post) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: CommunityPostCard(

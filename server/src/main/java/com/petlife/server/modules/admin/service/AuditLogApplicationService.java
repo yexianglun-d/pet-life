@@ -41,6 +41,7 @@ public class AuditLogApplicationService {
     );
     private static final Set<String> SUPPORTED_MODERATION_TARGET_TYPES = Set.of(
         "moderation_report",
+        "moderation_task",
         "community_post",
         "community_question"
     );
