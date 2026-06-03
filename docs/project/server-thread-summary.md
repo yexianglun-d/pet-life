@@ -5,7 +5,83 @@
 - 本文件记录 `petlife` 服务端线程每次完成需求、修复问题、调整设计或发现缺口后的交接信息。
 - 每次记录必须包含：新完成内容、新增/修改文件、验证命令与结果、未完成事项、风险或阻塞、下一步建议。
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
-- 按完整交付标准记录，不使用“核心可用”等阶段性表述。
+- 按完整交付标准记录，不使用阶段性表述。
+
+## 2026-05-31 Maven 打包数据源与集成测试边界收口
+
+### 新完成内容
+
+- 修复服务端数据源 URL 配置，恢复使用项目统一变量 `PETLIFE_DATASOURCE_URL`，避免 Maven 测试忽略 IDE/环境注入并误连本地 MySQL。
+- 将 `PhaseOneApiTests` 标记为 `integration` 集成测试；默认 `mvn package` 只跑单元/上下文测试，不再被远程 MySQL 波动阻断。
+- 新增 Maven Profile `integration-tests`，需要真实库 API 回归时显式执行 `mvn -Pintegration-tests -Dtest=PhaseOneApiTests test`。
+- 清理本次中断全量回归遗留的测试库睡眠事务，确认 `INNODB_TRX=0`。
+
+### 新增/修改文件
+
+- 修改：`server/pom.xml`
+- 修改：`server/src/main/resources/application.yml`
+- 修改：`server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+- 修改：`docs/project/server-thread-summary.md`
+- 修改：`docs/project/05-test-plan-and-report.md`
+- 修改：`docs/technical/05-persistence-integration.md`
+
+### 验证命令与结果
+
+- `mvn -q package`（已注入 `PETLIFE_DATASOURCE_*`）
+  - 结果：通过，默认打包不再执行真实 MySQL 集成套件。
+- `mvn -q -Pintegration-tests -Dtest=PhaseOneApiTests#shouldSendSmsCodeWithoutLeakingPlainCode test`（已注入 `PETLIFE_DATASOURCE_*`）
+  - 结果：通过，证明集成测试仍可按需显式执行。
+- JDBC 查询 `information_schema.innodb_trx`
+  - 结果：`innodb_trx_count=0`，未遗留测试事务锁。
+
+### 未完成事项
+
+- 全量 `PhaseOneApiTests` 仍受远程 MySQL 中途断链影响，需在稳定测试库窗口执行；本轮不把远程连接波动包装为业务通过。
+
+## 2026-05-31 Spring Security 默认密码告警收口
+
+### 新完成内容
+
+- 排除 `UserDetailsServiceAutoConfiguration`，服务端不再创建 Spring Security 默认内存用户，也不再输出 `Using generated security password` 开发密码告警。
+- 保留现有 `SecurityConfig`、Bearer Token 过滤器、后台账号鉴权和 `PasswordEncoder`，不移除 Spring Security 依赖。
+
+### 新增/修改文件
+
+- 修改：`server/src/main/java/com/petlife/server/bootstrap/PetLifeServerApplication.java`
+- 修改：`docs/project/server-thread-summary.md`
+- 修改：`docs/project/05-test-plan-and-report.md`
+
+### 验证命令与结果
+
+- `cd server && mvn -q -DskipTests compile`
+  - 结果：通过。
+- 使用独立端口 `PETLIFE_SERVER_PORT=18081` 临时启动服务端
+  - 结果：启动成功，Tomcat 监听 `18081`，启动日志未再出现 `Using generated security password` 告警；验证后已停止临时进程。
+
+### 未完成事项
+
+- 该项已收口；真实短信、对象存储/CDN、第三方内容审核、Push 通道和地图真实 Key 仍按外部集成项管理。
+
+## 2026-05-31 社区发布审核闭环与页面文案收口
+
+### 新完成内容
+
+- 新增 `GET /api/v1/community/posts/mine`，支持作者查看自己的待审、通过、拒绝发布内容。
+- 新增 `PATCH /api/v1/community/posts/{postId}`，支持作者编辑待审/拒绝内容后重新提交审核。
+- 拒绝内容重提后重新写入 `pending_review` 并创建新的审核任务；旧待审任务由审核任务服务失效。
+- 拆分公开可见与作者可读条件：公开流和话题流只展示 `approved` 内容，作者详情和我的发布可读取自己的待审/拒绝内容。
+- 评论、点赞、收藏、举报等互动仍只允许对已审核通过内容执行。
+
+### 验证命令与结果
+
+- `mvn -q -DskipTests compile`：通过。
+- `mvn -q -Dtest=PhaseOneApiTests#shouldCreateModerationTaskFilterPendingAndSupportManualReview test`：通过，已注入测试库环境变量。
+- 全量 `PhaseOneApiTests` 本轮因远程 MySQL 中途断链未完成；已定位并清理断链后遗留的睡眠事务锁，单用例恢复通过。
+
+### 未完成事项
+
+- 第三方内容审核供应商仍未接入，当前为人工审核和 `dev_noop` 底座。
+- 真实短信、对象存储/CDN、Push 供应商和地图真机验收仍按外部集成项管理。
 
 ## 2026-05-20 地图收口服务端补修
 

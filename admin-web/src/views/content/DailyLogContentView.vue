@@ -2,7 +2,7 @@
   <section class="page-section daily-admin-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">萌宠日常</p>
-      <h1 class="page-section__title">查询日常内容、可见范围和社区同步线索</h1>
+      <h1 class="page-section__title">萌宠日常管理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">日常 {{ records.length }} 条</span>
         <span class="pet-admin-chip">公开 {{ publicCount }} 条</span>

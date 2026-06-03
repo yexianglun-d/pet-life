@@ -35,12 +35,10 @@ info:
     name: PetLife Team
     
 servers:
+  - url: https://pet.api.howied.me/api/v1
+    description: 生产环境
   - url: http://localhost:8080/api/v1
     description: 本地开发环境
-  - url: https://api-dev.petlife.com/api/v1
-    description: 开发环境
-  - url: https://api.petlife.com/api/v1
-    description: 生产环境
 
 tags:
   - name: 认证 (Auth)
@@ -3497,7 +3495,8 @@ paths:
         **说明**:
         - 支持 image_text、video、qa、experience
         - media_asset_ids 仅允许引用当前用户已上传完成且 biz_type=community 的图片或视频
-        - 发布后进入 pending_review 并生成内容审核任务；公开流和详情只展示 approved 内容
+        - 发布后进入 pending_review 并生成内容审核任务
+        - 公开流和话题流只展示 approved 内容；作者可在“我的发布”查看待审/拒绝内容
       requestBody:
         required: true
         content:
@@ -3517,17 +3516,41 @@ paths:
                       data:
                         $ref: '#/components/schemas/CommunityPost'
 
+  /community/posts/mine:
+    get:
+      tags:
+        - 社区 (Community)
+      summary: 获取我的社区发布
+      parameters:
+        - name: review_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending_review, approved, rejected]
+          description: 审核状态
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CommunityPost'
+
   /community/posts/{postId}:
     get:
       tags:
         - 社区 (Community)
       summary: 获取帖子详情
       description: |
-        获取帖子详细信息
-        
-        **说明**:
-        - 返回当前用户视角下的 liked、favorited 状态
-        - 当前内容详情页已接入真实点赞、收藏、评论交互
+        获取帖子详细信息。作者可读取自己的待审或拒绝内容；非作者只能读取已审核通过且可见的内容。
       parameters:
         - name: postId
           in: path
@@ -3539,6 +3562,37 @@ paths:
       responses:
         '200':
           description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CommunityPost'
+    patch:
+      tags:
+        - 社区 (Community)
+      summary: 编辑并重新提交社区帖子
+      description: 拒绝或待审内容可由作者编辑后重新进入 pending_review，并生成新的审核任务。已公开内容不支持直接编辑。
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 帖子 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommunityPostRequest'
+      responses:
+        '200':
+          description: 提交成功
           content:
             application/json:
               schema:

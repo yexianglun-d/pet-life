@@ -155,7 +155,7 @@ class _FamilyInvitationPageState extends State<FamilyInvitationPage> {
                 title: '邀请身份',
                 description: '普通成员适合协助照护，管理员可以一起管理提醒和家庭成员。',
                 child: DropdownButtonFormField<String>(
-                  value: _role,
+                  initialValue: _role,
                   decoration: const InputDecoration(labelText: '角色'),
                   items: const [
                     DropdownMenuItem(value: 'member', child: Text('普通成员')),

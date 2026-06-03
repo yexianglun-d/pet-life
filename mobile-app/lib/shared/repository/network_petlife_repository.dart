@@ -625,6 +625,20 @@ class NetworkPetLifeRepository implements PetLifeRepository {
   }
 
   @override
+  Future<List<CommunityPostSnapshot>> listMyCommunityPosts({
+    String? reviewStatus,
+  }) async {
+    final String query = reviewStatus == null || reviewStatus.isEmpty
+        ? ''
+        : '?review_status=${Uri.encodeQueryComponent(reviewStatus)}';
+    final List<Map<String, dynamic>> posts = _asMapList(
+      await _apiClient.getData('/api/v1/community/posts/mine$query'),
+      context: '我的社区发布',
+    );
+    return posts.map(_toCommunityPostSnapshot).toList();
+  }
+
+  @override
   Future<CommunityPostSnapshot> createCommunityPost(
       CommunityPostDraft draft) async {
     final Map<String, dynamic> data = _asMap(
@@ -633,6 +647,21 @@ class NetworkPetLifeRepository implements PetLifeRepository {
         body: _toCommunityPostBody(draft),
       ),
       context: '社区发帖响应',
+    );
+    return _toCommunityPostSnapshot(data);
+  }
+
+  @override
+  Future<CommunityPostSnapshot> updateCommunityPost({
+    required String postId,
+    required CommunityPostDraft draft,
+  }) async {
+    final Map<String, dynamic> data = _asMap(
+      await _apiClient.patchData(
+        '/api/v1/community/posts/$postId',
+        body: _toCommunityPostBody(draft),
+      ),
+      context: '社区内容重新提交响应',
     );
     return _toCommunityPostSnapshot(data);
   }

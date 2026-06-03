@@ -124,7 +124,7 @@ cat docs/api/QUICK_START.md
 
 | 变量名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `base_url` | default | `http://localhost:8080` | API 基础 URL |
+| `base_url` | default | `https://pet.api.howied.me` | API 基础 URL |
 | `access_token` | secret | (空) | 访问令牌 |
 | `refresh_token` | secret | (空) | 刷新令牌 |
 | `current_user_id` | default | (空) | 当前用户 ID |
@@ -139,6 +139,8 @@ cat docs/api/QUICK_START.md
 
 ### 基础约定
 
+- **生产 API 域名**：`https://pet.api.howied.me`
+- **Web 域名**：`https://pet.howied.me`
 - **Base URL**：`/api/v1`
 - **协议**：`HTTPS + JSON`
 - **字段命名**：`snake_case`

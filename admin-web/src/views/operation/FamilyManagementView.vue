@@ -2,7 +2,7 @@
   <section class="page-section family-admin-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">家庭共养</p>
-      <h1 class="page-section__title">查询家庭资料、成员关系和共养宠物</h1>
+      <h1 class="page-section__title">家庭管理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">家庭 {{ records.length }} 个</span>
         <span class="pet-admin-chip">正常 {{ activeFamilyCount }} 个</span>

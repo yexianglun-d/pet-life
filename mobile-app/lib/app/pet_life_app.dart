@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:petlife_mobile_app/app/router/app_router.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
@@ -43,8 +44,19 @@ class PetLifeApp extends StatelessWidget {
       repository: _repository,
       sessionStore: _sessionStore,
       child: MaterialApp(
-        title: 'PetLife',
+        title: '宠物生活管家',
         debugShowCheckedModeBanner: false,
+        locale:
+            const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
+        supportedLocales: const <Locale>[
+          Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
+          Locale('en'),
+        ],
+        localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+          GlobalMaterialLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
         theme: AppTheme.lightTheme,
         onGenerateRoute: AppRouter.onGenerateRoute,
         initialRoute: AppRouter.homeRoute,

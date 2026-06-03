@@ -299,7 +299,7 @@ class _HealthRecordEditorPageState extends State<HealthRecordEditorPage> {
                 title: '记录类型',
                 description: '先选这次属于哪类健康事件，后面整理时会更清楚。',
                 child: DropdownButtonFormField<String>(
-                  value: _recordType,
+                  initialValue: _recordType,
                   decoration: const InputDecoration(labelText: '记录类型'),
                   items: const [
                     DropdownMenuItem(value: 'vaccine', child: Text('疫苗')),
@@ -526,7 +526,7 @@ class _HealthRecordEditorPageState extends State<HealthRecordEditorPage> {
     return Column(
       children: [
         DropdownButtonFormField<String>(
-          value: _severityLevel,
+          initialValue: _severityLevel,
           decoration: const InputDecoration(labelText: '严重程度'),
           items: const [
             DropdownMenuItem(value: 'mild', child: Text('轻微')),

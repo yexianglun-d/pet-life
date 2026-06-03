@@ -15,6 +15,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,9 +51,24 @@ public class CommunityController {
         return ApiResponse.success(communityApplicationService.createPost(request));
     }
 
+    @GetMapping("/posts/mine")
+    public ApiResponse<List<CommunityPostResponse>> listMyPosts(
+        @RequestParam(value = "review_status", required = false) String reviewStatus
+    ) {
+        return ApiResponse.success(communityApplicationService.listMyPosts(reviewStatus));
+    }
+
     @GetMapping("/posts/{postId}")
     public ApiResponse<CommunityPostResponse> getPost(@PathVariable Long postId) {
         return ApiResponse.success(communityApplicationService.getPost(postId));
+    }
+
+    @PatchMapping("/posts/{postId}")
+    public ApiResponse<CommunityPostResponse> updatePost(
+        @PathVariable Long postId,
+        @Valid @RequestBody CreateCommunityPostRequest request
+    ) {
+        return ApiResponse.success(communityApplicationService.updatePost(postId, request));
     }
 
     @GetMapping("/topics/{topicId}")

@@ -39,7 +39,7 @@
 - 宠物主档、宠物详情、宠物状态与后台宠物查询。
 - 健康记录、附件元数据、提醒派生、提醒计划、用户端提醒模板读取与表单预填。
 - 萌宠日常、媒体资源引用、社区同步、成长时间轴展示。
-- 社区推荐、同城、问答、评论、点赞、收藏、关注、举报与后台治理。
+- 社区推荐、同城、问答、我的发布、拒绝后编辑重提、评论、点赞、收藏、关注、举报与后台治理。
 - 内容审核任务底座、公开流审核过滤、人工通过、人工拒绝、后台审核任务查询与详情。
 - 服务城市配置、服务商、服务项目、预约、取消、完成、评价与后台运营查询。
 - 站内通知、消息模板、通知渠道配置、Push token 注册/解绑、Push 任务和投递排查底座。
@@ -86,8 +86,18 @@
   - 结果：通过，`All tests passed!`。
 - `/Users/deng/development/flutter/bin/flutter analyze`（mobile-app）
   - 结果：通过，`No issues found!`。
+- `/Users/deng/development/flutter/bin/flutter build ios --debug --no-codesign`（mobile-app）
+  - 结果：通过，已生成 `build/ios/iphoneos/Runner.app`。
+- `/Users/deng/development/flutter/bin/flutter build apk --debug`（mobile-app）
+  - 结果：通过，已生成 `build/app/outputs/flutter-apk/app-debug.apk`；构建期间 Flutter 自动补装 Android SDK Platform 36，并输出 Gradle / AGP / Kotlin 版本未来兼容性预警。
 - `rg -n "review_status = 'approved'|notification_switch|dev_noop|manual|content_snapshot|device_token" server/src/main/java admin-web/src mobile-app/lib docs/api/petlife-openapi.yaml`
   - 结果：静态证据显示用户侧社区公开查询过滤 `approved`；后台审核任务页展示 `content_snapshot`、`callback_payload` 并标注 `dev_noop/manual` 边界；Push 排查页不展示设备 token 原文，只展示 `device_token_id`；服务端 Push provider 当前 `dispatchEnabled=false`。
+- `mvn -q -DskipTests compile`（server）
+  - 结果：通过。
+- `mvn -q -Dtest=PhaseOneApiTests#shouldCreateModerationTaskFilterPendingAndSupportManualReview test`（server，已注入测试库环境变量）
+  - 结果：通过。覆盖发布进入审核任务、公开流隐藏待审内容、人工拒绝后作者可读、我的发布可筛拒绝内容、拒绝内容编辑重提、重提后重新创建审核任务、公开问答流继续隐藏待审内容。
+- 远程测试库锁处理
+  - 结果：全量 `PhaseOneApiTests` 曾因远程 MySQL 断链留下 `INNODB_TRX` 睡眠事务，导致验证码表写入锁等待；已通过 JDBC `SHOW FULL PROCESSLIST` 定位并 `KILL` 对应线程后，单用例恢复通过。
 
 ## 2026-05-20 地图上线收口验收反馈
 
@@ -133,6 +143,59 @@
 - 测试库仍需要可验证距离排序的真实服务商数据。
 - Android/iOS 真机定位、权限和外部导航验收仍需移动端设备环境。
 
+## 2026-05-31 移动端 iOS 本地化与登录校验打磨
+
+已修复项：
+
+- 移动端根应用接入 Flutter 中文本地化代理，日期/时间选择器等 Flutter 系统组件不再退回英文默认资源。
+- iOS 工程声明简体中文开发语言、本地化集合和中文 Bundle Name，权限弹窗目的说明继续使用中文。
+- 登录页手机号输入已限制为数字、最多 11 位，并提供字段级实时错误；验证码输入已限制为数字、最多 6 位。
+- 登录页新增自动填充语义，手机号和短信验证码更符合 iOS/Android 输入体验。
+- 清理 Flutter analyzer 废弃 API，当前 mobile-app `flutter analyze` 已达到 `No issues found!`。
+
+已验证项：
+
+- `flutter analyze`：通过。
+- `flutter test`：通过，包含新增登录手机号校验测试。
+- `flutter build ios --debug --no-codesign`：通过。
+- `flutter build apk --debug`：通过。
+- `git diff --check`：通过。
+
+仍需真机确认：
+
+- iOS 系统级按钮文字最终受手机系统语言影响；App 侧已补齐中文本地化，仍需重新安装后确认权限弹窗、日期/时间选择器、键盘自动填充提示是否符合预期。
+- 真实短信送达仍依赖后续短信供应商接入，本轮只验证 App 输入边界和现有服务端短信受理链路。
+
+## 2026-05-31 服务端 Spring Security 默认密码告警收口
+
+已修复项：
+
+- 服务端启动入口排除 `UserDetailsServiceAutoConfiguration`，避免 Spring Boot 创建默认内存用户和输出 `Using generated security password`。
+- 现有自定义 `SecurityFilterChain`、Bearer Token 过滤器、后台账号鉴权和 BCrypt `PasswordEncoder` 保持不变。
+
+已验证项：
+
+- `mvn -q -DskipTests compile`：通过。
+- 使用独立端口临时启动服务端：通过，启动日志未再出现 `Using generated security password` 告警，验证后已停止临时进程。
+
+## 2026-05-31 服务端 Maven 打包失败收口
+
+已修复项：
+
+- `server/src/main/resources/application.yml` 数据源 URL 已恢复为项目统一变量 `PETLIFE_DATASOURCE_URL`，不再误用 `MYSQL_URL` 并回退到本地旧库。
+- `PhaseOneApiTests` 已标记为 `integration` 集成测试，默认 `mvn package` 不运行真实 MySQL API 回归套件。
+- `server/pom.xml` 新增 `integration-tests` Profile；需要真实库回归时显式执行 `mvn -Pintegration-tests -Dtest=PhaseOneApiTests test`。
+
+已验证项：
+
+- `mvn -q package`（已注入 `PETLIFE_DATASOURCE_*`）：通过。
+- `mvn -q -Pintegration-tests -Dtest=PhaseOneApiTests#shouldSendSmsCodeWithoutLeakingPlainCode test`（已注入 `PETLIFE_DATASOURCE_*`）：通过。
+- JDBC 查询 `information_schema.innodb_trx`：`innodb_trx_count=0`，本轮未遗留测试事务锁。
+
+已确认但未包装为通过：
+
+- 全量 `PhaseOneApiTests` 曾在真实库运行中途出现 `Communications link failure`，随后触发锁等待；这是远程测试库连接稳定性和长事务集成测试边界问题，不再阻断默认打包，但全量真实库回归仍需在稳定数据库窗口重新执行。
+
 ## 缺陷清单
 
 暂无已确认业务缺陷。
@@ -146,12 +209,12 @@
 
 - 当前未在真实库执行本轮更新后的 `docs/technical/10-test-data-seed.sql` 提交式或回滚式写入验证；上轮旧脚本曾通过真实库事务回滚验证，正式灌数仍建议在独立测试库执行。
 - 如果目标环境没有完整执行 `03-ddl-draft.sql` 及后续增量表结构，脚本会因缺表或缺列失败。需要先补齐表结构迁移。
-- 服务端自动化回归当前被本机测试环境阻断：未设置 `PETLIFE_DATASOURCE_URL`、`PETLIFE_DATASOURCE_USERNAME`、`PETLIFE_DATASOURCE_PASSWORD`，且 shell 中没有 `mysql` CLI；需要服务端线程或本机环境提供可用测试库连接后重跑 `PhaseOneApiTests`。
+- 服务端全量集成回归当前受远程 MySQL 稳定性影响：本轮全量 `PhaseOneApiTests` 跑到中途出现远程连接断开，默认打包已与该真实库回归解耦；全量回归仍建议在稳定测试库窗口用 `-Pintegration-tests` 显式重跑。
 
 ## 下一轮建议
 
 - 在独立测试库执行 `docs/technical/10-test-data-seed.sql`，记录最终 `SELECT` 汇总结果。
-- 服务端补齐测试库环境变量后，重跑 `mvn -q -Dtest=PhaseOneApiTests test`，重点确认审核中内容不进入公开流、人工通过可见、人工拒绝不可见、审核任务详情脱敏和 Push 开关边界。
+- 服务端补齐测试库环境变量后，重跑 `mvn -q -Pintegration-tests -Dtest=PhaseOneApiTests test`，重点确认审核中内容不进入公开流、人工通过可见、人工拒绝不可见、审核任务详情脱敏和 Push 开关边界。
 - 基于测试手机号 `19900008001`、`19900008002` 和后台账号 `plt_ops_admin` 进行用户端、后台端手工验收。
 - 为脚本中的主链路补充 Postman/HTTP smoke case，覆盖登录、当前宠物、提醒模板、健康记录、社区、服务预约、通知和后台治理查询。
 - 待外部供应商能力进入实现阶段后，将 `该功能待完善` 项从预留清单迁移到可测清单，并补充真实供应商回调和失败补偿数据。

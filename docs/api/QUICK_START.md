@@ -284,12 +284,12 @@ POST {{base_url}}/api/v1/auth/refresh
 }
 ```
 
-### Q: 如何切换到开发环境？
+### Q: 如何切换到生产环境？
 
-A: 修改环境变量 `base_url` 为开发环境地址：
+A: 修改环境变量 `base_url` 为生产环境地址：
 
 ```
-https://api-dev.petlife.com
+https://pet.api.howied.me
 ```
 
 ### Q: 如何查看所有接口？

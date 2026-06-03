@@ -2,7 +2,17 @@ import 'package:flutter/foundation.dart';
 
 /// 应用接口地址配置。
 abstract final class AppApiConfig {
+  static const String _configuredBaseUrl = String.fromEnvironment(
+    'PETLIFE_API_BASE_URL',
+    defaultValue: 'https://pet.api.howied.me',
+  );
+
   static Uri get baseUri {
+    final String configuredBaseUrl = _configuredBaseUrl.trim();
+    if (configuredBaseUrl.isNotEmpty) {
+      return Uri.parse(configuredBaseUrl);
+    }
+
     if (kIsWeb) {
       return Uri.parse('http://localhost:8080');
     }

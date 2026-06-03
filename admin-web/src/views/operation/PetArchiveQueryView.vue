@@ -2,7 +2,7 @@
   <section class="page-section pet-admin-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">宠物主档</p>
-      <h1 class="page-section__title">查询宠物档案、主人和家庭归属</h1>
+      <h1 class="page-section__title">宠物档案管理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">宠物 {{ records.length }} 只</span>
         <span class="pet-admin-chip">活跃 {{ activePetCount }} 只</span>

@@ -684,7 +684,7 @@ DDL 说明：
 - `recommended` 返回公开且 `approved` 的推荐流。
 - `following` 返回当前用户已关注作者的公开/粉丝可见帖子。
 - `city` 支持 `city_code` 查询，缺省时使用当前用户城市。
-- `qa` 返回当前用户可见的问答帖。
+- `qa` 返回已审核通过且当前用户可见的问答帖。
 
 ## 6.2 独立发布社区帖子
 
@@ -712,7 +712,8 @@ DDL 说明：
 - `media_asset_ids` 仅允许引用当前用户已上传完成、`biz_type=community`、媒体类型为图片或视频的资产，最多 9 个。
 - 关联宠物时会校验当前用户是否有该宠物访问权；关联话题时只允许使用启用话题。
 - 本阶段不接第三方审核厂商 SDK，发布后由服务端写入 `review_status=pending_review` 并创建 `moderation_tasks` 审核任务；客户端不能提交审核状态。
-- 用户侧社区流、话题页、帖子详情和问答详情只读取 `review_status=approved` 内容，待审和拒绝内容不会进入公开流。
+- 用户侧社区流和话题页只读取 `review_status=approved` 内容，待审和拒绝内容不会进入公开流。
+- 作者可通过“我的发布”查看自己的待审和拒绝内容。
 
 萌宠日常仍可同步社区：
 
@@ -720,16 +721,42 @@ DDL 说明：
 - 日常同步帖子类型为 `experience`，并同步日常媒体资产 ID 供社区详情预览。
 - 日常同步社区同样进入审核任务；内容更新会使旧待审任务失效，避免旧任务通过后放出新内容。
 
-## 6.3 获取帖子详情
+## 6.3 我的社区发布
+
+`GET /community/posts/mine`
+
+查询参数：
+
+- `review_status`：可选，支持 `pending_review`、`approved`、`rejected`
+
+说明：
+
+- 返回当前登录用户发布的社区内容。
+- 该接口用于发布状态刷新和拒绝内容重新编辑入口，不参与公开社区流。
+
+## 6.4 获取帖子详情
 
 `GET /community/posts/{post_id}`
 
 说明：
 
 - 返回当前用户视角下的 `liked`、`favorited` 状态
-- 当前内容详情页已接入真实点赞、收藏、评论交互
+- 作者可读取自己的待审或拒绝内容；非作者只能读取已审核通过且可见的内容。
 
-## 6.4 评论帖子
+## 6.5 编辑并重新提交帖子
+
+`PATCH /community/posts/{post_id}`
+
+请求结构同 `POST /community/posts`。
+
+规则：
+
+- 仅作者本人可编辑。
+- 已公开的 `approved` 内容不支持直接编辑。
+- 提交后重置为 `pending_review`，并创建新的 `moderation_tasks` 审核任务。
+- 公开流和话题流仍不会展示重新提交后的待审内容。
+
+## 6.6 评论帖子
 
 `POST /community/posts/{post_id}/comments`
 
@@ -746,23 +773,23 @@ DDL 说明：
 - `GET /community/posts/{post_id}/comments` 已提供评论列表读取
 - 当前阶段仅支持一级评论，不开放楼中楼
 
-## 6.5 点赞帖子
+## 6.7 点赞帖子
 
 `POST /community/posts/{post_id}/like`
 
-## 6.6 取消点赞
+## 6.8 取消点赞
 
 `DELETE /community/posts/{post_id}/like`
 
-## 6.7 收藏帖子
+## 6.9 收藏帖子
 
 `POST /community/posts/{post_id}/favorite`
 
-## 6.8 取消收藏
+## 6.10 取消收藏
 
 `DELETE /community/posts/{post_id}/favorite`
 
-## 6.9 举报帖子
+## 6.11 举报帖子
 
 `POST /community/posts/{post_id}/report`
 
@@ -781,19 +808,19 @@ DDL 说明：
 - 当 `reason_code=other` 时，`reason_detail` 必填
 - 同一用户对同一帖子存在 `pending` 举报时，接口返回已有举报，不重复创建新记录
 
-## 6.10 获取话题详情流
+## 6.12 获取话题详情流
 
 `GET /community/topics/{topic_id}`
 
 返回启用话题信息和话题下当前用户可见帖子列表。
 
-## 6.11 获取问答详情
+## 6.13 获取问答详情
 
 `GET /community/questions/{question_id}`
 
 返回问答帖详情与回答列表。当前回答复用社区评论承载。
 
-## 6.12 关注用户
+## 6.14 关注用户
 
 `POST /community/users/{user_id}/follow`
 
@@ -803,11 +830,11 @@ DDL 说明：
 - 被关注用户必须存在且为正常状态。
 - 重复关注返回已关注状态，不重复写关系。
 
-## 6.13 取消关注用户
+## 6.15 取消关注用户
 
 `DELETE /community/users/{user_id}/follow`
 
-## 6.14 查询关注状态
+## 6.16 查询关注状态
 
 `GET /community/users/{user_id}/follow-status`
 

@@ -9,9 +9,6 @@
         android:label="宠物生活管家"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <meta-data
-            android:name="com.amap.api.v2.apikey"
-            android:value="${AMAP_ANDROID_KEY}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

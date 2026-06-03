@@ -75,6 +75,12 @@
 - 数据库建表由人工执行 DDL，不由应用自动迁移。
 - 如果数据库不可用，服务端不会退回内存模式。
 
+## 测试与打包边界
+
+- 默认 `mvn package` 用于服务端打包和非外部依赖测试，不执行真实 MySQL API 集成套件。
+- `PhaseOneApiTests` 依赖完整测试库、DDL 和外部网络稳定性，已标记为 `integration`。
+- 需要真实库 API 回归时，使用 `mvn -Pintegration-tests -Dtest=PhaseOneApiTests test`，并显式注入 `PETLIFE_DATASOURCE_URL`、`PETLIFE_DATASOURCE_USERNAME`、`PETLIFE_DATASOURCE_PASSWORD`。
+
 ## 本地数据库启动方式
 
 启动服务前，需要先确认目标 MySQL 已执行 `03-ddl-draft.sql` 中的建表脚本，并提供可连通的数据库连接信息。

@@ -2,7 +2,7 @@
   <section class="page-section">
     <div class="pet-admin-hero moderation-hero">
       <p class="page-section__eyebrow">社区治理</p>
-      <h1 class="page-section__title">把社区举报和处理动作收口到同一处</h1>
+      <h1 class="page-section__title">社区举报处理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">待处理 {{ pendingCount }} 条</span>
         <span class="pet-admin-chip">已确认 {{ processedCount }} 条</span>

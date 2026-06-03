@@ -24,6 +24,7 @@ import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 真实 MySQL API 回归套件。
+ *
+ * <p>该类依赖外部测试库、完整 DDL 与测试数据初始化，默认打包不运行；需要通过
+ * {@code -Pintegration-tests} 显式执行。</p>
+ */
+@Tag("integration")
 @SpringBootTest(properties = "petlife.amap.web-service.key=")
 @AutoConfigureMockMvc
 @Transactional
@@ -2942,7 +2950,7 @@ class PhaseOneApiTests {
 
     @Test
     void shouldCreateModerationTaskFilterPendingAndSupportManualReview() throws Exception {
-        String authorizationHeader = authorizationHeader("13610000000");
+        String authorizationHeader = authorizationHeader(uniqueMobile("136"));
         String adminAuthorizationHeader = adminAuthorizationHeader();
         String petId = currentPetId(authorizationHeader);
         String topicId = createCommunityTopic("审核底座测试-" + System.nanoTime());
@@ -3019,8 +3027,46 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/community/questions/%s".formatted(rejectedPostId))
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
-            .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.code", is("COMMUNITY_POST_NOT_FOUND")));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.question.review_status", is("rejected")));
+
+        mockMvc.perform(get("/api/v1/community/posts/mine?review_status=rejected")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.post_id == '%s')].review_status".formatted(rejectedPostId),
+                is(List.of("rejected"))));
+
+        mockMvc.perform(patch("/api/v1/community/posts/%s".formatted(rejectedPostId))
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "pet_id": %s,
+                      "topic_id": %s,
+                      "post_type": "qa",
+                      "title": "修改后重新提交的问题",
+                      "content": "这条内容已经按审核意见修改后重新提交。",
+                      "media_asset_ids": [],
+                      "city_code": "310000",
+                      "visibility": "public"
+                    }
+                    """.formatted(petId, topicId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.review_status", is("pending_review")))
+            .andExpect(jsonPath("$.data.title", is("修改后重新提交的问题")));
+
+        mockMvc.perform(get("/api/v1/community/feed?tab=qa")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.post_id == '%s')]".formatted(rejectedPostId)).isEmpty());
+
+        mockMvc.perform(get("/api/v1/admin/moderation/tasks?target_type=community_question&target_id=%s&review_status=pending"
+                    .formatted(rejectedPostId))
+                .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()", is(1)))
+            .andExpect(jsonPath("$.data[0].content_snapshot")
+                .value(org.hamcrest.Matchers.containsString("这条内容已经按审核意见修改后重新提交。")));
 
         mockMvc.perform(get("/api/v1/admin/moderation/audit-logs?operator_id=review-admin&target_type=moderation_task")
                 .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader))
@@ -3288,8 +3334,8 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/community/posts/%s".formatted(postId))
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
-            .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.code", is("COMMUNITY_POST_NOT_FOUND")));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.review_status", is("rejected")));
 
         mockMvc.perform(patch("/api/v1/admin/community/posts/%s/status".formatted(postId))
                 .header(HttpHeaders.AUTHORIZATION, adminAuthorizationHeader)
@@ -3334,7 +3380,8 @@ class PhaseOneApiTests {
 
         mockMvc.perform(get("/api/v1/community/questions/%s".formatted(questionId))
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader))
-            .andExpect(status().isNotFound());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.question.review_status", is("rejected")));
 
         mockMvc.perform(get("/api/v1/admin/moderation/audit-logs?operator_id=%s&target_type=community_post"
                 .formatted(adminOperator))

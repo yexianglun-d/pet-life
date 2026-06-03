@@ -2,7 +2,7 @@
   <section class="page-section timeline-admin-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">成长时间轴</p>
-      <h1 class="page-section__title">排查时间轴事件和源记录派生状态</h1>
+      <h1 class="page-section__title">时间轴事件管理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">事件 {{ records.length }} 条</span>
         <span class="pet-admin-chip">源记录有效 {{ activeSourceCount }} 条</span>

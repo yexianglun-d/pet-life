@@ -19,7 +19,7 @@
 
 | 变量名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `base_url` | default | `http://localhost:8080` | API 基础 URL |
+| `base_url` | default | `https://pet.api.howied.me` | API 基础 URL |
 | `access_token` | secret | (空) | 访问令牌 |
 | `refresh_token` | secret | (空) | 刷新令牌 |
 | `current_user_id` | default | (空) | 当前用户 ID |
@@ -290,8 +290,7 @@ if (pm.response.code === 200) {
 
 常用值：
 - 本地开发：`http://localhost:8080`
-- 开发环境：`https://api-dev.petlife.com`
-- 生产环境：`https://api.petlife.com`
+- 生产环境：`https://pet.api.howied.me`
 
 ### Q3: Token 过期怎么办？
 

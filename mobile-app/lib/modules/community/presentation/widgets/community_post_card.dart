@@ -12,15 +12,21 @@ class CommunityPostCard extends StatelessWidget {
     required this.post,
     required this.onTap,
     this.onTopicTap,
+    this.showRejected = false,
+    this.actionLabel,
+    this.onAction,
   });
 
   final CommunityPostSnapshot post;
   final VoidCallback onTap;
   final ValueChanged<CommunityTopicSnapshot>? onTopicTap;
+  final bool showRejected;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
-    if (isCommunityPostRejected(post)) {
+    if (isCommunityPostRejected(post) && !showRejected) {
       return const SizedBox.shrink();
     }
 
@@ -121,6 +127,16 @@ class CommunityPostCard extends StatelessWidget {
                 _FeedChip(label: '收藏 ${post.favoriteCount}'),
               ],
             ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onAction,
+                  child: Text(actionLabel!),
+                ),
+              ),
+            ],
           ],
         ),
       ),

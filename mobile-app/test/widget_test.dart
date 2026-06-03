@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petlife_mobile_app/app/pet_life_app.dart';
 import 'package:petlife_mobile_app/shared/domain/models/auth_sms_send_snapshot.dart';
@@ -35,18 +36,54 @@ void main() {
     expect(find.text('宠物生活管家'), findsOneWidget);
     expect(find.text('Momo'), findsOneWidget);
   });
+
+  testWidgets('login page validates mobile before sending sms',
+      (WidgetTester tester) async {
+    final _FakePetLifeRepository repository =
+        _FakePetLifeRepository(hasSession: false);
+
+    await tester.pumpWidget(PetLifeApp(repository: repository));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('发送验证码'));
+    await tester.pump();
+
+    expect(repository.sentSmsRequests, 0);
+    expect(find.text('请输入手机号'), findsWidgets);
+
+    await tester.enterText(find.byType(EditableText).first, '123');
+    await tester.pump();
+
+    expect(find.text('手机号需要 11 位数字'), findsWidgets);
+
+    await tester.enterText(find.byType(EditableText).first, '13800000000');
+    await tester.tap(find.text('发送验证码'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(repository.sentSmsRequests, 1);
+    expect(find.textContaining('秒后可再次发送'), findsOneWidget);
+  });
 }
 
 class _FakePetLifeRepository implements PetLifeRepository {
+  _FakePetLifeRepository({
+    this.hasSession = true,
+  });
+
+  final bool hasSession;
+  int sentSmsRequests = 0;
+
   @override
   Future<bool> hasLocalSession() async {
-    return true;
+    return hasSession;
   }
 
   @override
   Future<AuthSmsSendSnapshot> sendLoginSmsCode({
     required String mobile,
   }) async {
+    sentSmsRequests += 1;
     return AuthSmsSendSnapshot(
       mobile: mobile,
       scene: 'login',
@@ -654,6 +691,26 @@ class _FakePetLifeRepository implements PetLifeRepository {
   }
 
   @override
+  Future<List<CommunityPostSnapshot>> listMyCommunityPosts({
+    String? reviewStatus,
+  }) async {
+    final List<CommunityPostSnapshot> posts = <CommunityPostSnapshot>[
+      (await getCommunityPost('70003')).copyWith(
+        postId: '70003',
+        title: '需要重新整理的发布',
+        reviewStatus: 'rejected',
+      ),
+    ];
+    if (reviewStatus == null || reviewStatus.isEmpty) {
+      return posts;
+    }
+    return posts
+        .where(
+            (CommunityPostSnapshot post) => post.reviewStatus == reviewStatus)
+        .toList();
+  }
+
+  @override
   Future<CommunityPostSnapshot> createCommunityPost(
     CommunityPostDraft draft,
   ) async {
@@ -665,6 +722,33 @@ class _FakePetLifeRepository implements PetLifeRepository {
       cityCode: draft.cityCode,
       visibility: draft.visibility,
       mediaAssetIds: draft.mediaAssetIds,
+      likeCount: 0,
+      commentCount: 0,
+      favoriteCount: 0,
+      liked: false,
+      favorited: false,
+      author: const CommunityAuthorSnapshot(
+        userId: '10001',
+        nickname: 'Momo',
+      ),
+      createdAt: DateTime(2026, 4, 22, 15),
+    );
+  }
+
+  @override
+  Future<CommunityPostSnapshot> updateCommunityPost({
+    required String postId,
+    required CommunityPostDraft draft,
+  }) async {
+    return CommunityPostSnapshot(
+      postId: postId,
+      postType: draft.postType,
+      title: draft.title ?? '重新提交的社区内容',
+      content: draft.content,
+      cityCode: draft.cityCode,
+      visibility: draft.visibility,
+      mediaAssetIds: draft.mediaAssetIds,
+      reviewStatus: 'pending_review',
       likeCount: 0,
       commentCount: 0,
       favoriteCount: 0,

@@ -25,8 +25,6 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        manifestPlaceholders["AMAP_ANDROID_KEY"] =
-            (project.findProperty("AMAP_ANDROID_KEY") as String?) ?: ""
     }
 
     buildTypes {

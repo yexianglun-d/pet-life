@@ -7,6 +7,63 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-05-31 iOS 本地化与登录校验上线打磨
+
+### 1. 新完成内容
+
+- 根应用接入 `flutter_localizations`，补齐 Material / Cupertino / Widgets 中文本地化代理，并将 App 运行语言固定为简体中文。
+- iOS `Info.plist` 明确 `CFBundleDevelopmentRegion=zh-Hans`、`CFBundleLocalizations` 和中文 `CFBundleName`，降低系统组件和权限提示退回英文的概率。
+- 登录页手机号输入改为数字过滤、11 位长度限制、字段级实时错误提示和大陆手机号段校验。
+- 登录页验证码输入改为数字过滤、6 位长度限制、一次性验证码自动填充语义，并在验证码发送成功后自动聚焦验证码输入框。
+- 清理 Flutter 新版 analyzer 废弃 API：举报弹层改为 `RadioGroup`，下拉表单改为 `initialValue`，开关改为 `activeThumbColor`。
+- 新增登录页手机号校验测试，确保非法手机号不会触发短信发送请求。
+
+### 2. 新增/修改文件
+
+- 修改：`mobile-app/lib/app/pet_life_app.dart`
+- 修改：`mobile-app/lib/modules/auth/presentation/pages/login_page.dart`
+- 修改：`mobile-app/ios/Runner/Info.plist`
+- 修改：`mobile-app/pubspec.yaml`
+- 修改：`mobile-app/test/widget_test.dart`
+- 修改：社区举报、宠物、健康、日常、提醒、家庭、通知设置和服务预约相关页面的 Flutter 废弃 API。
+
+### 3. 验证命令与结果
+
+- `cd mobile-app && /Users/deng/development/flutter/bin/flutter analyze`
+  - 结果：通过，`No issues found!`。
+- `cd mobile-app && /Users/deng/development/flutter/bin/flutter test`
+  - 结果：通过，`All tests passed!`。
+- `cd mobile-app && /Users/deng/development/flutter/bin/flutter build ios --debug --no-codesign`
+  - 结果：通过，已生成 `build/ios/iphoneos/Runner.app`。
+- `cd mobile-app && /Users/deng/development/flutter/bin/flutter build apk --debug`
+  - 结果：通过，已生成 `build/app/outputs/flutter-apk/app-debug.apk`。
+- `git diff --check`
+  - 结果：通过。
+
+### 4. 未完成事项
+
+- iOS 系统按钮文案最终仍受用户手机系统语言影响；本轮已补齐 App 侧中文本地化资源和 Flutter 组件中文化，真机上仍需重新安装后验证权限弹窗、日期/时间选择器和键盘辅助文案。
+- 真实短信供应商仍未接入；当前登录链路只能校验 App 输入边界、服务端验证码频控与 `dev_noop` 受理状态。
+
+## 2026-05-31 社区我的发布与拒绝重提闭环
+
+### 1. 新完成内容
+
+- 社区首页新增“我的”入口，读取 `GET /api/v1/community/posts/mine`。
+- 我的发布中展示作者自己的待审/拒绝内容；公开推荐、关注、同城、问答流继续过滤拒绝内容。
+- 拒绝内容支持“编辑重提”，复用发布编辑页并调用 `PATCH /api/v1/community/posts/{postId}`。
+- 帖子详情和问答详情对拒绝内容展示真实内容与“编辑重提”操作，不再显示不可见占位说明。
+- 审核状态文案改为短状态表达：`已提交审核`、`审核未通过`、`内容不可见`。
+
+### 2. 验证命令与结果
+
+- `/Users/deng/development/flutter/bin/flutter analyze`：通过。
+- `/Users/deng/development/flutter/bin/flutter test`：通过。
+
+### 3. 未完成事项
+
+- Android/iOS 真机定位、系统 Push SDK token 获取和真实 Push 权限链路仍需设备与供应商条件。
+
 ## 2026-05-20 地图收口服务端补修同步
 
 ### 1. 新完成内容

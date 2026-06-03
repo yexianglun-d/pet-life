@@ -249,7 +249,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
                 title: '提醒类型',
                 description: '先选这次想记住的是什么，再决定它是一次还是周期。',
                 child: DropdownButtonFormField<String>(
-                  value: _reminderType,
+                  initialValue: _reminderType,
                   decoration: const InputDecoration(labelText: '提醒类型'),
                   items: const [
                     DropdownMenuItem(value: 'vaccine', child: Text('疫苗')),
@@ -276,7 +276,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
                 child: Column(
                   children: [
                     DropdownButtonFormField<String>(
-                      value: _reminderMode,
+                      initialValue: _reminderMode,
                       decoration: const InputDecoration(labelText: '提醒模式'),
                       items: const [
                         DropdownMenuItem(value: 'single', child: Text('单次提醒')),
@@ -320,7 +320,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _cycleUnit,
+                              initialValue: _cycleUnit,
                               decoration:
                                   const InputDecoration(labelText: '周期单位'),
                               items: const [

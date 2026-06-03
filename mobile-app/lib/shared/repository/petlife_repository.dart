@@ -172,7 +172,16 @@ abstract interface class PetLifeRepository {
     String tab = 'recommended',
   });
 
+  Future<List<CommunityPostSnapshot>> listMyCommunityPosts({
+    String? reviewStatus,
+  });
+
   Future<CommunityPostSnapshot> createCommunityPost(CommunityPostDraft draft);
+
+  Future<CommunityPostSnapshot> updateCommunityPost({
+    required String postId,
+    required CommunityPostDraft draft,
+  });
 
   Future<CommunityPostSnapshot> getCommunityPost(String postId);
 

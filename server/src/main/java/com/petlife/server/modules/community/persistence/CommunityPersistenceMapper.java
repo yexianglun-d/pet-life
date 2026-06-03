@@ -96,6 +96,28 @@ public interface CommunityPersistenceMapper {
           )
         """;
 
+    String READABLE_POST_CONDITION = """
+          AND cp.deleted_at IS NULL
+          AND (
+            cp.user_id = #{currentUserId}
+            OR (
+              cp.review_status = 'approved'
+              AND (
+                cp.visibility = 'public'
+                OR (
+                  cp.visibility = 'follower'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM user_follows uf
+                    WHERE uf.follower_user_id = #{currentUserId}
+                      AND uf.followed_user_id = cp.user_id
+                  )
+                )
+              )
+            )
+          )
+        """;
+
     @Select("""
         SELECT
         """ + POST_SELECT_COLUMNS + POST_FROM + """
@@ -149,7 +171,7 @@ public interface CommunityPersistenceMapper {
         SELECT
         """ + POST_SELECT_COLUMNS + POST_FROM + """
         WHERE cp.id = #{postId}
-        """ + VISIBLE_POST_CONDITION + """
+        """ + READABLE_POST_CONDITION + """
         LIMIT 1
         """)
     CommunityPostDataObject findVisiblePostById(
@@ -167,6 +189,20 @@ public interface CommunityPersistenceMapper {
     CommunityPostDataObject findPostById(
         @Param("currentUserId") Long currentUserId,
         @Param("postId") Long postId
+    );
+
+    @Select("""
+        SELECT
+        """ + POST_SELECT_COLUMNS + POST_FROM + """
+        WHERE cp.deleted_at IS NULL
+          AND cp.user_id = #{currentUserId}
+          AND (#{reviewStatus} IS NULL OR cp.review_status = #{reviewStatus})
+        ORDER BY cp.updated_at DESC, cp.id DESC
+        LIMIT 200
+        """)
+    List<CommunityPostDataObject> listMyPosts(
+        @Param("currentUserId") Long currentUserId,
+        @Param("reviewStatus") String reviewStatus
     );
 
     @Select("""
@@ -250,16 +286,20 @@ public interface CommunityPersistenceMapper {
 
     @Update("""
         UPDATE community_posts
-        SET title = #{title},
+        SET pet_id = #{petId},
+            post_type = #{postType},
+            title = #{title},
             content = #{content},
             topic_id = #{topicId},
             media_list = #{mediaListJson},
             city_code = #{cityCode},
             visibility = #{visibility},
             review_status = #{reviewStatus},
+            published_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = #{postId}
           AND deleted_at IS NULL
+          AND (#{userId} IS NULL OR user_id = #{userId})
         """)
     int updateCommunityPost(UpdateCommunityPostCommand command);
 

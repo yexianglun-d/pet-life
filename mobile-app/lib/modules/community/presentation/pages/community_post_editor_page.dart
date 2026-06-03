@@ -16,10 +16,12 @@ class CommunityPostEditorPage extends StatefulWidget {
     super.key,
     this.initialTopic,
     this.initialPostType = 'image_text',
+    this.editingPost,
   });
 
   final CommunityTopicSnapshot? initialTopic;
   final String initialPostType;
+  final CommunityPostSnapshot? editingPost;
 
   @override
   State<CommunityPostEditorPage> createState() =>
@@ -48,7 +50,12 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
   @override
   void initState() {
     super.initState();
-    _selectedPostType = widget.initialPostType;
+    final CommunityPostSnapshot? editingPost = widget.editingPost;
+    _selectedPostType = editingPost?.postType ?? widget.initialPostType;
+    _titleController.text = editingPost?.title ?? '';
+    _contentController.text = editingPost?.content ?? '';
+    _visibility = editingPost?.visibility ?? 'public';
+    _mediaAssetIds = editingPost?.mediaAssetIds ?? const <String>[];
   }
 
   @override
@@ -86,7 +93,8 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
         _pets = pets
             .where((PetDetailSnapshot pet) => pet.status == 'active')
             .toList();
-        _selectedPetId = currentUser.currentPetId;
+        _selectedPetId =
+            widget.editingPost?.pet?.petId ?? currentUser.currentPetId;
         if (_selectedPetId != null &&
             !_pets
                 .any((PetDetailSnapshot pet) => pet.petId == _selectedPetId)) {
@@ -146,36 +154,39 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
 
     try {
       final repository = PetLifeAppScope.repositoryOf(context);
-      final CommunityPostSnapshot createdPost =
-          await repository.createCommunityPost(
-        CommunityPostDraft(
-          postType: _selectedPostType,
-          title: _titleController.text.trim().isEmpty
-              ? null
-              : _titleController.text.trim(),
-          content: _contentController.text.trim(),
-          mediaAssetIds: _mediaAssetIds,
-          visibility: _visibility,
-          petId: _selectedPetId,
-          topicId: widget.initialTopic?.topicId,
-          cityCode: _currentUser?.cityCode,
-        ),
+      final CommunityPostDraft draft = CommunityPostDraft(
+        postType: _selectedPostType,
+        title: _titleController.text.trim().isEmpty
+            ? null
+            : _titleController.text.trim(),
+        content: _contentController.text.trim(),
+        mediaAssetIds: _mediaAssetIds,
+        visibility: _visibility,
+        petId: _selectedPetId,
+        topicId: _resolvedTopic?.topicId,
+        cityCode: _currentUser?.cityCode,
       );
+      final CommunityPostSnapshot savedPost = widget.editingPost == null
+          ? await repository.createCommunityPost(draft)
+          : await repository.updateCommunityPost(
+              postId: widget.editingPost!.postId,
+              draft: draft,
+            );
       if (!mounted) {
         return;
       }
 
       final CompanionFeedbackTone feedbackTone =
-          communityReviewFeedbackTone(createdPost.reviewStatus);
-      final String feedbackMessage = createdPost.reviewStatus == 'approved'
-          ? (_selectedPostType == 'qa' ? '问题已发布到社区' : '社区内容已发布')
-          : communityReviewStatusMessage(createdPost.reviewStatus);
+          communityReviewFeedbackTone(savedPost.reviewStatus);
+      final String feedbackMessage = savedPost.reviewStatus == 'approved'
+          ? (_selectedPostType == 'qa' ? '问题已发布' : '社区内容已发布')
+          : communityReviewStatusMessage(savedPost.reviewStatus);
       showCompanionFeedback(
         context,
         message: feedbackMessage,
         tone: feedbackTone,
       );
-      Navigator.of(context).pop(createdPost);
+      Navigator.of(context).pop(savedPost);
     } catch (error) {
       if (!mounted) {
         return;
@@ -197,6 +208,9 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
       _hasFailedMedia = selectionState.hasFailed;
     });
   }
+
+  CommunityTopicSnapshot? get _resolvedTopic =>
+      widget.initialTopic ?? widget.editingPost?.topic;
 
   @override
   Widget build(BuildContext context) {
@@ -246,7 +260,10 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _CommunityComposerHero(topic: widget.initialTopic),
+              _CommunityComposerHero(
+                topic: _resolvedTopic,
+                editing: widget.editingPost != null,
+              ),
               const SizedBox(height: 16),
               if (_formNoticeMessage != null) ...[
                 CompanionFormNotice(message: _formNoticeMessage!),
@@ -335,7 +352,7 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
                       )
                     else
                       DropdownButtonFormField<String?>(
-                        value: _selectedPetId,
+                        initialValue: _selectedPetId,
                         decoration: const InputDecoration(
                           labelText: '关联宠物',
                         ),
@@ -425,7 +442,7 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
                     const SizedBox(height: 10),
                     MediaAttachmentPicker(
                       bizType: 'community',
-                      initialAssetIds: const <String>[],
+                      initialAssetIds: _mediaAssetIds,
                       allowedExtensions: const <String>[
                         'jpg',
                         'jpeg',
@@ -450,7 +467,13 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
                       ? Icons.hourglass_top_rounded
                       : Icons.send_rounded,
                 ),
-                label: Text(_isSubmitting ? '发布中...' : '发布到社区'),
+                label: Text(
+                  _isSubmitting
+                      ? '提交中...'
+                      : widget.editingPost == null
+                          ? '发布到社区'
+                          : '重新提交审核',
+                ),
               ),
             ],
           ),
@@ -461,9 +484,13 @@ class _CommunityPostEditorPageState extends State<CommunityPostEditorPage> {
 }
 
 class _CommunityComposerHero extends StatelessWidget {
-  const _CommunityComposerHero({required this.topic});
+  const _CommunityComposerHero({
+    required this.topic,
+    required this.editing,
+  });
 
   final CommunityTopicSnapshot? topic;
+  final bool editing;
 
   @override
   Widget build(BuildContext context) {
@@ -481,14 +508,22 @@ class _CommunityComposerHero extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CompanionPill(
-            label: topic == null ? '独立发帖' : '参与话题',
+            label: editing
+                ? '编辑内容'
+                : topic == null
+                    ? '独立发帖'
+                    : '参与话题',
             icon: topic == null ? Icons.edit_note_rounded : Icons.tag_rounded,
             backgroundColor: AppThemePalette.surface,
             foregroundColor: AppThemePalette.primaryDeep,
           ),
           const SizedBox(height: 12),
           Text(
-            topic == null ? '发布社区内容' : '发布到 #${topic!.topicName}',
+            editing
+                ? '重新提交审核'
+                : topic == null
+                    ? '发布社区内容'
+                    : '发布到 #${topic!.topicName}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
         ],

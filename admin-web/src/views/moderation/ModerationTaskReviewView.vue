@@ -2,7 +2,7 @@
   <section class="page-section moderation-task-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">内容审核任务</p>
-      <h1 class="page-section__title">排查公开内容审核任务，并进行人工通过或拒绝</h1>
+      <h1 class="page-section__title">内容审核任务</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">任务 {{ visibleTasks.length }} 条</span>
         <span class="pet-admin-chip">待处理 {{ pendingCount }} 条</span>

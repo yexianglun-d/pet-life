@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/shared/app_scope.dart';
@@ -30,11 +31,14 @@ class _LoginPageState extends State<LoginPage> {
 
   late final TextEditingController _mobileController;
   late final TextEditingController _codeController;
+  late final FocusNode _codeFocusNode;
   Timer? _countdownTimer;
   int _countdownSeconds = 0;
   bool _isSendingCode = false;
   bool _isSubmitting = false;
   bool _hasRequestedCode = false;
+  bool _hasInteractedWithMobile = false;
+  bool _hasInteractedWithCode = false;
   String? _authNoticeMessage;
   CompanionFeedbackTone _authNoticeTone = CompanionFeedbackTone.info;
 
@@ -43,14 +47,40 @@ class _LoginPageState extends State<LoginPage> {
     super.initState();
     _mobileController = TextEditingController();
     _codeController = TextEditingController();
+    _codeFocusNode = FocusNode();
+    _mobileController.addListener(_handleMobileInputChanged);
+    _codeController.addListener(_handleCodeInputChanged);
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _mobileController.removeListener(_handleMobileInputChanged);
+    _codeController.removeListener(_handleCodeInputChanged);
     _mobileController.dispose();
     _codeController.dispose();
+    _codeFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handleMobileInputChanged() {
+    if (!_hasInteractedWithMobile && _mobileController.text.isEmpty) {
+      return;
+    }
+    setState(() {
+      _hasInteractedWithMobile = true;
+      _authNoticeMessage = null;
+    });
+  }
+
+  void _handleCodeInputChanged() {
+    if (!_hasInteractedWithCode && _codeController.text.isEmpty) {
+      return;
+    }
+    setState(() {
+      _hasInteractedWithCode = true;
+      _authNoticeMessage = null;
+    });
   }
 
   Future<void> _sendSmsCode() async {
@@ -59,9 +89,13 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     final String mobile = _mobileController.text.trim();
-    if (!_isValidMobile(mobile)) {
-      _setAuthNotice('请输入正确的 11 位手机号', CompanionFeedbackTone.error);
-      showCompanionErrorFeedback(context, '请输入正确的 11 位手机号');
+    final String? mobileError = _mobileValidationMessage(mobile);
+    if (mobileError != null) {
+      setState(() {
+        _hasInteractedWithMobile = true;
+      });
+      _setAuthNotice(mobileError, CompanionFeedbackTone.error);
+      showCompanionErrorFeedback(context, mobileError);
       return;
     }
 
@@ -88,6 +122,7 @@ class _LoginPageState extends State<LoginPage> {
         _authNoticeMessage = null;
       });
       _startCountdown(result.resendInSeconds);
+      _codeFocusNode.requestFocus();
       showCompanionSuccessFeedback(context, _smsSentMessage);
     } catch (error) {
       if (!mounted) {
@@ -124,14 +159,22 @@ class _LoginPageState extends State<LoginPage> {
 
     final String mobile = _mobileController.text.trim();
     final String code = _codeController.text.trim();
-    if (!_isValidMobile(mobile)) {
-      _setAuthNotice('请输入正确的 11 位手机号', CompanionFeedbackTone.error);
-      showCompanionErrorFeedback(context, '请输入正确的 11 位手机号');
+    final String? mobileError = _mobileValidationMessage(mobile);
+    if (mobileError != null) {
+      setState(() {
+        _hasInteractedWithMobile = true;
+      });
+      _setAuthNotice(mobileError, CompanionFeedbackTone.error);
+      showCompanionErrorFeedback(context, mobileError);
       return;
     }
-    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
-      _setAuthNotice('请输入 6 位短信验证码', CompanionFeedbackTone.error);
-      showCompanionErrorFeedback(context, '请输入 6 位短信验证码');
+    final String? codeError = _codeValidationMessage(code);
+    if (codeError != null) {
+      setState(() {
+        _hasInteractedWithCode = true;
+      });
+      _setAuthNotice(codeError, CompanionFeedbackTone.error);
+      showCompanionErrorFeedback(context, codeError);
       return;
     }
 
@@ -205,7 +248,47 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   bool _isValidMobile(String mobile) {
-    return RegExp(r'^1\d{10}$').hasMatch(mobile);
+    return RegExp(r'^1[3-9]\d{9}$').hasMatch(mobile);
+  }
+
+  String? _mobileValidationMessage(String mobile) {
+    if (mobile.isEmpty) {
+      return '请输入手机号';
+    }
+    if (!RegExp(r'^\d+$').hasMatch(mobile)) {
+      return '手机号只能输入数字';
+    }
+    if (mobile.length != 11) {
+      return '手机号需要 11 位数字';
+    }
+    if (!_isValidMobile(mobile)) {
+      return '请输入正确的大陆手机号';
+    }
+    return null;
+  }
+
+  String? _codeValidationMessage(String code) {
+    if (code.isEmpty) {
+      return '请输入短信验证码';
+    }
+    if (code.length != 6) {
+      return '验证码需要 6 位数字';
+    }
+    return null;
+  }
+
+  String? _mobileInputErrorText() {
+    if (!_hasInteractedWithMobile) {
+      return null;
+    }
+    return _mobileValidationMessage(_mobileController.text.trim());
+  }
+
+  String? _codeInputErrorText() {
+    if (!_hasInteractedWithCode) {
+      return null;
+    }
+    return _codeValidationMessage(_codeController.text.trim());
   }
 
   void _setAuthNotice(String message, CompanionFeedbackTone tone) {
@@ -226,7 +309,7 @@ class _LoginPageState extends State<LoginPage> {
     if (_hasRequestedCode) {
       return '如果还没有收到短信，可以重新获取一条新的验证码';
     }
-    return '输入手机号后获取 6 位短信验证码。验证码由服务端生成，App 不展示验证码内容。';
+    return '输入手机号后获取 6 位短信验证码。';
   }
 
   CompanionFeedbackTone _currentAuthNoticeTone() {
@@ -324,45 +407,74 @@ class _LoginPageState extends State<LoginPage> {
                       style: textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 24),
-                    TextField(
-                      controller: _mobileController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: '手机号',
-                        hintText: '请输入手机号',
+                    AutofillGroup(
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _mobileController,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const <String>[
+                              AutofillHints.telephoneNumber,
+                            ],
+                            inputFormatters: <TextInputFormatter>[
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(11),
+                            ],
+                            decoration: InputDecoration(
+                              labelText: '手机号',
+                              hintText: '请输入手机号',
+                              counterText: '',
+                              errorText: _mobileInputErrorText(),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _codeController,
+                                  focusNode: _codeFocusNode,
+                                  keyboardType: TextInputType.number,
+                                  textInputAction: TextInputAction.done,
+                                  autofillHints: const <String>[
+                                    AutofillHints.oneTimeCode,
+                                  ],
+                                  inputFormatters: <TextInputFormatter>[
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(6),
+                                  ],
+                                  onFieldSubmitted: (_) => _submit(),
+                                  decoration: InputDecoration(
+                                    labelText: '验证码',
+                                    hintText: '请输入验证码',
+                                    counterText: '',
+                                    errorText: _codeInputErrorText(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: 124,
+                                child: FilledButton.tonal(
+                                  onPressed:
+                                      (_isSendingCode || _countdownSeconds > 0)
+                                          ? null
+                                          : _sendSmsCode,
+                                  child: Text(
+                                    _isSendingCode
+                                        ? '发送中...'
+                                        : _countdownSeconds > 0
+                                            ? '${_countdownSeconds}s'
+                                            : '发送验证码',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _codeController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: '验证码',
-                              hintText: '请输入验证码',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 124,
-                          child: FilledButton.tonal(
-                            onPressed: (_isSendingCode || _countdownSeconds > 0)
-                                ? null
-                                : _sendSmsCode,
-                            child: Text(
-                              _isSendingCode
-                                  ? '发送中...'
-                                  : _countdownSeconds > 0
-                                      ? '${_countdownSeconds}s'
-                                      : '发送验证码',
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                     const SizedBox(height: 14),
                     CompanionFormNotice(

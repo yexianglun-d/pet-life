@@ -3,6 +3,7 @@ import 'package:petlife_mobile_app/app/theme/app_theme.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_feedback.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_loading.dart';
 import 'package:petlife_mobile_app/modules/common/presentation/widgets/companion_widgets.dart';
+import 'package:petlife_mobile_app/modules/community/presentation/pages/community_post_editor_page.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/pages/community_topic_page.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_author_follow_button.dart';
 import 'package:petlife_mobile_app/modules/community/presentation/widgets/community_media_preview_grid.dart';
@@ -314,17 +315,24 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
                 children: [
                   Text('举报内容', style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 12),
-                  ..._reportReasonOptions.map(
-                    (_ReportReasonOption option) => RadioListTile<String>(
-                      value: option.code,
-                      groupValue: selectedReasonCode,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(option.label),
-                      onChanged: (String? value) {
-                        setModalState(() {
-                          selectedReasonCode = value;
-                        });
-                      },
+                  RadioGroup<String>(
+                    groupValue: selectedReasonCode,
+                    onChanged: (String? value) {
+                      setModalState(() {
+                        selectedReasonCode = value;
+                      });
+                    },
+                    child: Column(
+                      children: _reportReasonOptions
+                          .map(
+                            (_ReportReasonOption option) =>
+                                RadioListTile<String>(
+                              value: option.code,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(option.label),
+                            ),
+                          )
+                          .toList(),
                     ),
                   ),
                   TextField(
@@ -412,6 +420,31 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
     );
   }
 
+  Future<void> _openEditor() async {
+    final CommunityPostSnapshot? post = _post;
+    if (post == null) {
+      return;
+    }
+    final CommunityPostSnapshot? updatedPost =
+        await Navigator.of(context).push<CommunityPostSnapshot>(
+      MaterialPageRoute<CommunityPostSnapshot>(
+        builder: (_) => CommunityPostEditorPage(editingPost: post),
+      ),
+    );
+    if (!mounted || updatedPost == null) {
+      return;
+    }
+    setState(() {
+      _post = updatedPost;
+      _comments = const <CommunityCommentSnapshot>[];
+    });
+    showCompanionFeedback(
+      context,
+      message: communityReviewStatusMessage(updatedPost.reviewStatus),
+      tone: communityReviewFeedbackTone(updatedPost.reviewStatus),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final CommunityPostSnapshot? post = _post;
@@ -443,31 +476,24 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
       );
     }
 
-    if (post != null && isCommunityPostRejected(post)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('社区内容详情')),
-        body: const Padding(
-          padding: EdgeInsets.all(24),
-          child: CompanionEmptyState(
-            title: '内容暂时不可见',
-            description: '这条内容未通过审核，不会公开展示。',
-            icon: Icons.visibility_off_outlined,
-          ),
-        ),
-      );
-    }
-
     final CommunityPostSnapshot visiblePost = post!;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('社区内容详情'),
         actions: [
-          TextButton.icon(
-            onPressed: _isSubmittingReport ? null : _openReportComposer,
-            icon: const Icon(Icons.flag_outlined),
-            label: Text(_isSubmittingReport ? '提交中' : '举报'),
-          ),
+          if (isCommunityPostRejected(visiblePost))
+            TextButton.icon(
+              onPressed: _openEditor,
+              icon: const Icon(Icons.edit_note_outlined),
+              label: const Text('编辑重提'),
+            )
+          else if (visiblePost.reviewStatus == 'approved')
+            TextButton.icon(
+              onPressed: _isSubmittingReport ? null : _openReportComposer,
+              icon: const Icon(Icons.flag_outlined),
+              label: Text(_isSubmittingReport ? '提交中' : '举报'),
+            ),
           const SizedBox(width: 8),
         ],
       ),
@@ -485,7 +511,7 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (isCommunityPostPendingReview(visiblePost)) ...[
+            if (visiblePost.reviewStatus != 'approved') ...[
               CommunityReviewStatusNotice(
                 reviewStatus: visiblePost.reviewStatus,
               ),
@@ -502,11 +528,12 @@ class _CommunityPostDetailPageState extends State<CommunityPostDetailPage> {
               onTopicTap: _openTopic,
             ),
             const SizedBox(height: 16),
-            _CommunityCommentsSection(
-              comments: _comments,
-              onComment: _openCommentComposer,
-              isSubmittingComment: _isSubmittingComment,
-            ),
+            if (visiblePost.reviewStatus == 'approved')
+              _CommunityCommentsSection(
+                comments: _comments,
+                onComment: _openCommentComposer,
+                isSubmittingComment: _isSubmittingComment,
+              ),
           ],
         ),
       ),

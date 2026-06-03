@@ -27,6 +27,7 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
     _CommunityTab(key: 'following', label: '关注'),
     _CommunityTab(key: 'city', label: '同城'),
     _CommunityTab(key: 'qa', label: '问答'),
+    _CommunityTab(key: 'mine', label: '我的'),
   ];
 
   bool _didLoad = false;
@@ -58,8 +59,9 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
 
     try {
       final repository = PetLifeAppScope.repositoryOf(context);
-      final List<CommunityPostSnapshot> posts =
-          await repository.listCommunityFeed(tab: tab);
+      final List<CommunityPostSnapshot> posts = tab == 'mine'
+          ? await repository.listMyCommunityPosts()
+          : await repository.listCommunityFeed(tab: tab);
       if (!mounted) {
         return;
       }
@@ -94,6 +96,10 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
   }
 
   Future<void> _openPostDetail(CommunityPostSnapshot post) async {
+    if (_selectedTab == 'mine' && isCommunityPostRejected(post)) {
+      await _openEditorForPost(post);
+      return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => post.postType == 'qa'
@@ -101,6 +107,25 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
             : CommunityPostDetailPage(postId: post.postId),
       ),
     );
+  }
+
+  Future<void> _openEditorForPost(CommunityPostSnapshot post) async {
+    final CommunityPostSnapshot? updatedPost =
+        await Navigator.of(context).push<CommunityPostSnapshot>(
+      MaterialPageRoute<CommunityPostSnapshot>(
+        builder: (_) => CommunityPostEditorPage(editingPost: post),
+      ),
+    );
+    if (!mounted || updatedPost == null) {
+      return;
+    }
+    showCompanionFeedback(
+      context,
+      message: communityReviewStatusMessage(updatedPost.reviewStatus),
+      tone: communityReviewFeedbackTone(updatedPost.reviewStatus),
+    );
+    _postsByTab.remove('mine');
+    await _loadFeed(forceRefresh: true);
   }
 
   Future<void> _openPublisher() async {
@@ -141,8 +166,8 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
   Widget build(BuildContext context) {
     final List<CommunityPostSnapshot> currentPosts =
         (_postsByTab[_selectedTab] ?? const <CommunityPostSnapshot>[])
-            .where(
-                (CommunityPostSnapshot post) => !isCommunityPostRejected(post))
+            .where((CommunityPostSnapshot post) =>
+                _selectedTab == 'mine' || !isCommunityPostRejected(post))
             .toList();
     final String? currentError = _errorMessagesByTab[_selectedTab];
     final bool isCurrentTabLoading = _loadingTabs.contains(_selectedTab);
@@ -159,8 +184,8 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
           ),
           const SizedBox(height: 16),
           PageSection(
-            title: '去看看大家在分享什么',
-            description: '每一条公开内容，都来自真实的宠物日常和认真记录的陪伴瞬间。',
+            title: '内容分类',
+            description: '',
             child: Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -228,6 +253,15 @@ class _CommunityHomePageState extends State<CommunityHomePage> {
                 post: post,
                 onTap: () => _openPostDetail(post),
                 onTopicTap: _openTopic,
+                showRejected: _selectedTab == 'mine',
+                actionLabel:
+                    _selectedTab == 'mine' && isCommunityPostRejected(post)
+                        ? '编辑重提'
+                        : null,
+                onAction:
+                    _selectedTab == 'mine' && isCommunityPostRejected(post)
+                        ? () => _openEditorForPost(post)
+                        : null,
               ),
             ),
           )
@@ -263,9 +297,7 @@ class _CommunityHeroSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CompanionPill(
-            label: selectedTab == 'recommended'
-                ? '推荐正在更新'
-                : '${_labelOf(selectedTab)}等你来逛',
+            label: _labelOf(selectedTab),
             icon: Icons.favorite_border_rounded,
             backgroundColor: const Color(0xFFFFE0CF),
             foregroundColor: AppThemePalette.primaryDeep,
@@ -285,7 +317,7 @@ class _CommunityHeroSection extends StatelessWidget {
                 backgroundColor: AppThemePalette.surface,
               ),
               const CompanionPill(
-                label: '来自公开日常',
+                label: '公开内容',
                 backgroundColor: AppThemePalette.surface,
               ),
             ],
@@ -361,6 +393,8 @@ String _labelOf(String tabKey) {
       return '同城内容';
     case 'qa':
       return '问答内容';
+    case 'mine':
+      return '我的发布';
     case 'recommended':
     default:
       return '推荐内容';
@@ -370,14 +404,16 @@ String _labelOf(String tabKey) {
 String _descriptionOf(String tabKey) {
   switch (tabKey) {
     case 'following':
-      return '这里会整理你关注对象的公开动态，适合稳定追踪熟悉的毛孩子。';
+      return '';
     case 'city':
-      return '同城内容方便发现附近家长的经验、服务体验和日常分享。';
+      return '';
     case 'qa':
-      return '问答内容更适合集中查看照护疑问、经验建议和评论讨论。';
+      return '';
+    case 'mine':
+      return '';
     case 'recommended':
     default:
-      return '这些内容按发布时间整理，适合慢慢翻、慢慢看。';
+      return '';
   }
 }
 
@@ -389,6 +425,8 @@ String _emptyTitleOf(String tabKey) {
       return '同城还没有新的分享';
     case 'qa':
       return '问答还在慢慢积累';
+    case 'mine':
+      return '还没有发布内容';
     case 'recommended':
     default:
       return '还没有公开的社区内容';
@@ -398,14 +436,16 @@ String _emptyTitleOf(String tabKey) {
 String _emptyDescriptionOf(String tabKey) {
   switch (tabKey) {
     case 'following':
-      return '等关注对象有新的公开记录，这里会优先展示。';
+      return '';
     case 'city':
-      return '等同城家长同步公开日常后，这里就会有更多附近经验。';
+      return '';
     case 'qa':
-      return '后续同步到问答流的照护讨论，会集中出现在这里。';
+      return '';
+    case 'mine':
+      return '';
     case 'recommended':
     default:
-      return '等第一条同步到社区的萌宠日常出现，这里就会慢慢热闹起来。';
+      return '';
   }
 }
 
@@ -417,6 +457,8 @@ IconData _iconOf(String tabKey) {
       return Icons.location_on_outlined;
     case 'qa':
       return Icons.chat_bubble_outline_rounded;
+    case 'mine':
+      return Icons.person_pin_outlined;
     case 'recommended':
     default:
       return Icons.forum_outlined;

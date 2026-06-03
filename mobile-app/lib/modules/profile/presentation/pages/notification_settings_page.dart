@@ -117,7 +117,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               description: '当前只影响站内消息与提醒偏好；短信和系统推送暂不在 App 内配置。',
               child: SwitchListTile.adaptive(
                 value: _notificationEnabled,
-                activeColor: AppThemePalette.primaryDeep,
+                activeThumbColor: AppThemePalette.primaryDeep,
                 contentPadding: EdgeInsets.zero,
                 title: const Text('接收消息与提醒'),
                 onChanged: (bool value) {
@@ -130,26 +130,25 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
             const SizedBox(height: 16),
             PageSection(
               title: '通知渠道',
-              description:
-                  '后台可维护站内信、短信和 Push 渠道配置；当前 App 只展示站内消息，不提供短信或系统推送配置入口。',
+              description: '',
               child: const Column(
                 children: [
                   _ChannelNoticeTile(
                     icon: Icons.mark_email_unread_outlined,
                     title: '站内消息',
-                    description: '通过消息中心查看提醒、系统和预约通知。',
+                    description: '',
                   ),
                   SizedBox(height: 10),
                   _ChannelNoticeTile(
                     icon: Icons.sms_outlined,
                     title: '功能未完成：缺少真实短信供应商',
-                    description: '真实短信通道尚未接入，本端不展示短信开关。',
+                    description: '',
                   ),
                   SizedBox(height: 10),
                   _ChannelNoticeTile(
                     icon: Icons.notifications_none_rounded,
                     title: '功能未完成：缺少 Push SDK',
-                    description: '暂未接入 Push SDK 和设备推送授权配置。',
+                    description: '',
                   ),
                 ],
               ),
@@ -157,9 +156,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
             const SizedBox(height: 16),
             PageSection(
               title: '默认隐私偏好',
-              description: '这会作为后续记录与社区内容默认可见范围的偏好基线。',
+              description: '',
               child: DropdownButtonFormField<String>(
-                value: _privacyLevel,
+                initialValue: _privacyLevel,
                 decoration: const InputDecoration(labelText: '隐私偏好'),
                 items: const [
                   DropdownMenuItem(

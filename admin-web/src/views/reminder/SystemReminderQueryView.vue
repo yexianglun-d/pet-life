@@ -2,7 +2,7 @@
   <section class="page-section reminder-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">系统提醒</p>
-      <h1 class="page-section__title">看清每一条照护提醒的状态、归属和来源</h1>
+      <h1 class="page-section__title">系统提醒管理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">提醒 {{ records.length }} 条</span>
         <span class="pet-admin-chip">待处理 {{ pendingReminderCount }} 条</span>

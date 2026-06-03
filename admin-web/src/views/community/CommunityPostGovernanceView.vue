@@ -2,7 +2,7 @@
   <section class="page-section community-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">社区治理</p>
-      <h1 class="page-section__title">查询帖子内容，并按后台治理结论下架或恢复</h1>
+      <h1 class="page-section__title">社区帖子治理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">帖子 {{ posts.length }} 条</span>
         <span class="pet-admin-chip">公开中 {{ approvedCount }} 条</span>

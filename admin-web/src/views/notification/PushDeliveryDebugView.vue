@@ -2,7 +2,7 @@
   <section class="page-section push-debug-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">Push 投递排查</p>
-      <h1 class="page-section__title">查看 Push 任务和设备投递记录，定位底座状态</h1>
+      <h1 class="page-section__title">Push 任务与投递记录</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">任务 {{ tasks.length }} 条</span>
         <span class="pet-admin-chip">投递 {{ deliveries.length }} 条</span>
@@ -117,7 +117,6 @@
               <div class="push-debug-cell__meta">
                 设备 Token 标识：{{ maskedDeviceTokenId(row.delivery?.device_token_id) }}
               </div>
-              <div class="push-debug-cell__meta">接口仅返回 device_token_id，不返回设备 token 原文。</div>
             </div>
           </template>
         </el-table-column>

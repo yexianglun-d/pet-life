@@ -2,7 +2,7 @@
   <section class="page-section user-admin-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">用户治理</p>
-      <h1 class="page-section__title">查询用户资料、通知设置和当前陪伴上下文</h1>
+      <h1 class="page-section__title">用户管理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">用户 {{ records.length }} 个</span>
         <span class="pet-admin-chip">开启通知 {{ notificationEnabledCount }} 个</span>

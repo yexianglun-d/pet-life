@@ -2,7 +2,7 @@
   <section class="page-section service-map-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">地图能力排查</p>
-      <h1 class="page-section__title">维护服务商坐标，排查距离能力底座</h1>
+      <h1 class="page-section__title">地图排查</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">服务商 {{ providers.length }} 家</span>
         <span class="pet-admin-chip">已维护坐标 {{ locatedProviderCount }} 家</span>
@@ -84,10 +84,13 @@
             <span>distance 能力</span>
           </div>
         </div>
-        <div class="service-map-distance-note">
-          <p>若用户端附近排序异常，先检查服务商是否有经纬度，再检查服务端地图配置与距离能力。</p>
-          <p>真实路线距离、导航和地图可视化不在本轮 admin-web 范围内。</p>
-        </div>
+        <el-alert
+          title="功能未完成：缺少后台 Web JS 地图选点和真实路线距离接口"
+          type="warning"
+          show-icon
+          class="service-map-distance-note"
+          :closable="false"
+        />
       </article>
     </div>
 

@@ -2,7 +2,7 @@
   <section class="page-section channel-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">通知发送配置</p>
-      <h1 class="page-section__title">把站内信、短信和 Push 渠道状态维护清楚</h1>
+      <h1 class="page-section__title">通知渠道配置</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">配置 {{ channels.length }} 个</span>
         <span class="pet-admin-chip">启用 {{ enabledChannelCount }} 个</span>

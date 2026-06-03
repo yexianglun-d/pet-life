@@ -203,6 +203,52 @@ public class CommunityApplicationService {
         return toPostResponse(createdPost);
     }
 
+    public List<CommunityPostResponse> listMyPosts(String reviewStatus) {
+        Long currentUserId = CurrentUserContext.requireUserId();
+        return toPostResponses(toPostEntities(communityPersistenceMapper.listMyPosts(
+            currentUserId,
+            normalizeNullableReviewStatus(reviewStatus)
+        )));
+    }
+
+    @Transactional
+    public CommunityPostResponse updatePost(Long postId, CreateCommunityPostRequest request) {
+        Long currentUserId = CurrentUserContext.requireUserId();
+        UserProfileEntity author = requireUser(currentUserId);
+        CommunityPostEntity existingPost = requireEditableOwnPost(currentUserId, postId);
+        PetProfileEntity pet = request.petId() == null ? null : requireAccessiblePet(currentUserId, request.petId());
+        CommunityTopicEntity topic = request.topicId() == null ? null : requireActiveTopic(request.topicId());
+        List<String> mediaAssetIds = mediaAssetApplicationService.validateUsableAssetIds(
+            currentUserId,
+            request.mediaAssetIds(),
+            BIZ_TYPE_COMMUNITY,
+            COMMUNITY_MEDIA_TYPES
+        );
+
+        UpdateCommunityPostCommand command = new UpdateCommunityPostCommand();
+        command.setPostId(existingPost.getPostId());
+        command.setUserId(currentUserId);
+        command.setPetId(pet == null ? null : pet.getPetId());
+        String normalizedPostType = normalizePostType(request.postType());
+        String normalizedContent = normalizePostContent(request.content());
+        command.setPostType(normalizedPostType);
+        command.setTitle(normalizePostTitle(request.title(), normalizedContent, normalizedPostType));
+        command.setContent(normalizedContent);
+        command.setTopicId(topic == null ? null : topic.getTopicId());
+        command.setMediaListJson(communityPostConverter.toMediaAssetIdsJson(mediaAssetIds));
+        command.setCityCode(resolvePostCityCode(author, request.cityCode()));
+        command.setVisibility(normalizeVisibility(request.visibility()));
+        command.setReviewStatus(REVIEW_STATUS_PENDING_REVIEW);
+        int updatedRows = communityPersistenceMapper.updateCommunityPost(command);
+        if (updatedRows == 0) {
+            throw new BusinessException(ResponseCode.COMMUNITY_POST_NOT_FOUND);
+        }
+
+        CommunityPostEntity updatedPost = requireExistingPost(currentUserId, existingPost.getPostId());
+        createModerationTaskForPost(updatedPost);
+        return toPostResponse(updatedPost);
+    }
+
     public CommunityPostResponse getPost(Long postId) {
         Long currentUserId = CurrentUserContext.requireUserId();
         return toPostResponse(requireVisiblePost(currentUserId, postId));
@@ -232,7 +278,7 @@ public class CommunityApplicationService {
 
     public List<CommunityCommentResponse> listComments(Long postId) {
         Long currentUserId = CurrentUserContext.requireUserId();
-        requireVisiblePost(currentUserId, postId);
+        requireApprovedVisiblePost(currentUserId, postId);
         return communityPersistenceMapper.listCommentsByPostId(postId).stream()
             .map(communityCommentConverter::toEntity)
             .map(communityCommentConverter::toResponse)
@@ -242,7 +288,7 @@ public class CommunityApplicationService {
     @Transactional
     public CommunityCommentResponse createComment(Long postId, CreateCommunityCommentRequest request) {
         Long currentUserId = CurrentUserContext.requireUserId();
-        requireVisiblePost(currentUserId, postId);
+        requireApprovedVisiblePost(currentUserId, postId);
         CreateCommunityCommentCommand command = new CreateCommunityCommentCommand();
         command.setPostId(postId);
         command.setUserId(currentUserId);
@@ -261,7 +307,7 @@ public class CommunityApplicationService {
     @Transactional
     public CommunityPostResponse likePost(Long postId) {
         Long currentUserId = CurrentUserContext.requireUserId();
-        requireVisiblePost(currentUserId, postId);
+        requireApprovedVisiblePost(currentUserId, postId);
         CreateCommunityPostReactionCommand command = new CreateCommunityPostReactionCommand();
         command.setPostId(postId);
         command.setUserId(currentUserId);
@@ -276,7 +322,7 @@ public class CommunityApplicationService {
     @Transactional
     public CommunityPostResponse unlikePost(Long postId) {
         Long currentUserId = CurrentUserContext.requireUserId();
-        requireVisiblePost(currentUserId, postId);
+        requireApprovedVisiblePost(currentUserId, postId);
         DeleteCommunityPostReactionCommand command = new DeleteCommunityPostReactionCommand();
         command.setPostId(postId);
         command.setUserId(currentUserId);
@@ -291,7 +337,7 @@ public class CommunityApplicationService {
     @Transactional
     public CommunityPostResponse favoritePost(Long postId) {
         Long currentUserId = CurrentUserContext.requireUserId();
-        requireVisiblePost(currentUserId, postId);
+        requireApprovedVisiblePost(currentUserId, postId);
         CreateCommunityPostFavoriteCommand command = new CreateCommunityPostFavoriteCommand();
         command.setPostId(postId);
         command.setUserId(currentUserId);
@@ -305,7 +351,7 @@ public class CommunityApplicationService {
     @Transactional
     public CommunityPostResponse unfavoritePost(Long postId) {
         Long currentUserId = CurrentUserContext.requireUserId();
-        requireVisiblePost(currentUserId, postId);
+        requireApprovedVisiblePost(currentUserId, postId);
         DeleteCommunityPostFavoriteCommand command = new DeleteCommunityPostFavoriteCommand();
         command.setPostId(postId);
         command.setUserId(currentUserId);
@@ -350,7 +396,7 @@ public class CommunityApplicationService {
     @Transactional
     public CommunityReportResponse reportPost(Long postId, CreateCommunityReportRequest request) {
         Long currentUserId = CurrentUserContext.requireUserId();
-        CommunityPostEntity communityPost = requireVisiblePost(currentUserId, postId);
+        CommunityPostEntity communityPost = requireApprovedVisiblePost(currentUserId, postId);
         if (communityPost.getAuthor().getUserId().equals(currentUserId)) {
             throw new BusinessException(ResponseCode.BAD_REQUEST, "不能举报自己的内容");
         }
@@ -475,6 +521,8 @@ public class CommunityApplicationService {
         if (dailyLog.getCommunityPostId() != null) {
             UpdateCommunityPostCommand updateCommand = new UpdateCommunityPostCommand();
             updateCommand.setPostId(dailyLog.getCommunityPostId());
+            updateCommand.setPetId(pet.getPetId());
+            updateCommand.setPostType(POST_TYPE_EXPERIENCE);
             updateCommand.setTitle(title);
             updateCommand.setContent(dailyLog.getContent());
             updateCommand.setTopicId(null);
@@ -530,6 +578,14 @@ public class CommunityApplicationService {
         return communityPost;
     }
 
+    private CommunityPostEntity requireApprovedVisiblePost(Long currentUserId, Long postId) {
+        CommunityPostEntity communityPost = requireVisiblePost(currentUserId, postId);
+        if (!REVIEW_STATUS_APPROVED.equals(communityPost.getReviewStatus())) {
+            throw new BusinessException(ResponseCode.COMMUNITY_POST_NOT_FOUND);
+        }
+        return communityPost;
+    }
+
     private CommunityPostResponse loadVisiblePostResponse(Long currentUserId, Long postId) {
         return toPostResponse(requireVisiblePost(currentUserId, postId));
     }
@@ -540,6 +596,17 @@ public class CommunityApplicationService {
         );
         if (communityPost == null) {
             throw new BusinessException(ResponseCode.COMMUNITY_POST_NOT_FOUND);
+        }
+        return communityPost;
+    }
+
+    private CommunityPostEntity requireEditableOwnPost(Long currentUserId, Long postId) {
+        CommunityPostEntity communityPost = requireExistingPost(currentUserId, postId);
+        if (!currentUserId.equals(communityPost.getAuthor().getUserId())) {
+            throw new BusinessException(ResponseCode.COMMUNITY_POST_NOT_FOUND);
+        }
+        if (REVIEW_STATUS_APPROVED.equals(communityPost.getReviewStatus())) {
+            throw new BusinessException(ResponseCode.BAD_REQUEST, "已公开内容暂不支持直接编辑，请先下架后重新提交");
         }
         return communityPost;
     }

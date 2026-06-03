@@ -255,7 +255,7 @@ class _PetEditorPageState extends State<PetEditorPage> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: _petType,
+                      initialValue: _petType,
                       decoration: const InputDecoration(labelText: '宠物类型'),
                       items: const [
                         DropdownMenuItem(value: 'cat', child: Text('猫咪')),
@@ -287,7 +287,7 @@ class _PetEditorPageState extends State<PetEditorPage> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: _gender,
+                      initialValue: _gender,
                       decoration: const InputDecoration(labelText: '性别'),
                       items: const [
                         DropdownMenuItem(value: 'female', child: Text('母')),
@@ -334,7 +334,7 @@ class _PetEditorPageState extends State<PetEditorPage> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: _neuterStatus,
+                      initialValue: _neuterStatus,
                       decoration: const InputDecoration(labelText: '绝育状态'),
                       items: const [
                         DropdownMenuItem(value: 'pending', child: Text('未完成')),

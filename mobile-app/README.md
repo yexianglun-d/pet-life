@@ -6,7 +6,6 @@
 
 - Android `applicationId`：`com.petlife.mobile`
 - iOS `bundle identifier`：`com.petlife.mobile`
-- 高德 Android / iOS Key 只允许通过本地构建参数注入，不写入仓库。
 
 ## 当前范围
 
@@ -17,40 +16,37 @@
 
 商城与设备目前只做预留页，不接真实后端链路。
 
-## 高德定位本地运行
+## 接口地址配置
 
-移动端定位需要按当前平台注入高德 Key，否则服务中心会展示“地图定位还没有完成本地 Key 配置”，并继续允许浏览服务商。
+移动端默认连接生产接口域名：`https://pet.api.howied.me`。
+
+本地联调可通过编译参数覆盖：
+
+```bash
+flutter run --dart-define=PETLIFE_API_BASE_URL=http://10.0.2.2:8080
+```
+
+## 定位本地运行
+
+移动端当前位置使用系统定位能力，不需要注入高德移动端 SDK Key。高德能力仍保留在服务端地理编码和外部地图导航入口。
 
 Android 本地运行示例：
 
 ```bash
 cd mobile-app
-ORG_GRADLE_PROJECT_AMAP_ANDROID_KEY="你的 Android Key" \
-flutter run \
-  --dart-define=AMAP_ANDROID_KEY="你的 Android Key"
+flutter run
 ```
 
 iOS 本地运行示例：
 
 ```bash
 cd mobile-app
-flutter run \
-  --dart-define=AMAP_IOS_KEY="你的 iOS Key"
+flutter run
 ```
 
 Android debug 构建示例：
 
 ```bash
 cd mobile-app
-ORG_GRADLE_PROJECT_AMAP_ANDROID_KEY="你的 Android Key" \
-flutter build apk --debug \
-  --dart-define=AMAP_ANDROID_KEY="你的 Android Key"
-```
-
-如果同时要验证两端，可以同时传入：
-
-```bash
-flutter run \
-  --dart-define=AMAP_ANDROID_KEY="你的 Android Key" \
-  --dart-define=AMAP_IOS_KEY="你的 iOS Key"
+flutter build apk --debug
 ```

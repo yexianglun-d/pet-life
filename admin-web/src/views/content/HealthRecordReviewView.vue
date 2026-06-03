@@ -2,7 +2,7 @@
   <section class="page-section health-admin-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">健康档案</p>
-      <h1 class="page-section__title">把健康记录、宠物归属和附件线索看清楚</h1>
+      <h1 class="page-section__title">健康记录审查</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">记录 {{ records.length }} 条</span>
         <span class="pet-admin-chip">带附件 {{ attachmentRecordCount }} 条</span>

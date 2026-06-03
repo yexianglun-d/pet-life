@@ -1,6 +1,7 @@
 package com.petlife.server.config;
 
 import com.petlife.server.modules.auth.security.DevelopmentTokenAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -14,6 +15,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -25,6 +27,15 @@ import java.util.List;
  */
 @Configuration
 public class SecurityConfig {
+
+    private final String corsAllowedOriginPatterns;
+
+    public SecurityConfig(
+        @Value("${petlife.cors.allowed-origin-patterns:http://localhost:5173,http://127.0.0.1:5173,https://pet.howied.me}")
+        String corsAllowedOriginPatterns
+    ) {
+        this.corsAllowedOriginPatterns = corsAllowedOriginPatterns;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(
@@ -46,10 +57,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration corsConfiguration = new CorsConfiguration();
-        corsConfiguration.setAllowedOriginPatterns(List.of(
-            "http://localhost:5173",
-            "http://127.0.0.1:5173"
-        ));
+        corsConfiguration.setAllowedOriginPatterns(parseCorsAllowedOriginPatterns());
         corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
         corsConfiguration.setAllowedHeaders(List.of("*"));
         corsConfiguration.setExposedHeaders(List.of("Authorization"));
@@ -58,6 +66,13 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", corsConfiguration);
         return source;
+    }
+
+    private List<String> parseCorsAllowedOriginPatterns() {
+        return Arrays.stream(corsAllowedOriginPatterns.split(","))
+            .map(String::trim)
+            .filter(originPattern -> !originPattern.isBlank())
+            .toList();
     }
 
     @Bean

@@ -2,7 +2,7 @@
   <section class="page-section template-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">提醒模板</p>
-      <h1 class="page-section__title">把常见照护提醒规则维护成清晰模板</h1>
+      <h1 class="page-section__title">提醒模板管理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">模板 {{ templates.length }} 个</span>
         <span class="pet-admin-chip">启用 {{ enabledTemplateCount }} 个</span>

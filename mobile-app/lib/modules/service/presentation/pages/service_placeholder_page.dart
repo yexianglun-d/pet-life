@@ -582,7 +582,7 @@ class _ServiceAppointmentEditorPageState
                             icon: Icons.event_busy_outlined,
                           )
                         : DropdownButtonFormField<String>(
-                            value: _selectedSlotId,
+                            initialValue: _selectedSlotId,
                             decoration:
                                 const InputDecoration(labelText: '选择时段'),
                             items: widget.provider.availableSlots
@@ -910,7 +910,7 @@ class _ProviderDetailBody extends StatelessWidget {
 
   Future<void> _openNavigation(BuildContext context) async {
     if (!provider.hasCoordinate) {
-      showCompanionErrorFeedback(context, '服务方暂未维护坐标，可以先通过地址或电话确认路线');
+      showCompanionErrorFeedback(context, '服务方暂未维护坐标');
       return;
     }
     final bool opened =
@@ -1066,8 +1066,7 @@ class _ServiceHeroSection extends StatelessWidget {
             foregroundColor: AppThemePalette.primaryDeep,
           ),
           const SizedBox(height: 12),
-          Text('服务预约',
-              style: Theme.of(context).textTheme.headlineSmall),
+          Text('服务预约', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 16),
           FilledButton.tonalIcon(
             onPressed: onAppointmentsTap,
@@ -1278,7 +1277,7 @@ class _ProviderRouteCard extends StatelessWidget {
           Text(
             provider.hasCoordinate
                 ? '坐标：${_formatCoordinate(provider.latitude!)}, ${_formatCoordinate(provider.longitude!)}'
-                : '服务方暂未维护坐标，无法直接计算距离或拉起导航。',
+                : '缺少坐标',
             style: textTheme.bodySmall?.copyWith(color: AppThemePalette.body),
           ),
           if (provider.coordinateSource != null) ...[
@@ -1301,11 +1300,6 @@ class _ProviderRouteCard extends StatelessWidget {
             onPressed: provider.hasCoordinate ? onNavigationTap : null,
             icon: const Icon(Icons.near_me_outlined),
             label: const Text('打开地图导航'),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '会优先尝试拉起高德地图；未安装时打开高德网页地图，路线规划在外部地图中完成。',
-            style: textTheme.bodySmall?.copyWith(color: AppThemePalette.muted),
           ),
         ],
       ),
@@ -1717,8 +1711,6 @@ IconData _locationIcon(PetLifeLocationStatus status) {
       return Icons.location_disabled_outlined;
     case PetLifeLocationStatus.serviceDisabled:
       return Icons.location_off_outlined;
-    case PetLifeLocationStatus.keyMissing:
-      return Icons.key_off_outlined;
     case PetLifeLocationStatus.failed:
       return Icons.wifi_tethering_error_rounded;
     case PetLifeLocationStatus.notRequested:
@@ -1738,8 +1730,6 @@ String _locationTitle(PetLifeLocationStatus status) {
       return '需要在系统设置中开启定位';
     case PetLifeLocationStatus.serviceDisabled:
       return '系统定位服务未开启';
-    case PetLifeLocationStatus.keyMissing:
-      return '地图定位暂未配置';
     case PetLifeLocationStatus.failed:
       return '定位暂时失败';
     case PetLifeLocationStatus.notRequested:

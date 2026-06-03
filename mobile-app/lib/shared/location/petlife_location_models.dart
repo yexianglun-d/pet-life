@@ -5,7 +5,6 @@ enum PetLifeLocationStatus {
   serviceDisabled,
   denied,
   permanentlyDenied,
-  keyMissing,
   failed,
 }
 

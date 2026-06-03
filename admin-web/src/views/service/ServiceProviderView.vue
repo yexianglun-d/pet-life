@@ -2,7 +2,7 @@
   <section class="page-section service-page">
     <div class="pet-admin-hero service-hero">
       <p class="page-section__eyebrow">服务网络</p>
-      <h1 class="page-section__title">让线下照护服务可维护、可预约、可追踪</h1>
+      <h1 class="page-section__title">服务商管理</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">开通城市 {{ openedCityCount }} 个</span>
         <span class="pet-admin-chip">在线服务商 {{ onlineProviderCount }} 家</span>
@@ -153,7 +153,6 @@
                 <div class="service-provider-detail__header">
                   <div>
                     <h3>服务项目</h3>
-                    <p>维护用户端可选择的具体服务内容和价格区间。</p>
                   </div>
                   <el-button size="small" type="primary" @click="openCreateServiceItemDialog(row)">
                     新增项目
@@ -193,7 +192,6 @@
                 <div class="service-provider-detail__header">
                   <div>
                     <h3>预约时段</h3>
-                    <p>维护近期开给用户端预约的日期、时间和名额。</p>
                   </div>
                   <el-button size="small" type="primary" @click="openCreateSlotDialog(row)">
                     新增时段

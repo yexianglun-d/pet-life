@@ -11,7 +11,9 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8080';
+const PRODUCTION_API_BASE_URL = 'https://pet.api.howied.me';
+const LOCAL_API_BASE_URL = 'http://127.0.0.1:8080';
+const DEFAULT_API_BASE_URL = import.meta.env.PROD ? PRODUCTION_API_BASE_URL : LOCAL_API_BASE_URL;
 
 function resolveApiBaseUrl() {
   const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();

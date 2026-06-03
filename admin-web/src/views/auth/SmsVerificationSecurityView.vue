@@ -2,7 +2,7 @@
   <section class="page-section sms-page">
     <div class="pet-admin-hero">
       <p class="page-section__eyebrow">验证码排查</p>
-      <h1 class="page-section__title">查看短信发送记录和验证码安全状态</h1>
+      <h1 class="page-section__title">短信验证码排查</h1>
       <div class="pet-admin-chip-grid">
         <span class="pet-admin-chip">记录 {{ visibleRows.length }} 条</span>
         <span class="pet-admin-chip">已受理 {{ acceptedCount }} 条</span>

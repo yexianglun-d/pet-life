@@ -249,7 +249,7 @@ class _DailyLogEditorPageState extends State<DailyLogEditorPage> {
                 title: '可见范围',
                 description: '先想清楚这条内容想留给谁看，后面整理时会更轻松。',
                 child: DropdownButtonFormField<String>(
-                  value: _visibility,
+                  initialValue: _visibility,
                   decoration: const InputDecoration(labelText: '可见范围'),
                   items: const [
                     DropdownMenuItem(value: 'private', child: Text('仅自己可见')),
