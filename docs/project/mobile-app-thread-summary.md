@@ -7,6 +7,39 @@
 - 若发现接口、字段、后台治理或服务端能力缺口，只记录在本文档的“风险或阻塞 / 下一步建议”，并交由对应线程处理。
 - 每次完成需求、修复问题、调整设计或发现缺口后，必须同步更新本文档；如功能状态变化，同时更新 `docs/project/01-current-delivery-status.md` 与 `docs/project/02-feature-completion-checklist.md`。
 
+## 2026-06-03 服务端短信测试白名单配置同步
+
+### 1. 新完成内容
+
+- 服务端新增测试环境短信登录白名单配置；mobile-app 无需改代码，仍按正常流程调用发送验证码和短信登录接口。
+- 测试手机号命中服务端白名单时，测试人员可输入配置的 6 位测试码完成登录；验证码仍不从响应、后台查询或数据库明文字段读取。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 服务端代码、OpenAPI 和技术文档变更见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 11, Failures: 0, Errors: 0, Skipped: 0`。
+- 使用远程 MySQL 配置运行服务端新增集成单用例：通过，`Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`。
+- OpenAPI YAML 解析：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实短信供应商仍未接入；测试白名单只能用于测试环境联调，不代表真实短信送达。
+
+### 5. 风险或阻塞
+
+- mobile-app 真机测试前，需要服务端实例已重启到最新代码，并注入白名单手机号与测试码环境变量。
+- 生产环境不得开启测试白名单。
+
+### 6. 下一步建议
+
+1. 测试环境启用后，移动端使用白名单手机号先点“发送验证码”，再手动输入配置测试码登录。
+
 ## 2026-05-31 iOS 本地化与登录校验上线打磨
 
 ### 1. 新完成内容

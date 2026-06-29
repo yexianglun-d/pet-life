@@ -56,16 +56,19 @@ public class SmsVerificationApplicationService {
     private final SmsVerificationPersistenceMapper smsVerificationPersistenceMapper;
     private final SmsVerificationConverter smsVerificationConverter;
     private final SmsProvider smsProvider;
+    private final AuthSmsTestLoginProperties testLoginProperties;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public SmsVerificationApplicationService(
         SmsVerificationPersistenceMapper smsVerificationPersistenceMapper,
         SmsVerificationConverter smsVerificationConverter,
-        SmsProvider smsProvider
+        SmsProvider smsProvider,
+        AuthSmsTestLoginProperties testLoginProperties
     ) {
         this.smsVerificationPersistenceMapper = smsVerificationPersistenceMapper;
         this.smsVerificationConverter = smsVerificationConverter;
         this.smsProvider = smsProvider;
+        this.testLoginProperties = testLoginProperties;
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -77,9 +80,9 @@ public class SmsVerificationApplicationService {
         String userAgent = normalizeUserAgent(httpServletRequest.getHeader("User-Agent"));
 
         ensureSendAllowed(mobile, scene, requestIp, now, userAgent);
+        String code = resolveCodeForSend(mobile);
         smsVerificationPersistenceMapper.expireActiveCodesByMobileAndScene(mobile, scene);
 
-        String code = generateCode();
         String salt = generateSalt();
         CreateSmsVerificationCodeCommand verificationCommand = new CreateSmsVerificationCodeCommand();
         verificationCommand.setMobile(mobile);
@@ -389,6 +392,21 @@ public class SmsVerificationApplicationService {
 
     private String generateCode() {
         return "%06d".formatted(secureRandom.nextInt(CODE_BOUND));
+    }
+
+    private String resolveCodeForSend(String mobile) {
+        if (!testLoginProperties.isEnabledForMobile(mobile)) {
+            return generateCode();
+        }
+        String configuredCode = testLoginProperties.normalizedCode();
+        if (configuredCode == null || !configuredCode.matches("\\d{6}")) {
+            throw new BusinessException(
+                ResponseCode.BAD_REQUEST,
+                "短信测试登录配置无效：PETLIFE_AUTH_SMS_TEST_LOGIN_CODE 必须为 6 位数字"
+            );
+        }
+        // 测试白名单只改变本次验证码来源，后续仍走 hash 入库、频控、过期和一次性校验。
+        return configuredCode;
     }
 
     private String generateSalt() {

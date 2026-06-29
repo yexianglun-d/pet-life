@@ -62,3 +62,9 @@ petlife:
       base-url: ${PETLIFE_AMAP_WEB_SERVICE_BASE_URL:https://restapi.amap.com}
       connect-timeout-ms: ${PETLIFE_AMAP_WEB_SERVICE_CONNECT_TIMEOUT_MS:3000}
       read-timeout-ms: ${PETLIFE_AMAP_WEB_SERVICE_READ_TIMEOUT_MS:5000}
+  auth:
+    sms:
+      test-login:
+        enabled: ${PETLIFE_AUTH_SMS_TEST_LOGIN_ENABLED:false}
+        mobile-whitelist: ${PETLIFE_AUTH_SMS_TEST_LOGIN_MOBILES:}
+        code: ${PETLIFE_AUTH_SMS_TEST_LOGIN_CODE:}

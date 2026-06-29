@@ -114,6 +114,7 @@
 - 同手机号 + 同 scene 每小时最多 5 次
 - 同 IP + 同 scene 每小时最多 20 次
 - 当前不接真实短信 SDK，默认 `dev_noop` 供应商只表示服务端已受理并记录发送请求，不返回、不打印、不落库明文验证码
+- 测试环境可显式开启 `PETLIFE_AUTH_SMS_TEST_LOGIN_ENABLED=true`，并通过 `PETLIFE_AUTH_SMS_TEST_LOGIN_MOBILES` 与 `PETLIFE_AUTH_SMS_TEST_LOGIN_CODE` 配置手机号白名单测试码；命中白名单时仍走发送记录、hash+salt 落库、过期、错误次数和使用后失效，不返回或持久化明文验证码
 
 响应关键字段：
 

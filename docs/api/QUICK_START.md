@@ -76,7 +76,7 @@ Body (JSON):
 }
 ```
 
-`code` 示例不是固定验证码，应填写短信中收到的 6 位验证码。当前服务端默认 `dev_noop` 短信供应商只记录发送受理状态，不返回调试验证码；联调登录需要先接入真实短信供应商或由测试环境提供安全验证码注入方式。
+`code` 示例不是固定验证码，应填写短信中收到的 6 位验证码。当前服务端默认 `dev_noop` 短信供应商只记录发送受理状态，不返回调试验证码；联调登录可接入真实短信供应商，或在测试环境显式配置 `PETLIFE_AUTH_SMS_TEST_LOGIN_ENABLED=true`、`PETLIFE_AUTH_SMS_TEST_LOGIN_MOBILES` 和 `PETLIFE_AUTH_SMS_TEST_LOGIN_CODE`。测试码仍只以 hash+salt 入库，不会出现在响应或后台查询中。
 
 **重要**：在登录接口的 **Tests** 标签添加以下脚本，自动保存 Token：
 

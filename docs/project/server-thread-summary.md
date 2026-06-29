@@ -7,6 +7,62 @@
 - 如功能状态变化，同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 按完整交付标准记录，不使用阶段性表述。
 
+## 2026-06-03 短信验证码测试白名单登录配置
+
+### 新完成内容
+
+- 新增服务端测试环境短信登录白名单配置，支持通过 `PETLIFE_AUTH_SMS_TEST_LOGIN_ENABLED`、`PETLIFE_AUTH_SMS_TEST_LOGIN_MOBILES`、`PETLIFE_AUTH_SMS_TEST_LOGIN_CODE` 指定可用于联调的手机号和 6 位测试码。
+- 白名单命中后仍必须先调用 `POST /api/v1/auth/sms/send` 生成验证码记录，登录仍走 hash+salt 校验、过期、错误次数和使用后失效，不新增登录绕过接口。
+- 测试码不写入明文字段、不返回给 App、不出现在后台短信排查接口；配置非法时在失效旧验证码前直接拒绝，避免破坏已有验证码状态。
+- 同步 OpenAPI、技术文档、联调文档和项目状态清单，明确真实短信供应商仍未接入。
+
+### 新增/修改文件
+
+- 新增：`server/src/main/java/com/petlife/server/modules/auth/service/AuthSmsTestLoginProperties.java`
+- 新增：`server/src/test/java/com/petlife/server/modules/auth/service/SmsVerificationApplicationServiceTests.java`
+- 修改：`server/src/main/java/com/petlife/server/modules/auth/service/SmsVerificationApplicationService.java`
+- 修改：`server/src/main/resources/application.yml`
+- 修改：`server/src/test/java/com/petlife/server/bootstrap/PhaseOneApiTests.java`
+- 修改：`docs/api/petlife-openapi.yaml`
+- 修改：`docs/api/QUICK_START.md`
+- 修改：`docs/api/POSTMAN_SETUP.md`
+- 修改：`docs/technical/02-api-and-events.md`
+- 修改：`docs/project/server-thread-summary.md`
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 修改：`docs/project/mobile-app-thread-summary.md`
+- 修改：`docs/project/02-feature-completion-checklist.md`
+- 修改：`docs/project/01-current-delivery-status.md`
+
+### 验证命令与结果
+
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`
+  - 结果：通过。
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 -Dtest=SmsVerificationApplicationServiceTests test`
+  - 结果：通过，`Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`。
+- `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`
+  - 结果：通过，`Tests run: 11, Failures: 0, Errors: 0, Skipped: 0`。
+- 使用远程 MySQL 配置运行 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -Pintegration-tests -Dtest=PhaseOneApiTests#shouldLoginWithConfiguredTestCodeForWhitelistedMobileWithoutLeakingPlainCode test`
+  - 结果：通过，`Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`。
+- `ruby -e "require 'yaml'; YAML.load_file('docs/api/petlife-openapi.yaml'); puts 'openapi yaml ok'"`
+  - 结果：通过，输出 `openapi yaml ok`。
+- `git diff --check`
+  - 结果：通过。
+
+### 未完成事项
+
+- 真实短信供应商 SDK、模板备案、签名、回执、失败告警和通道健康检查仍未接入。
+- 测试白名单只是无真实短信供应商时的联调支撑，不能替代真实短信送达验收。
+
+### 风险或阻塞
+
+- 测试手机号必须由服务端运行环境显式配置白名单和 6 位测试码；默认关闭时，`dev_noop` 仍不会让用户收到短信。
+- 生产环境不得开启测试白名单配置，否则会形成可预测验证码风险。
+
+### 下一步建议
+
+1. 测试环境按需配置白名单手机号和测试码，让 mobile-app 使用正常发送验证码和短信登录流程联调。
+2. 进入真实短信供应商接入时，继续复用 `SmsProvider` 抽象，保持验证码明文只在发送瞬间存在于内存中。
+
 ## 2026-05-31 Maven 打包数据源与集成测试边界收口
 
 ### 新完成内容

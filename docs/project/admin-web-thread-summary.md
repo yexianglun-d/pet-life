@@ -7,6 +7,38 @@
 - 若功能状态变化，必须同步更新 `docs/project/02-feature-completion-checklist.md` 和 `docs/project/01-current-delivery-status.md`。
 - 所有状态按完整交付标准记录，不使用阶段性跑通口径。
 
+## 2026-06-03 服务端短信测试白名单配置同步
+
+### 1. 新完成内容
+
+- 服务端新增测试环境短信登录白名单配置，支持无真实短信供应商时用配置测试码完成正常短信登录链路。
+- 本轮未修改 admin-web 源码；后台短信验证码排查接口仍不返回明文验证码、`code_hash` 或 `salt`。
+
+### 2. 新增/修改文件
+
+- 修改：`docs/project/admin-web-thread-summary.md`
+- 服务端代码、OpenAPI 和技术文档变更见 `docs/project/server-thread-summary.md` 同日记录。
+
+### 3. 验证命令与结果
+
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 -DskipTests compile`：通过。
+- 服务端 `mvn -Dmaven.repo.local=/tmp/petlife-m2 test`：通过，`Tests run: 11, Failures: 0, Errors: 0, Skipped: 0`。
+- 使用远程 MySQL 配置运行服务端新增集成单用例：通过，`Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`。
+- OpenAPI YAML 解析：通过。
+- `git diff --check`：通过。
+
+### 4. 未完成事项
+
+- 真实短信供应商、发送回执、失败报表和通道健康检查仍未接入。
+
+### 5. 风险或阻塞
+
+- 测试白名单默认关闭；后台不能通过短信排查页查看明文测试码，需要由服务端运行环境配置并安全分发给测试人员。
+
+### 6. 下一步建议
+
+1. 如测试环境启用白名单，后台短信排查页只用于确认发送记录、校验状态和失败原因，不展示验证码明文。
+
 ## 2026-05-31 页面说明文案收口
 
 ### 1. 新完成内容

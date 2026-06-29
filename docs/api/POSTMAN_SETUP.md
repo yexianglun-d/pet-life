@@ -181,7 +181,10 @@ POST {{base_url}}/api/v1/auth/login/sms
 }
 
 # code 示例不是固定验证码，应填写短信中收到的 6 位验证码。
-# 当前默认 dev_noop 短信供应商不会返回调试验证码；联调登录需要真实短信供应商或测试环境安全注入验证码。
+# 当前默认 dev_noop 短信供应商不会返回调试验证码；联调登录需要真实短信供应商，
+# 或在测试环境显式配置 PETLIFE_AUTH_SMS_TEST_LOGIN_ENABLED=true、
+# PETLIFE_AUTH_SMS_TEST_LOGIN_MOBILES、PETLIFE_AUTH_SMS_TEST_LOGIN_CODE。
+# 测试码仍只以 hash+salt 入库，不会出现在响应或后台查询中。
 
 # 响应会包含 access_token 和 refresh_token
 # 建议在 Tests 脚本中自动保存到环境变量：

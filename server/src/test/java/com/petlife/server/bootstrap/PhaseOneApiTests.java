@@ -46,7 +46,12 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code -Pintegration-tests} 显式执行。</p>
  */
 @Tag("integration")
-@SpringBootTest(properties = "petlife.amap.web-service.key=")
+@SpringBootTest(properties = {
+    "petlife.amap.web-service.key=",
+    "petlife.auth.sms.test-login.enabled=true",
+    "petlife.auth.sms.test-login.mobile-whitelist=13900001111",
+    "petlife.auth.sms.test-login.code=654321"
+})
 @AutoConfigureMockMvc
 @Transactional
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -557,6 +562,52 @@ class PhaseOneApiTests {
         assertFalse(responseBody.contains(codeHash));
         assertFalse(responseBody.contains(salt));
         assertFalse(responseBody.contains("123456"));
+    }
+
+    @Test
+    void shouldLoginWithConfiguredTestCodeForWhitelistedMobileWithoutLeakingPlainCode() throws Exception {
+        String mobile = "13900001111";
+        resetSmsSendWindow(mobile);
+
+        String responseBody = mockMvc.perform(post("/api/v1/auth/sms/send")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "scene": "login"
+                    }
+                    """.formatted(mobile)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.sent", is(true)))
+            .andExpect(jsonPath("$.data.mocked_code").doesNotExist())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String salt = latestSmsCodeSalt(mobile);
+        assertEquals(hashSmsCode(salt, mobile, TEST_SMS_SCENE, TEST_SMS_CODE), latestSmsCodeHash(mobile));
+        assertFalse(responseBody.contains(TEST_SMS_CODE));
+        assertFalse(responseBody.contains(salt));
+
+        mockMvc.perform(post("/api/v1/auth/login/sms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "mobile": "%s",
+                      "code": "%s"
+                    }
+                    """.formatted(mobile, TEST_SMS_CODE)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code", is("OK")));
+
+        String status = jdbcTemplate.queryForObject("""
+            SELECT status
+            FROM sms_verification_codes
+            WHERE mobile = ? AND scene = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """, String.class, mobile, TEST_SMS_SCENE);
+        assertEquals("verified", status);
     }
 
     @Test
